@@ -1,0 +1,175 @@
+---
+title: Security & Audit
+description: RBAC, ABAC policies, field encryption, optimistic locking, rate limiting, and the audit trail.
+---
+
+# Security & Audit
+
+## Role-based access control (RBAC)
+
+Permissions are declared per entity per role in the manifest:
+
+```yaml
+permissions:
+  Admin:      [read, delete]
+  Accountant: [create, read, update]
+  Viewer:     [read]
+```
+
+The available operations are `create`, `read`, `update`, and `delete`. The semantics are OR: any role the current user holds that is listed for the requested operation grants access. A `Viewer` can read. An `Admin` can read or delete, but not create or update.
+
+The Maven plugin translates these into Elide `@ReadPermission`, `@CreatePermission`, `@UpdatePermission`, and `@DeletePermission` annotations on the generated entity class.
+
+Roles are named strings declared in a `RoleDefinition` manifest and assigned to users at account creation or update time. The billing demo uses two domain roles: `Accountant` and `Viewer`.
+
+> **Note:** `SuperAdmin` and `TenantAdmin` are **platform authorities** stored as boolean flags on `AperturePrincipal`, not domain roles. Do not declare them in `RoleDefinition` manifests or reference them in entity permissions — they are for platform-level management operations only.
+
+## Attribute-based access control (ABAC)
+
+ABAC policies are SpEL expressions evaluated against the current principal's attributes at request time. They are declared as `AbacPolicy` manifests:
+
+```yaml
+apiVersion: aperture.itsjool.com/v1
+kind: AbacPolicy
+metadata:
+  name: FinanceTeamOnly
+spec:
+  expression: "#user.securityAttributes['department'] == 'finance'"
+```
+
+```yaml
+apiVersion: aperture.itsjool.com/v1
+kind: AbacPolicy
+metadata:
+  name: EuRegionOnly
+spec:
+  expression: "#user.securityAttributes['region'] == 'eu'"
+```
+
+Policies are referenced by name in the entity manifest:
+
+```yaml
+policies:
+  FinanceTeamOnly: [read, update]
+  EuRegionOnly:    [read, update]
+```
+
+The semantics are AND (per policy) combined with RBAC (OR):
+
+1. The user's role must grant the operation (RBAC, OR semantics)
+2. **All** listed policies for that operation must pass (ABAC, AND semantics)
+
+A user with the `Accountant` role and `department: finance` and `region: eu` can read and update invoices. An `Accountant` without `department: finance` cannot — even though the role grants access. Both `FinanceTeamOnly` and `EuRegionOnly` must pass.
+
+Security attributes are admin-assigned claims stored in the JSONB `securityAttributes` column on the user record. They are set by administrators at account creation or when updating a user — ordinary users cannot modify their own security attributes. ABAC policies enforce attribute-based access by checking these admin-controlled values.
+
+## Field-level encryption
+
+Individual fields can be encrypted at rest by adding `encrypted: true` in the manifest:
+
+```yaml
+fields:
+  email:
+    type: string
+    encrypted: true
+```
+
+The implementation uses AES-256-GCM with a random 12-byte IV generated per value. The encrypted value is stored in PostgreSQL as a Base64-encoded string: `IV (12 bytes) || ciphertext || GCM auth tag`.
+
+The encryption key is a 32-byte Base64-encoded value provided via environment variable — never in code:
+
+```yaml
+aperture:
+  encryption:
+    local:
+      key: ${APERTURE_ENCRYPTION_KEY}
+```
+
+**What "encrypted at rest" means here:** the column value in PostgreSQL is ciphertext. An attacker with direct database access sees Base64 strings, not plaintext. Decryption happens in the JVM at read time. The key must be present and correct or decryption fails.
+
+Deterministic encryption (same IV derived from plaintext SHA-256) is also supported for fields that need `unique:` constraints, since random IVs produce different ciphertexts for the same value.
+
+## Optimistic locking
+
+Add `optimisticLocking: true` to an entity to require concurrent-update protection:
+
+```yaml
+spec:
+  optimisticLocking: true
+```
+
+The changeset generator adds a `version INTEGER NOT NULL DEFAULT 0` column. Every API response includes an `ETag` header containing the current version. `PUT`, `PATCH`, and `DELETE` requests must include the `If-Match` header:
+
+```bash
+# Fetch resource and note ETag
+curl -I http://localhost:8080/api/v1/customers/1 \
+  -H "Authorization: Bearer $TOKEN"
+# ETag: "0"
+
+# Update with ETag
+curl -X PATCH http://localhost:8080/api/v1/customers/1 \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "If-Match: \"0\"" \
+  -H "Content-Type: application/vnd.api+json" \
+  -d '...'
+```
+
+| Scenario | Response |
+|---|---|
+| `If-Match` matches current version | 200 OK, version incremented |
+| `If-Match` is stale (another write occurred) | 412 Precondition Failed |
+| `If-Match` header missing | 428 Precondition Required |
+
+Use optimistic locking for high-contention entities (e.g., `Customer`) where silent overwrites of concurrent edits would cause data loss.
+
+## Rate limiting
+
+The built-in rate limiter uses a token bucket algorithm per `(tenant, user, operation)` triple. Default capacity and refill rates are configurable:
+
+```yaml
+aperture:
+  rateLimit:
+    enabled: true
+    capacity: 100
+    refillTokens: 10
+    refillPeriodSeconds: 1
+```
+
+When a request is rate-limited, Aperture returns `429 Too Many Requests` with headers:
+
+```
+X-RateLimit-Remaining: 0
+X-RateLimit-Reset: 1750000000
+```
+
+The `RateLimitProvider` SPI allows swapping the implementation. The reference implementation keeps state in memory — suitable for single-instance deployments. For distributed/multi-instance deployments, implement `RateLimitProvider` backed by Redis or another shared store.
+
+## The audit trail
+
+Every `CREATE`, `UPDATE`, and `DELETE` operation is written to an audit log. The `JdbcAuditWriter` implementation uses a background queue and batch inserts for low write amplification:
+
+```sql
+-- aperture_audit_log schema
+id         UUID     PRIMARY KEY
+user_id    TEXT     NOT NULL
+tenant_id  TEXT
+entity     TEXT     NOT NULL
+entity_id  TEXT     NOT NULL
+operation  TEXT     NOT NULL     -- CREATE, UPDATE, DELETE
+timestamp  TIMESTAMPTZ NOT NULL
+details    JSONB                 -- before/after values, request metadata
+```
+
+Each `AuditEvent` carries: `userId`, `tenantId`, `entity` (entity type name), `entityId`, `operation`, and `detailsJson` (a JSON blob with context).
+
+**Write guarantee:** `JdbcAuditWriter` uses an in-memory queue with a capacity of 10,000 events processed by a single background thread. Events are dispatched after the Elide transaction commits — they are not in the same transaction, so audit write failures do not roll back the operation. If you need transactional audit guarantees (fail the mutation if audit fails), implement `AuditWriter` with a transactional outbox pattern.
+
+**Querying audit logs:** `GET /manage/audit` (requires `SuperAdmin` or same-tenant `TenantAdmin`). Supports filtering by `tenantId`, `entity`, `userId`, and date range.
+
+**Custom audit destinations:** implement the `AuditWriter` SPI to route audit events to Kafka, S3, a SIEM, or any other destination.
+
+```java
+public interface AuditWriter {
+    void write(AuditEvent event);
+}
+```

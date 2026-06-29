@@ -1,0 +1,105 @@
+/* ── Accent / brand — warm sage green ───────────────────── */
+:root {
+  --vp-c-brand-1:    #4a7c59;
+  --vp-c-brand-2:    #3d6b4a;
+  --vp-c-brand-3:    #5e9170;
+  --vp-c-brand-soft: rgba(74, 124, 89, 0.12);
+}
+
+/* ── VitePress surface tokens — light ───────────────────── */
+:root {
+  --vp-c-bg:          #faf8f4;
+  --vp-c-bg-soft:     #f2ede4;
+  --vp-c-bg-alt:      #ece7de;
+  --vp-c-bg-elv:      #ffffff;
+
+  --vp-c-text-1:      #2c2925;
+  --vp-c-text-2:      rgba(55, 51, 44, 0.80);
+  --vp-c-text-3:      rgba(55, 51, 44, 0.56);
+
+  --vp-c-border:      #dedad2;
+  --vp-c-divider:     #e8e3da;
+
+  --vp-code-block-bg: #ece7de;
+}
+
+/* ── VitePress surface tokens — dark ────────────────────── */
+.dark {
+  /* Warm medium-dark browns — light enough to be comfortable,
+     spread ~7 lightness points apart so each zone is clearly delineable. */
+  --vp-c-bg:          #3e3528;   /* main content area  */
+  --vp-c-bg-soft:     #352d22;   /* sidebar / aside    */
+  --vp-c-bg-alt:      #2b2419;   /* navbar / darkest   */
+  --vp-c-bg-elv:      #4b4033;   /* dropdowns, badges  */
+
+  --vp-c-text-1:      rgba(240, 234, 224, 0.92);
+  --vp-c-text-2:      rgba(215, 207, 195, 0.76);
+  --vp-c-text-3:      rgba(215, 207, 195, 0.52);
+
+  --vp-c-border:      #5c5044;
+  --vp-c-divider:     #4b4033;
+
+  --vp-code-block-bg: #2b2419;
+}
+
+/* ── Homepage tokens — light ─────────────────────────────── */
+:root {
+  --home-bg:        #faf8f4;
+  --home-surface:   #ffffff;
+  --home-surface-2: #f2ede4;
+  --home-text:      #2c2925;
+  --home-text-2:    #514c45;
+  --home-muted:     #7d7469;
+  --home-border:    #dedad2;
+  --home-accent:    #4a7c59;
+  --home-accent-2:  #5e9170;
+  --home-code-bg:   #17140f;
+  --home-code-text: #d4cdc3;
+}
+
+/* ── Homepage tokens — dark ──────────────────────────────── */
+.dark {
+  --home-bg:        #352d22;   /* page background      */
+  --home-surface:   #3e3528;   /* alternating sections */
+  --home-surface-2: #4b4033;   /* cards, icon boxes    */
+  --home-text:      #f0ead9;
+  --home-text-2:    #c4bbb0;
+  --home-muted:     #8f8479;
+  --home-border:    #5c5044;
+  --home-accent:    #6aab81;
+  --home-accent-2:  #7fbd96;
+}
+
+.vp-brand-wordmark {
+  display: block;
+  width: auto;
+  height: 84px;
+  color: var(--vp-c-text-1);
+}
+
+.h-logo-wordmark .brand-wordmark-accent,
+.vp-brand-wordmark .brand-wordmark-accent {
+  color: var(--vp-c-brand-1);
+}
+
+.h-logo:hover .h-logo-wordmark {
+  color: var(--vp-c-brand-1);
+}
+
+.h-logo:hover .h-logo-wordmark .brand-wordmark-accent {
+  color: var(--vp-c-brand-2);
+}
+
+.VPNavBarTitle .title:hover .vp-brand-wordmark {
+  color: var(--vp-c-brand-1);
+}
+
+.VPNavBarTitle .title:hover .vp-brand-wordmark .brand-wordmark-accent {
+  color: var(--vp-c-brand-2);
+}
+
+@media (max-width: 767px) {
+  .vp-brand-wordmark {
+    height: 72px;
+  }
+}
