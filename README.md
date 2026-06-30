@@ -73,29 +73,29 @@ The runtime wires JWT + API-key auth, multi-tenancy, rate limiting, audit loggin
 
 ## Repository layout
 
-```
-core/                         Provider contracts, code generation, runtime mechanics
-  aperture-core-engine        Parses YAML manifests into the domain model
-  aperture-core-runtime       Spring Boot filters, hooks, audit, tenant context
-  aperture-changeset          Generates Liquibase changesets from the domain model
-  aperture-mcp                Generates MCP tool stubs from the domain model
-  aperture-maven-plugin       Drives generation during the Maven build
-  aperture-provider-spi       SPI interfaces (CredentialValidator, PrincipalMapper, …)
-
-implementations/              Replaceable provider implementations
-  simple-aperture-api-server
-    aperture-simple-auth      JWT + API-key auth
-    aperture-simple-audit     JDBC audit writer
-    aperture-simple-encryption  AES-GCM field encryption
-    aperture-simple-ratelimit   In-memory rate limiting
-    aperture-simple-mcp       MCP adapter bridging tool calls to JSON:API
-    aperture-simple-starter   Spring Boot auto-configuration
-
-demos/
-  aperture-demo               Reference demo — POOL tenancy, full feature set, component tests
-  aperture-single-tenant-demo Single-tenant (NONE mode) — no tenant column, /manage/tenants disabled
-  aperture-keycloak-demo      External IdP via CredentialValidator/PrincipalMapper SPI
-  aperture-vault-demo         Enterprise KMS encryption via EncryptionService SPI (HashiCorp Vault)
+```mermaid
+mindmap
+  root((aperture))
+    core
+      aperture-core-engine
+      aperture-core-runtime
+      aperture-changeset
+      aperture-mcp
+      aperture-maven-plugin
+      aperture-provider-spi
+    implementations
+      simple-aperture-api-server
+        aperture-simple-auth
+        aperture-simple-audit
+        aperture-simple-encryption
+        aperture-simple-ratelimit
+        aperture-simple-mcp
+        aperture-simple-starter
+    demos
+      aperture-demo
+      aperture-single-tenant-demo
+      aperture-keycloak-demo
+      aperture-vault-demo
 ```
 
 Dependencies flow `demos → implementations → core`. Core has no dependency on any implementation or demo.
