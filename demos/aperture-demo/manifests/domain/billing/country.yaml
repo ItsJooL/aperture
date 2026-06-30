@@ -1,0 +1,24 @@
+apiVersion: aperture.itsjool.com/v1
+kind: Entity
+metadata:
+  name: Country
+spec:
+  description: "A country reference used for region-based policies"
+  plural: Countries
+  tenantScoped: false
+  fields:
+    code:
+      type: string
+      description: "ISO 3166-1 alpha-2 country code"
+    name:
+      type: string
+      description: "Full country name"
+  permissions:
+    Accountant: [read]
+    Viewer: [read]
+  hooks:
+    AuditCountry:
+      phase: PRESECURITY
+      async: false
+      onFailure: passthrough
+      url: http://hook-service:8080/hooks/audit-country

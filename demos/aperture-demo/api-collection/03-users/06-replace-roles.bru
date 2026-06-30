@@ -1,0 +1,25 @@
+meta {
+  name: Replace User Roles
+  type: http
+  seq: 6
+}
+
+put {
+  url: {{baseUrl}}/manage/tenants/{{tenantId}}/users/{{viewerUserId}}/roles
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{superadminToken}}
+}
+
+body:json {
+  {
+    "roleNames": ["Accountant"]
+  }
+}
+
+assert {
+  res.status: eq 200
+}

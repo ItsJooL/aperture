@@ -1,0 +1,27 @@
+meta {
+  name: Update User Attributes
+  type: http
+  seq: 5
+}
+
+patch {
+  url: {{baseUrl}}/manage/tenants/{{tenantId}}/users/{{viewerUserId}}
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{superadminToken}}
+}
+
+body:json {
+  {
+    "attributes": {
+      "department": "finance"
+    }
+  }
+}
+
+assert {
+  res.status: eq 200
+}

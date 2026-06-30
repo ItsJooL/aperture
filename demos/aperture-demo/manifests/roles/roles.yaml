@@ -1,0 +1,11 @@
+apiVersion: aperture.itsjool.com/v1
+kind: RoleDefinition
+metadata:
+  name: roles
+spec:
+  roles:
+
+    Accountant:
+      description: "Financial ops"
+    Viewer:
+      description: "Read only"

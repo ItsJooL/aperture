@@ -1,0 +1,47 @@
+{
+  "name": "aperture-demo-ui-v2-2",
+  "version": "2.2.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=20.19.0"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "vue-tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:unit": "vitest run tests/unit",
+    "test:integration": "vitest run tests/integration",
+    "test:e2e": "playwright test",
+    "test:e2e-docker": "playwright test --config=playwright.docker.config.ts",
+    "typecheck": "vue-tsc --noEmit",
+    "dev:mock-api": "node mock-api/server.mjs",
+    "dev:mock-notes": "echo \"Run npm run dev:mock-api in one terminal, then cp .env.mock.example .env.local && npm run dev in another.\""
+  },
+  "dependencies": {
+    "@lucide/vue": "1.21.0",
+
+    "@vueuse/core": "13.9.0",
+    "class-variance-authority": "0.7.1",
+    "clsx": "2.1.1",
+    "pinia": "2.3.1",
+    "tailwind-merge": "2.6.0",
+    "vue": "3.5.38",
+    "vue-router": "4.6.4"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.61.0",
+    "@vitejs/plugin-vue": "6.0.7",
+    "@vue/test-utils": "2.4.11",
+    "autoprefixer": "10.5.0",
+    "jsdom": "25.0.1",
+    "msw": "2.14.6",
+    "postcss": "8.5.15",
+    "tailwindcss": "3.4.17",
+    "typescript": "5.9.3",
+    "vite": "6.4.2",
+    "vitest": "2.1.9",
+    "vue-tsc": "2.2.10"
+  }
+}

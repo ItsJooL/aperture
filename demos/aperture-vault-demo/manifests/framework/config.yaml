@@ -1,0 +1,10 @@
+apiVersion: aperture.itsjool.com/v1
+kind: FrameworkConfig
+metadata:
+  name: aperture-config
+spec:
+  tenancy:
+    mode: POOL
+    tenantEntity: Tenant
+  defaultRoles:
+    - Doctor

@@ -1,0 +1,67 @@
+elide:
+  json-api:
+    path: /api/
+    enabled: true
+  graphql:
+    path: /graphql
+    enabled: true
+  api-versioning-strategy:
+    path:
+      enabled: true
+
+spring:
+  jackson:
+    deserialization:
+      fail-on-unknown-properties: false
+  application:
+    name: aperture-demo
+  ai:
+    mcp:
+      server:
+        protocol: STATELESS
+        name: "Aperture MCP Server"
+        version: "1.0"
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/aperture}
+    username: ${DB_USER:aperture}
+    password: ${DB_PASS:password}
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    open-in-view: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+  liquibase:
+    change-log: classpath:db/changelog/db.changelog-master.xml
+
+aperture:
+  cors:
+    allowed-origins:
+      - http://localhost:5173
+      - http://localhost:3780
+  mcp:
+    enabled: true
+  auth:
+    # Demo-only default. Production deployments must set this property explicitly.
+    refresh-duration: ${APERTURE_REFRESH_DURATION:PT720H}
+    jwt:
+      # Demo-only defaults. Override all values outside local demo use.
+      secret: ${APERTURE_JWT_SECRET:demo-only-jwt-secret-change-me-32-bytes-minimum}
+      issuer: ${APERTURE_JWT_ISSUER:aperture-demo}
+      audience: ${APERTURE_JWT_AUDIENCE:aperture-demo-api}
+      access-duration: ${APERTURE_JWT_ACCESS_DURATION:PT15M}
+
+springdoc:
+  swagger-ui:
+    enabled: true
+    path: /swagger-ui.html
+    operations-sorter: alpha
+    tags-sorter: alpha
+    try-it-out-enabled: true
+  api-docs:
+    enabled: true
+    path: /v3/api-docs
+  default-produces-media-type: application/json
+  packages-to-scan:
+    - com.itsjool.aperture.runtime.controller
+    - com.itsjool.aperture.auth

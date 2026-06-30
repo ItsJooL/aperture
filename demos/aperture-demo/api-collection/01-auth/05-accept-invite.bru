@@ -1,0 +1,23 @@
+meta {
+  name: Accept Invite (example)
+  type: http
+  seq: 5
+}
+
+post {
+  url: {{baseUrl}}/auth/accept-invite
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "token": "{{inviteToken}}",
+    "username": "invited@bruno-demo.com",
+    "password": "Invited123!"
+  }
+}
+
+assert {
+  res.status: neq 500
+}

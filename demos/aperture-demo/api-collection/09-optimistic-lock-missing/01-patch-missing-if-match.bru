@@ -1,0 +1,36 @@
+meta {
+  name: Patch Customer without If-Match
+  type: http
+  seq: 1
+}
+
+patch {
+  url: {{baseUrl}}/api/v1/customers/{{customerId}}
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tenantAdminToken}}
+}
+
+headers {
+  Content-Type: application/vnd.api+json
+  Accept: application/vnd.api+json
+}
+
+body:json {
+  {
+    "data": {
+      "type": "customers",
+      "id": "{{customerId}}",
+      "attributes": {
+        "name": "Missing If-Match Corp"
+      }
+    }
+  }
+}
+
+assert {
+  res.status: eq 428
+}

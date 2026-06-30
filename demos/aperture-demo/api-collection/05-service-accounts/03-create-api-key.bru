@@ -1,0 +1,34 @@
+meta {
+  name: Create API Key
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{baseUrl}}/auth/me/api-keys
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tenantAdminToken}}
+}
+
+body:json {
+  {
+    "name": "My API Key",
+    "domainRoles": [],
+    "securityAttributes": {}
+  }
+}
+
+script:post-response {
+  if (res.status === 201) {
+    bru.setVar("apiKeyId", res.body.record.id);
+  }
+}
+
+assert {
+  res.status: eq 201
+  res.body.record.id: isDefined
+}

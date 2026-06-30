@@ -1,0 +1,19 @@
+meta {
+  name: Disable API Key
+  type: http
+  seq: 6
+}
+
+post {
+  url: {{baseUrl}}/auth/me/api-keys/{{apiKeyId}}/disable
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tenantAdminToken}}
+}
+
+assert {
+  res.status: eq 200
+}

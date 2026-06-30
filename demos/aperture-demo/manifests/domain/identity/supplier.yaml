@@ -1,0 +1,21 @@
+apiVersion: aperture.itsjool.com/v1
+kind: Entity
+metadata:
+  name: Supplier
+spec:
+  description: "A supplier or vendor within the tenant"
+  tenantScoped: true
+  fields:
+    company_name:
+      type: string
+      required: true
+      description: "Legal company name of the supplier"
+  permissions:
+    Accountant: [read]
+    Viewer: [read]
+  hooks:
+    NotifySupplier:
+      phase: POSTCOMMIT
+      async: true
+      onFailure: warn
+      url: http://hook-service:8080/hooks/notify-supplier

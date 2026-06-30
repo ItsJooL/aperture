@@ -1,0 +1,7 @@
+apiVersion: aperture.itsjool.com/v1
+kind: AbacPolicy
+metadata:
+  name: ActiveUserOnly
+spec:
+  description: "Only users with status=active in attributes"
+  expression: "#user.securityAttributes['status'] == 'active'"

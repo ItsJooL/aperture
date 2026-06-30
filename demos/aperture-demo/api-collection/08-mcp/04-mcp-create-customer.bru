@@ -1,0 +1,41 @@
+meta {
+  name: MCP Create Customer
+  type: http
+  seq: 4
+}
+
+post {
+  url: {{baseUrl}}/mcp
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tenantAdminToken}}
+}
+
+headers {
+  Content-Type: application/json
+  Accept: application/json
+}
+
+body:json {
+  {
+    "jsonrpc": "2.0",
+    "id": 2,
+    "method": "tools/call",
+    "params": {
+      "name": "create_customer",
+      "arguments": {
+        "name": "MCP Bruno Corp",
+        "email": "mcp-bruno@test.com",
+        "phone_number": null
+      }
+    }
+  }
+}
+
+assert {
+  res.status: eq 200
+  res.body.result: isDefined
+}

@@ -1,0 +1,19 @@
+meta {
+  name: Revoke Invite
+  type: http
+  seq: 3
+}
+
+delete {
+  url: {{baseUrl}}/manage/tenants/{{tenantId}}/invites/{{inviteId}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tenantAdminToken}}
+}
+
+assert {
+  res.status: eq 204
+}

@@ -1,0 +1,19 @@
+meta {
+  name: Get Tenant
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{baseUrl}}/manage/tenants/{{tenantId}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{superadminToken}}
+}
+
+assert {
+  res.status: eq 200
+}

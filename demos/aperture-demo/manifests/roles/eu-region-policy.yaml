@@ -1,0 +1,7 @@
+apiVersion: aperture.itsjool.com/v1
+kind: AbacPolicy
+metadata:
+  name: EuRegionOnly
+spec:
+  description: "Restricted to EU region users"
+  expression: "#user.securityAttributes['region'] == 'eu'"

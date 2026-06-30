@@ -1,0 +1,15 @@
+apiVersion: aperture.itsjool.com/v1
+kind: Entity
+metadata:
+  name: Patient
+spec:
+  tenantScoped: true
+  fields:
+    name:
+      type: string
+      required: true
+    medical_history_notes:
+      type: string
+      encrypted: true
+  permissions:
+    Doctor: [create, read, update]

@@ -1,0 +1,20 @@
+meta {
+  name: Get Current User
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/auth/me
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{superadminToken}}
+}
+
+assert {
+  res.status: eq 200
+  res.body.userId: isDefined
+}

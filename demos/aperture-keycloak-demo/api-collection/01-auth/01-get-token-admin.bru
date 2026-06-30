@@ -1,0 +1,29 @@
+meta {
+  name: Get Admin Token
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{keycloakUrl}}/realms/{{keycloakRealm}}/protocol/openid-connect/token
+  body: formUrlEncoded
+  auth: none
+}
+
+body:formUrlEncoded {
+  grant_type: password
+  client_id: {{keycloakClientId}}
+  username: {{adminUsername}}
+  password: {{adminPassword}}
+}
+
+script:post-response {
+  if (res.status === 200) {
+    bru.setVar("adminToken", res.body.access_token);
+  }
+}
+
+assert {
+  res.status: eq 200
+  res.body.access_token: isDefined
+}

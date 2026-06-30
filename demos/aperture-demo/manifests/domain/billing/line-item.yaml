@@ -1,0 +1,41 @@
+apiVersion: aperture.itsjool.com/v1
+kind: Entity
+metadata:
+  name: LineItem
+spec:
+  description: "A single line entry within an invoice"
+  tenantScoped: true
+  fields:
+    description:
+      type: string
+      description: "Description of the line item"
+    price:
+      type: decimal
+      description: "Line item price"
+    product:
+      type: ref
+      target: Product
+      relation: ManyToOne
+      description: "Product associated with this line item"
+    quantity:
+      type: decimal
+      required: true
+      description: "Quantity ordered"
+    unit_price:
+      type: decimal
+      renamedFrom: unitPrice
+      description: "Unit price at time of invoicing"
+    invoice:
+      type: ref
+      target: Invoice
+      relation: ManyToOne
+      description: "Invoice this line item belongs to"
+  permissions:
+    Accountant: [create, read, update]
+    Viewer: [read]
+  hooks:
+    CheckLineItem:
+      phase: PRESECURITY
+      async: false
+      onFailure: reject
+      url: http://hook-service:8080/hooks/check-line-item

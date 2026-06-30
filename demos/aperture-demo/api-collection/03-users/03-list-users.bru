@@ -1,0 +1,21 @@
+meta {
+  name: List Users
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{baseUrl}}/manage/tenants/{{tenantId}}/users?page=0&size=20
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{superadminToken}}
+}
+
+assert {
+  res.status: eq 200
+  res.body.items: isDefined
+  res.body.total: isDefined
+}

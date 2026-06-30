@@ -1,0 +1,44 @@
+meta {
+  name: Atomic — Delete Invoice and Line Items
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{baseUrl}}/api/v1/operations
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tenantAdminToken}}
+}
+
+headers {
+  Content-Type: application/vnd.api+json;ext="https://jsonapi.org/ext/atomic"
+  Accept: application/vnd.api+json;ext="https://jsonapi.org/ext/atomic"
+}
+
+body:json {
+  {
+    "atomic:operations": [
+      {
+        "op": "remove",
+        "ref": {
+          "type": "invoices",
+          "id": "{{atomicInvoiceId}}"
+        }
+      }
+    ]
+  }
+}
+
+docs {
+  Deletes the invoice created in request 01. Run 01 first to populate
+  {{atomicInvoiceId}}. Line items cascade-delete with the invoice
+  (configured via JPA cascade in the generated entity).
+}
+
+assert {
+  res.status: eq 200
+}

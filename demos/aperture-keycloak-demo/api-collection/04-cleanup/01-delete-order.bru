@@ -1,0 +1,23 @@
+meta {
+  name: Delete Order
+  type: http
+  seq: 1
+}
+
+delete {
+  url: {{baseUrl}}/api/v1/orders/{{orderId}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{adminToken}}
+}
+
+headers {
+  Accept: application/vnd.api+json
+}
+
+assert {
+  res.status: eq 204
+}

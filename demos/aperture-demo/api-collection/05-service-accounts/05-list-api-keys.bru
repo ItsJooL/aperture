@@ -1,0 +1,19 @@
+meta {
+  name: List API Keys
+  type: http
+  seq: 5
+}
+
+get {
+  url: {{baseUrl}}/auth/me/api-keys
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tenantAdminToken}}
+}
+
+assert {
+  res.status: eq 200
+}

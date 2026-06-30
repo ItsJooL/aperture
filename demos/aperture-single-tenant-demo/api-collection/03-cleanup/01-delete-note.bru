@@ -1,0 +1,24 @@
+meta {
+  name: Delete Note (Cleanup)
+  type: http
+  seq: 1
+}
+
+delete {
+  url: {{baseUrl}}/api/v1/notes/{{noteId}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+headers {
+  Accept: application/vnd.api+json
+  If-Match: {{noteEtag}}
+}
+
+assert {
+  res.status: eq 204
+}

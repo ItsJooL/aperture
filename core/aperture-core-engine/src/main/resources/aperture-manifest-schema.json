@@ -1,0 +1,148 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "apiVersion": { "type": "string" },
+    "kind": { 
+      "type": "string",
+      "enum": ["Entity", "Migration", "FrameworkConfig", "RoleDefinition", "AbacPolicy", "ApiVersionConfig", "PrincipalAttributeDefinition"]
+    },
+    "metadata": {
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" }
+      },
+      "required": ["name"]
+    },
+    "spec": { "type": "object" }
+  },
+  "required": ["apiVersion", "kind", "metadata", "spec"],
+  "allOf": [
+    {
+      "if": { "properties": { "kind": { "const": "Entity" } } },
+      "then": {
+        "properties": {
+          "spec": {
+            "type": "object",
+            "properties": {
+              "plural": { "type": "string" },
+              "optimisticLocking": { "type": "boolean" },
+              "softDelete": { "type": "boolean" },
+              "tenantScoped": { "type": "boolean" },
+              "pagination": {
+                "type": "object",
+                "properties": {
+                  "defaultSize": { "type": "integer" },
+                  "maxSize": { "type": "integer" }
+                }
+              },
+              "fields": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "object",
+                  "properties": {
+                    "index": { "type": "boolean" }
+                  }
+                }
+              },
+              "permissions": { 
+                "type": "object",
+                "additionalProperties": {
+                  "type": "array",
+                  "items": { "type": "string" }
+                }
+              },
+              "policies": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "array",
+                  "items": { "type": "string" }
+                }
+              },
+              "publicOperations": {
+                "type": "array",
+                "items": { "type": "string" }
+              },
+              "hooks": { "type": "object" }
+            },
+            "required": ["fields"]
+          }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "kind": { "const": "Migration" } } },
+      "then": {
+        "properties": {
+          "spec": {
+            "type": "object",
+            "properties": {
+              "position": { "type": "object" },
+              "rollback": { "type": "string", "minLength": 1 },
+              "sql": { "type": "string" }
+            },
+            "required": ["sql", "rollback"]
+          }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "kind": { "const": "FrameworkConfig" } } },
+      "then": {
+        "properties": {
+          "spec": {
+            "type": "object",
+            "properties": {
+              "defaultRoles": { "type": "array", "items": { "type": "string" } },
+              "tenancyMode": {
+                "type": "string",
+                "enum": ["none", "pool"],
+                "default": "pool"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "kind": { "const": "RoleDefinition" } } },
+      "then": { "properties": { "spec": { "type": "object" } } }
+    },
+    {
+      "if": { "properties": { "kind": { "const": "AbacPolicy" } } },
+      "then": {
+        "properties": {
+          "spec": {
+            "type": "object",
+            "properties": {
+              "expression": { "type": "string" }
+            },
+            "required": ["expression"]
+          }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "kind": { "const": "ApiVersionConfig" } } },
+      "then": {
+        "properties": {
+          "spec": {
+            "type": "object",
+            "properties": {
+              "versions": {
+                "type": "object",
+                "minProperties": 1,
+                "additionalProperties": {
+                  "type": "object",
+                  "properties": { "status": { "type": "string" } },
+                  "required": ["status"]
+                }
+              }
+            },
+            "required": ["versions"]
+          }
+        }
+      }
+    }
+  ]
+}

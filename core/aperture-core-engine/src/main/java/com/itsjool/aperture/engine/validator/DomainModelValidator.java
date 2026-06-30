@@ -1,0 +1,238 @@
+package com.itsjool.aperture.engine.validator;
+
+import com.itsjool.aperture.engine.model.ResolvedDomainModel;
+import com.itsjool.aperture.engine.model.EntityDef;
+import com.itsjool.aperture.engine.model.FieldDef;
+import com.itsjool.aperture.engine.model.HookDef;
+import com.itsjool.aperture.engine.model.RoleDefinitionDef;
+import com.itsjool.aperture.engine.model.FrameworkConfigDef;
+import com.itsjool.aperture.engine.model.AbacPolicyDef;
+import com.itsjool.aperture.engine.model.PrincipalAttributeDefinitionDef;
+
+import java.util.Set;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.regex.Pattern;
+
+public class DomainModelValidator {
+
+    private static final Set<String> VALID_OPERATIONS = Set.of("read", "create", "update", "delete");
+    private static final Set<String> VALID_ABAC_VARIABLES = Set.of("user", "record", "input");
+    private static final Pattern SECURITY_ATTRIBUTE_PATTERN = Pattern.compile("#user\\.securityAttributes(?:\\[['\"]([^'\"]+)['\"]\\]|\\.([a-zA-Z0-9_]+))");
+
+    public void validate(ResolvedDomainModel model, Map<Object, String> locationMap) {
+        Set<String> knownEntityNames = new HashSet<>();
+        for (EntityDef e : model.entities()) {
+            knownEntityNames.add(e.name());
+        }
+
+        Set<String> declaredRoles = new HashSet<>();
+
+        for (RoleDefinitionDef def : model.roleDefinitions()) {
+            if (def.roles() != null) {
+                for (String roleName : def.roles().keySet()) {
+                    if ("SuperAdmin".equals(roleName) || "TenantAdmin".equals(roleName)) {
+                        String loc = locationMap.getOrDefault(def, "unknown file");
+                        throw new ManifestValidationException("Reserved role name in " + loc + " (RoleDefinition): " + roleName);
+                    }
+                    if (!declaredRoles.add(roleName)) {
+                        String loc = locationMap.getOrDefault(def, "unknown file");
+                        throw new ManifestValidationException("Duplicate role name in " + loc + " (RoleDefinition): " + roleName);
+                    }
+                }
+            }
+        }
+
+        if (model.frameworkConfig() != null && model.frameworkConfig().defaultRoles() != null) {
+            for (String defaultRole : model.frameworkConfig().defaultRoles()) {
+                if ("SuperAdmin".equals(defaultRole) || "TenantAdmin".equals(defaultRole)) {
+                    String loc = locationMap.getOrDefault(model.frameworkConfig(), "unknown file");
+                    throw new ManifestValidationException("Reserved role name cannot be used in defaultRoles in " + loc + " (FrameworkConfig): " + defaultRole);
+                }
+                if (!declaredRoles.contains(defaultRole)) {
+                    String loc = locationMap.getOrDefault(model.frameworkConfig(), "unknown file");
+                    throw new ManifestValidationException("Unknown default role referenced in " + loc + " (FrameworkConfig): " + defaultRole);
+                }
+            }
+        }
+        
+        Set<String> declaredPolicies = new HashSet<>();
+        Set<String> declaredSecurityAttributes = new HashSet<>();
+        
+        if (model.principalAttributeDefinitions() != null) {
+            for (PrincipalAttributeDefinitionDef def : model.principalAttributeDefinitions()) {
+                if (def.spec() != null && def.spec().securityAttributes() != null) {
+                    declaredSecurityAttributes.addAll(def.spec().securityAttributes().keySet());
+                }
+            }
+        }
+
+        if (model.abacPolicies() != null) {
+            for (AbacPolicyDef def : model.abacPolicies()) {
+                String loc = locationMap.getOrDefault(def, "unknown file");
+                if (!declaredPolicies.add(def.name())) {
+                    throw new ManifestValidationException("Duplicate policy name in " + loc + ": " + def.name());
+                }
+                String expression = def.expression();
+                if (expression != null) {
+                    if (expression.contains("#user.attributes")) {
+                        throw new ManifestValidationException("Deprecated #user.attributes syntax used in " + loc + " (AbacPolicy " + def.name() + "). Use #user.securityAttributes instead.");
+                    }
+                    java.util.regex.Matcher matcher = SECURITY_ATTRIBUTE_PATTERN.matcher(expression);
+                    while (matcher.find()) {
+                        String key = matcher.group(1) != null ? matcher.group(1) : matcher.group(2);
+                        if (!declaredSecurityAttributes.contains(key)) {
+                            throw new ManifestValidationException("Undeclared security attribute '" + key + "' used in " + loc + " (AbacPolicy " + def.name() + ")");
+                        }
+                    }
+                }
+            }
+        }
+
+        Set<String> usedPolicies = new HashSet<>();
+
+        for (EntityDef entity : model.entities()) {
+            String loc = locationMap.getOrDefault(entity, "unknown file");
+            
+            Set<String> publicOps = new HashSet<>();
+            if (entity.publicOperations() != null) {
+                for (String op : entity.publicOperations()) {
+                    if (!VALID_OPERATIONS.contains(op.toLowerCase())) {
+                        throw new ManifestValidationException("Malformed public operation in " + loc + " (Entity " + entity.name() + "): " + op);
+                    }
+                    publicOps.add(op.toLowerCase());
+                }
+            }
+            
+            Set<String> protectedOps = new HashSet<>();
+
+            if (entity.permissions() != null) {
+                for (Map.Entry<String, List<String>> entry : entity.permissions().entrySet()) {
+                    String roleName = entry.getKey();
+                    if ("SuperAdmin".equals(roleName) || "TenantAdmin".equals(roleName)) {
+                        throw new ManifestValidationException("Reserved role name cannot be used in permissions in " + loc + " (Entity " + entity.name() + "): " + roleName);
+                    }
+                    if (!declaredRoles.contains(roleName)) {
+                        throw new ManifestValidationException("Unknown role referenced by an operation in " + loc + " (Entity " + entity.name() + "): " + roleName);
+                    }
+                    List<String> ops = entry.getValue();
+                    if (ops == null || ops.isEmpty()) {
+                        throw new ManifestValidationException("A permission block that resolves to no role in " + loc + " (Entity " + entity.name() + " role " + roleName + ")");
+                    }
+                    for (String op : ops) {
+                        String lowerOp = op.toLowerCase();
+                        if (!VALID_OPERATIONS.contains(lowerOp)) {
+                            throw new ManifestValidationException("Malformed permission operation in " + loc + " (Entity " + entity.name() + "): " + op);
+                        }
+                        if (publicOps.contains(lowerOp)) {
+                            throw new ManifestValidationException("Operation " + op + " is public and cannot have role/policy rules in " + loc + " (Entity " + entity.name() + ")");
+                        }
+                        protectedOps.add(lowerOp);
+                    }
+                }
+            }
+            
+            if (entity.policies() != null) {
+                for (Map.Entry<String, List<String>> entry : entity.policies().entrySet()) {
+                    String policyName = entry.getKey();
+                    if (!declaredPolicies.contains(policyName)) {
+                        throw new ManifestValidationException("Unknown policy referenced by an operation in " + loc + " (Entity " + entity.name() + "): " + policyName);
+                    }
+                    usedPolicies.add(policyName);
+                    List<String> ops = entry.getValue();
+                    if (ops == null || ops.isEmpty()) {
+                        throw new ManifestValidationException("A policy block that resolves to no operations in " + loc + " (Entity " + entity.name() + " policy " + policyName + ")");
+                    }
+                    
+                    // Validate variables for the policy
+                    String expression = null;
+                    if (model.abacPolicies() != null) {
+                        for (AbacPolicyDef def : model.abacPolicies()) {
+                            if (def.name().equals(policyName)) {
+                                expression = def.expression();
+                                break;
+                            }
+                        }
+                    }
+                    Set<String> variables = expression != null ? SpelVariableExtractor.getVariables(expression) : new HashSet<>();
+                    Set<String> unknownVariables = new java.util.TreeSet<>(variables);
+                    unknownVariables.removeAll(VALID_ABAC_VARIABLES);
+                    if (!unknownVariables.isEmpty()) {
+                        throw new ManifestValidationException(
+                                "Unknown ABAC variable in " + loc + " (Entity " + entity.name()
+                                        + " policy " + policyName + "): " + String.join(", ", unknownVariables));
+                    }
+                    
+                    for (String op : ops) {
+                        String lowerOp = op.toLowerCase();
+                        if (!VALID_OPERATIONS.contains(lowerOp)) {
+                            throw new ManifestValidationException("Malformed policy operation in " + loc + " (Entity " + entity.name() + "): " + op);
+                        }
+                        if (publicOps.contains(lowerOp)) {
+                            throw new ManifestValidationException("Operation " + op + " is public and cannot have role/policy rules in " + loc + " (Entity " + entity.name() + ")");
+                        }
+                        protectedOps.add(lowerOp);
+                        
+                        // Check incompatible variables
+                        if (lowerOp.equals("create")) {
+                            if (variables.contains("record")) {
+                                throw new ManifestValidationException("Incompatible rule phases in " + loc + " (Entity " + entity.name() + " policy " + policyName + "): 'record' is unavailable in create phase");
+                            }
+                        } else {
+                            if (variables.contains("input")) {
+                                throw new ManifestValidationException("Incompatible rule phases in " + loc + " (Entity " + entity.name() + " policy " + policyName + "): 'input' is unavailable in " + lowerOp + " phase");
+                            }
+                        }
+                    }
+                }
+            }
+            
+            if (entity.abacRules() != null && !entity.abacRules().isEmpty()) {
+                throw new ManifestValidationException("Inline abacRules are deprecated. Migrate them to named AbacPolicy documents in " + loc + " (Entity " + entity.name() + ")");
+            }
+
+            if (entity.fields() != null) {
+                for (Map.Entry<String, FieldDef> fieldEntry : entity.fields().entrySet()) {
+                    String fieldName = fieldEntry.getKey();
+                    FieldDef field = fieldEntry.getValue();
+                    if (field.targetClass() != null && !knownEntityNames.contains(field.targetClass())) {
+                        throw new ManifestValidationException(
+                            "Unknown relationship target in " + loc + " (Entity " + entity.name()
+                            + " field " + fieldName + "): '" + field.targetClass()
+                            + "' is not declared as an entity in this domain model");
+                    }
+                }
+            }
+
+            if (entity.hooks() != null) {
+                for (Map.Entry<String, HookDef> hookEntry : entity.hooks().entrySet()) {
+                    String hookName = hookEntry.getKey();
+                    HookDef hookDef = hookEntry.getValue();
+                    if ("PREENRICH".equalsIgnoreCase(hookDef.phase()) && hookDef.async()) {
+                        throw new ManifestValidationException(
+                            "Invalid hook configuration in " + loc + " (Entity " + entity.name()
+                            + " hook " + hookName + "): PREENRICH hooks must be synchronous (async: false) "
+                            + "because they modify entity attributes before persistence");
+                    }
+                }
+            }
+        }
+        
+        for (String policy : declaredPolicies) {
+            if (!usedPolicies.contains(policy)) {
+                // Find location of unused policy
+                String loc = "unknown file";
+                if (model.abacPolicies() != null) {
+                    for (AbacPolicyDef def : model.abacPolicies()) {
+                        if (def.name().equals(policy)) {
+                            loc = locationMap.getOrDefault(def, "unknown file");
+                            break;
+                        }
+                    }
+                }
+                throw new ManifestValidationException("Unattached policy in " + loc + ": " + policy);
+            }
+        }
+    }
+}

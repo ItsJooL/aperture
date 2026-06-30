@@ -1,0 +1,88 @@
+tenants:
+  - name: Acme Corp
+    admin:
+      username: admin@acme.com
+      password: AcmeAdmin123!
+    users:
+      - username: accountant@acme.com
+        password: Accountant123!
+        roles: [Accountant]
+        attributes:
+          department: finance
+          region: eu
+          status: active
+      - username: viewer@acme.com
+        password: Viewer123!
+        roles: [Viewer]
+    suppliers:
+      - companyName: Acme Supplies
+      - companyName: Northwind Office Supplies
+      - companyName: EU Logistics Partners
+    products:
+      - name: Enterprise License
+        sku: ENT-LIC-001
+        category: SOFTWARE
+        unitPrice: 4999.00
+        description: "Full-featured enterprise software licence"
+      - name: Support Package
+        sku: SUP-PKG-001
+        category: SERVICE
+        unitPrice: 999.00
+        description: "Priority support contract"
+      - name: Developer Workstation
+        sku: HW-WRK-001
+        category: HARDWARE
+        unitPrice: 2499.00
+        description: "Pre-configured developer hardware bundle"
+    customers:
+      - name: Acme Corp HQ
+        email: hq@acme.com
+      - name: Acme EU Subsidiary
+        email: eu@acme.com
+      - name: Acme APAC
+        email: apac@acme.com
+    invoices:
+      - customerRef: Acme Corp HQ
+        amount: 4999.00
+        status: PAID
+      - customerRef: Acme EU Subsidiary
+        amount: 999.00
+        status: ISSUED
+      - customerRef: Acme APAC
+        amount: 2499.00
+        status: DRAFT
+
+  - name: TechStart Inc
+    admin:
+      username: admin@techstart.com
+      password: TechAdmin123!
+    users:
+      - username: dev@techstart.com
+        password: DevPass123!
+        roles: [Accountant]
+    suppliers:
+      - companyName: Cloud Components Ltd
+      - companyName: Startup Hardware Depot
+    products:
+      - name: Startup Plan
+        sku: PLAN-START-001
+        category: SUBSCRIPTION
+        unitPrice: 49.00
+        description: "Monthly subscription — up to 5 seats"
+      - name: Pro Plan
+        sku: PLAN-PRO-001
+        category: SUBSCRIPTION
+        unitPrice: 199.00
+        description: "Monthly subscription — unlimited seats"
+    customers:
+      - name: DevCorp Ltd
+        email: billing@devcorp.io
+      - name: BuildFast Inc
+        email: billing@buildfast.com
+    invoices:
+      - customerRef: DevCorp Ltd
+        amount: 199.00
+        status: ISSUED
+      - customerRef: BuildFast Inc
+        amount: 49.00
+        status: DRAFT

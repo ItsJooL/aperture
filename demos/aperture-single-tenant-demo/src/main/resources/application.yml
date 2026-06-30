@@ -1,0 +1,35 @@
+elide:
+  json-api:
+    path: /api/
+    enabled: true
+  graphql:
+    path: /graphql
+    enabled: false
+  api-versioning-strategy:
+    path:
+      enabled: true
+
+spring:
+  application:
+    name: aperture-single-tenant-demo
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/aperture}
+    username: ${DB_USER:aperture}
+    password: ${DB_PASS:password}
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    open-in-view: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+  liquibase:
+    change-log: classpath:db/changelog/db.changelog-master.xml
+
+aperture:
+  auth:
+    refresh-duration: ${APERTURE_REFRESH_DURATION:PT720H}
+    jwt:
+      secret: ${APERTURE_JWT_SECRET:single-tenant-demo-jwt-secret-change-me-32b}
+      issuer: ${APERTURE_JWT_ISSUER:aperture-single-tenant}
+      audience: ${APERTURE_JWT_AUDIENCE:aperture-single-tenant-api}
+      access-duration: ${APERTURE_JWT_ACCESS_DURATION:PT15M}

@@ -1,0 +1,114 @@
+services:
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: aperture
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: aperture
+    ports:
+      - "5432:5432"
+    volumes:
+      - aperture-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U aperture"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  hook-service:
+    build: ./hook-service
+    ports:
+      - "8081:8080"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "wget",
+          "--quiet",
+          "--tries=1",
+          "--spider",
+          "http://localhost:8080/health",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  jaeger:
+    image: jaegertracing/all-in-one:1.62.0
+    ports:
+      - "16686:16686"
+      - "4317:4317"
+      - "4318:4318"
+
+  api-server:
+    build:
+      context: ../../
+      dockerfile: demos/aperture-demo/Dockerfile
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/aperture
+      SPRING_DATASOURCE_USERNAME: aperture
+      SPRING_DATASOURCE_PASSWORD: password
+      APERTURE_BOOTSTRAP_ADMIN_PASSWORD: ${APERTURE_BOOTSTRAP_ADMIN_PASSWORD:-changeme-local-only}
+      APERTURE_PROFILE: demo
+      MANAGEMENT_OTLP_TRACING_ENDPOINT: http://jaeger:4318/v1/traces
+      MANAGEMENT_TRACING_SAMPLING_PROBABILITY: "1.0"
+      MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE: health,metrics,prometheus
+      APERTURE_CORS_ENABLED: ${APERTURE_CORS_ENABLED:-true}
+      APERTURE_CORS_ALLOWED_ORIGINS: ${APERTURE_CORS_ALLOWED_ORIGINS:-http://localhost:3780}
+      # --- Optional TLS (uncomment and mount a certs volume to enable) ---
+      # SERVER_SSL_ENABLED: "true"
+      # SERVER_SSL_CERTIFICATE: /certs/tls.crt
+      # SERVER_SSL_CERTIFICATE_PRIVATE_KEY: /certs/tls.key
+      # SERVER_PORT: "8443"
+      # APERTURE_SERVER_HTTPS_ONLY: "true"
+    ports:
+      - "8080:8080"
+      # - "8443:8443"   # uncomment when TLS is enabled
+    depends_on:
+      postgres:
+        condition: service_healthy
+      hook-service:
+        condition: service_healthy
+      jaeger:
+        condition: service_started
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "wget",
+          "--quiet",
+          "--tries=1",
+          "--spider",
+          "http://localhost:8080/actuator/health",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+
+  seeder:
+    build:
+      context: ./seeder
+    restart: on-failure
+    environment:
+      API_URL: http://api-server:8080
+      SUPERADMIN_PASSWORD: ${APERTURE_BOOTSTRAP_ADMIN_PASSWORD:-changeme-local-only}
+    depends_on:
+      api-server:
+        condition: service_healthy
+  ui:
+    build:
+      context: ./web-ui
+      dockerfile: Dockerfile
+    ports:
+      - "3780:80"
+    environment:
+      - NODE_ENV=production
+    profiles: ["ui"]
+    depends_on:
+      - api-server
+
+volumes:
+  aperture-data:

@@ -1,0 +1,22 @@
+meta {
+  name: Get Patient
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{baseUrl}}/api/v1/patients/{{patientId}}
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{token}}
+  X-Tenant-ID: 00000000-0000-0000-0000-000000000101
+  Accept: application/vnd.api+json
+}
+
+assert {
+  res.status: eq 200
+  res.body.data.attributes.medical_history_notes: eq Top Secret Diagnosis
+}

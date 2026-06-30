@@ -1,0 +1,15 @@
+meta {
+  name: Verify Ciphertext
+  type: http
+  seq: 4
+}
+
+get {
+  url: {{baseUrl}}/
+  body: none
+  auth: none
+}
+
+script:pre-request {
+  throw new Error("Run: docker compose exec postgres psql -U postgres -d postgres -c \"select medical_history_notes from aperture_patients;\" and verify the value starts with vault:v and does not contain Top Secret Diagnosis.");
+}

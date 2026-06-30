@@ -1,0 +1,9 @@
+.git
+.gitignore
+target
+*.md
+.worktrees
+.aperture.lock
+*.iml
+.idea
+.DS_Store

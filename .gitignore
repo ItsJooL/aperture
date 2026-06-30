@@ -1,28 +1,30 @@
-# macOS
-.DS_Store
-.AppleDouble
-.LSOverride
+# Maven
+**/target/
 
-# Windows
-Thumbs.db
-ehthumbs.db
-Desktop.ini
+# Java
+*.class
+*.iml
 
-# Linux
-*~
+# Node
+**/node_modules/
+**/dist/
 
-# Editor directories and files
+# IDE
 .idea/
 .vscode/
-*.iml
-*.suo
-*.ntvs*
-*.njsproj
-*.sln
-*.sw?
+
+# Test output
+**/test-results/
+**/playwright-report/
+
+# Go binaries (demo hook services and seeders)
+demos/aperture-demo/hook-service/aperture-demo-hooks
+demos/aperture-demo/seeder/aperture-demo-seeder
+
+# OS
+.DS_Store
+Thumbs.db
+*~
 
 # Logs
 *.log
-
-# mise local overrides
-.mise.local.toml

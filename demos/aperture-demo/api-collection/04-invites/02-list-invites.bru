@@ -1,0 +1,19 @@
+meta {
+  name: List Invites
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/manage/tenants/{{tenantId}}/invites
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tenantAdminToken}}
+}
+
+assert {
+  res.status: eq 200
+}

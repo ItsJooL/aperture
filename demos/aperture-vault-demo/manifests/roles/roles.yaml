@@ -1,0 +1,8 @@
+apiVersion: aperture.itsjool.com/v1
+kind: RoleDefinition
+metadata:
+  name: roles
+spec:
+  roles:
+    Doctor:
+      description: "Medical Doctor"

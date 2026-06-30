@@ -1,0 +1,19 @@
+meta {
+  name: Delete User
+  type: http
+  seq: 7
+}
+
+delete {
+  url: {{baseUrl}}/manage/tenants/{{tenantId}}/users/{{tempUserId}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{superadminToken}}
+}
+
+assert {
+  res.status: eq 204
+}

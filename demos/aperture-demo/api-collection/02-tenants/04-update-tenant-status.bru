@@ -1,0 +1,25 @@
+meta {
+  name: Update Tenant Status
+  type: http
+  seq: 4
+}
+
+patch {
+  url: {{baseUrl}}/manage/tenants/{{tenantId}}
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{superadminToken}}
+}
+
+body:json {
+  {
+    "status": "ACTIVE"
+  }
+}
+
+assert {
+  res.status: eq 200
+}

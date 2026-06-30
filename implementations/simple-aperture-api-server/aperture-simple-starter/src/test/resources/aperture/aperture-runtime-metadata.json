@@ -1,0 +1,5 @@
+{
+  "activeVersions" : [ "1", "2" ],
+  "defaultRoles" : [ "TenantAdmin", "Accountant", "Viewer" ],
+  "declaredRoles" : [ "Accountant", "TenantAdmin", "Viewer" ]
+}

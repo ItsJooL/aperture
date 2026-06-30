@@ -1,0 +1,55 @@
+meta {
+  name: Atomic — Rollback Demo (invalid operation)
+  type: http
+  seq: 4
+}
+
+post {
+  url: {{baseUrl}}/api/v1/operations
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tenantAdminToken}}
+}
+
+headers {
+  Content-Type: application/vnd.api+json;ext="https://jsonapi.org/ext/atomic"
+  Accept: application/vnd.api+json;ext="https://jsonapi.org/ext/atomic"
+}
+
+body:json {
+  {
+    "atomic:operations": [
+      {
+        "op": "add",
+        "data": {
+          "type": "suppliers",
+          "lid": "valid-supplier",
+          "attributes": { "company_name": "Should Not Exist" }
+        }
+      },
+      {
+        "op": "add",
+        "data": {
+          "type": "suppliers",
+          "lid": "invalid-supplier",
+          "attributes": {}
+        }
+      }
+    ]
+  }
+}
+
+docs {
+  Demonstrates atomic rollback. The second operation is missing the required
+  company_name field and will fail validation. Because atomic operations run
+  in a single transaction, the first (valid) supplier is also rolled back.
+  Nothing is persisted. The response is 4xx with error details.
+}
+
+assert {
+  res.status: eq 400
+  res.body.errors: isDefined
+}

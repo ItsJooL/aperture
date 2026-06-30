@@ -1,0 +1,12 @@
+apiVersion: aperture.itsjool.com/v1
+kind: PrincipalAttributeDefinition
+metadata:
+  name: principal-attributes
+spec:
+  securityAttributes:
+    department:
+      type: string
+    status:
+      type: string
+    region:
+      type: string

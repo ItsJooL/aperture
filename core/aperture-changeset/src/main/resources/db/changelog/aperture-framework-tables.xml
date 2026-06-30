@@ -1,0 +1,297 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.20.xsd">
+
+    <changeSet id="aperture-simple-tables" author="aperture">
+        <createTable tableName="aperture_tenants">
+            <column name="id" type="VARCHAR(255)"><constraints primaryKey="true" nullable="false"/></column>
+            <column name="name" type="VARCHAR(255)"><constraints unique="true" nullable="false"/></column>
+            <column name="status" type="VARCHAR(255)"><constraints nullable="false"/></column>
+        </createTable>
+        <createTable tableName="aperture_users">
+            <column name="id" type="VARCHAR(255)"><constraints primaryKey="true" nullable="false"/></column>
+            <column name="username" type="VARCHAR(255)"><constraints unique="true" nullable="false"/></column>
+            <column name="password_hash" type="VARCHAR(255)"/>
+            <column name="tenant_id" type="VARCHAR(255)"/>
+            <column name="status" type="VARCHAR(255)"><constraints nullable="false"/></column>
+            <column name="framework_admin" type="BOOLEAN" defaultValueBoolean="false">
+                <constraints nullable="false"/>
+            </column>
+            <column name="profile" type="JSONB" defaultValueComputed="'{}'::jsonb">
+                <constraints nullable="false"/>
+            </column>
+            <column name="security_attributes" type="JSONB" defaultValueComputed="'{}'::jsonb">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+        <sql>
+            ALTER TABLE aperture_users
+            ADD CONSTRAINT ck_aperture_users_tenant_or_framework_admin
+            CHECK (tenant_id IS NOT NULL OR framework_admin);
+        </sql>
+        <addUniqueConstraint tableName="aperture_users" columnNames="tenant_id, id"
+                             constraintName="uq_aperture_users_tenant_id"/>
+        <addForeignKeyConstraint baseTableName="aperture_users" baseColumnNames="tenant_id"
+                                 referencedTableName="aperture_tenants" referencedColumnNames="id"
+                                 constraintName="fk_aperture_users_tenant"/>
+
+        <createTable tableName="aperture_roles">
+            <column name="id" type="VARCHAR(255)"><constraints primaryKey="true" nullable="false"/></column>
+            <column name="tenant_id" type="VARCHAR(255)"><constraints nullable="false"/></column>
+            <column name="role_name" type="VARCHAR(255)"><constraints nullable="false"/></column>
+        </createTable>
+        <addUniqueConstraint tableName="aperture_roles" columnNames="tenant_id, role_name"
+                             constraintName="uq_aperture_roles_tenant_name"/>
+        <addForeignKeyConstraint baseTableName="aperture_roles" baseColumnNames="tenant_id"
+                                 referencedTableName="aperture_tenants" referencedColumnNames="id"
+                                 constraintName="fk_aperture_roles_tenant"/>
+
+        <createTable tableName="aperture_user_roles">
+            <column name="tenant_id" type="VARCHAR(255)"><constraints nullable="false"/></column>
+            <column name="user_id" type="VARCHAR(255)"><constraints nullable="false"/></column>
+            <column name="role_name" type="VARCHAR(255)"><constraints nullable="false"/></column>
+        </createTable>
+        <addPrimaryKey tableName="aperture_user_roles" columnNames="tenant_id, user_id, role_name"
+                       constraintName="pk_aperture_user_roles"/>
+        <addForeignKeyConstraint baseTableName="aperture_user_roles" baseColumnNames="tenant_id"
+                                 referencedTableName="aperture_tenants" referencedColumnNames="id"
+                                 constraintName="fk_aperture_user_roles_tenant"/>
+        <addForeignKeyConstraint baseTableName="aperture_user_roles" baseColumnNames="tenant_id, user_id"
+                                 referencedTableName="aperture_users" referencedColumnNames="tenant_id, id"
+                                 constraintName="fk_aperture_user_roles_user"/>
+        <addForeignKeyConstraint baseTableName="aperture_user_roles" baseColumnNames="tenant_id, role_name"
+                                 referencedTableName="aperture_roles" referencedColumnNames="tenant_id, role_name"
+                                 constraintName="fk_aperture_user_roles_role"/>
+
+        <createTable tableName="aperture_refresh_tokens">
+            <column name="id" type="VARCHAR(255)"><constraints primaryKey="true" nullable="false"/></column>
+            <column name="user_id" type="VARCHAR(255)"><constraints nullable="false"/></column>
+            <column name="token_hash" type="VARCHAR(255)"><constraints unique="true" nullable="false"/></column>
+            <column name="expires_at" type="TIMESTAMPTZ"><constraints nullable="false"/></column>
+            <column name="used_at" type="TIMESTAMPTZ"/>
+            <column name="revoked_at" type="TIMESTAMPTZ"/>
+            <column name="replaced_by_token_id" type="VARCHAR(255)"/>
+        </createTable>
+        <addForeignKeyConstraint baseTableName="aperture_refresh_tokens" baseColumnNames="user_id"
+                                 referencedTableName="aperture_users" referencedColumnNames="id"
+                                 constraintName="fk_aperture_refresh_tokens_user"/>
+        <addForeignKeyConstraint baseTableName="aperture_refresh_tokens" baseColumnNames="replaced_by_token_id"
+                                 referencedTableName="aperture_refresh_tokens" referencedColumnNames="id"
+                                 constraintName="fk_aperture_refresh_tokens_replacement"/>
+
+        <createTable tableName="aperture_service_accounts">
+            <column name="id" type="VARCHAR(255)"><constraints primaryKey="true" nullable="false"/></column>
+            <column name="client_id" type="VARCHAR(255)"><constraints unique="true" nullable="false"/></column>
+            <column name="client_secret_hash" type="VARCHAR(255)"><constraints nullable="false"/></column>
+            <column name="tenant_id" type="VARCHAR(255)"><constraints nullable="false"/></column>
+            <column name="status" type="VARCHAR(255)"><constraints nullable="false"/></column>
+            <column name="expires_at" type="TIMESTAMPTZ"><constraints nullable="false"/></column>
+        </createTable>
+        <addUniqueConstraint tableName="aperture_service_accounts" columnNames="tenant_id, id"
+                             constraintName="uq_aperture_service_accounts_tenant_id"/>
+        <addForeignKeyConstraint baseTableName="aperture_service_accounts" baseColumnNames="tenant_id"
+                                 referencedTableName="aperture_tenants" referencedColumnNames="id"
+                                 constraintName="fk_aperture_service_accounts_tenant"/>
+
+        <createTable tableName="aperture_personal_api_keys">
+            <column name="id" type="VARCHAR(255)"><constraints primaryKey="true" nullable="false"/></column>
+            <column name="key_hash" type="VARCHAR(255)"><constraints unique="true" nullable="false"/></column>
+            <column name="tenant_id" type="VARCHAR(255)"><constraints nullable="false"/></column>
+            <column name="user_id" type="VARCHAR(255)"><constraints nullable="false"/></column>
+            <column name="name" type="VARCHAR(255)"><constraints nullable="false"/></column>
+            <column name="status" type="VARCHAR(255)"><constraints nullable="false"/></column>
+            <column name="domain_roles" type="JSONB" defaultValueComputed="'[]'::jsonb"><constraints nullable="false"/></column>
+            <column name="security_attributes" type="JSONB" defaultValueComputed="'{}'::jsonb"><constraints nullable="false"/></column>
+            <column name="created_at" type="TIMESTAMPTZ"><constraints nullable="false"/></column>
+            <column name="expires_at" type="TIMESTAMPTZ"/>
+            <column name="last_used_at" type="TIMESTAMPTZ"/>
+            <column name="revoked_at" type="TIMESTAMPTZ"/>
+        </createTable>
+        <addForeignKeyConstraint baseTableName="aperture_personal_api_keys" baseColumnNames="tenant_id"
+                                 referencedTableName="aperture_tenants" referencedColumnNames="id"
+                                 constraintName="fk_aperture_personal_api_keys_tenant"/>
+        <addForeignKeyConstraint baseTableName="aperture_personal_api_keys"
+                                 baseColumnNames="tenant_id, user_id"
+                                 referencedTableName="aperture_users"
+                                 referencedColumnNames="tenant_id, id"
+                                 constraintName="fk_aperture_personal_api_keys_user"/>
+        <addColumn tableName="aperture_service_accounts">
+            <column name="security_attributes" type="JSONB" defaultValueComputed="'{}'::jsonb">
+                <constraints nullable="false"/>
+            </column>
+        </addColumn>
+
+        <createTable tableName="aperture_service_account_roles">
+            <column name="tenant_id" type="VARCHAR(255)"><constraints nullable="false"/></column>
+            <column name="service_account_id" type="VARCHAR(255)"><constraints nullable="false"/></column>
+            <column name="role_name" type="VARCHAR(255)"><constraints nullable="false"/></column>
+            <column name="expires_at" type="TIMESTAMPTZ"/>
+        </createTable>
+        <addPrimaryKey tableName="aperture_service_account_roles"
+                       columnNames="tenant_id, service_account_id, role_name"
+                       constraintName="pk_aperture_service_account_roles"/>
+        <addForeignKeyConstraint baseTableName="aperture_service_account_roles" baseColumnNames="tenant_id"
+                                 referencedTableName="aperture_tenants" referencedColumnNames="id"
+                                 constraintName="fk_aperture_service_account_roles_tenant"/>
+        <addForeignKeyConstraint baseTableName="aperture_service_account_roles"
+                                 baseColumnNames="tenant_id, service_account_id"
+                                 referencedTableName="aperture_service_accounts"
+                                 referencedColumnNames="tenant_id, id"
+                                 constraintName="fk_aperture_service_account_roles_account"/>
+        <addForeignKeyConstraint baseTableName="aperture_service_account_roles"
+                                 baseColumnNames="tenant_id, role_name"
+                                 referencedTableName="aperture_roles"
+                                 referencedColumnNames="tenant_id, role_name"
+                                 constraintName="fk_aperture_service_account_roles_role"/>
+
+        <createTable tableName="aperture_audit_log">
+            <column name="id" type="VARCHAR(255)"><constraints primaryKey="true" nullable="false"/></column>
+            <column name="user_id" type="VARCHAR(255)"/>
+            <column name="tenant_id" type="VARCHAR(255)"/>
+            <column name="entity" type="VARCHAR(255)"/>
+            <column name="entity_id" type="VARCHAR(255)"/>
+            <column name="operation" type="VARCHAR(255)"/>
+            <column name="timestamp" type="TIMESTAMP"><constraints nullable="false"/></column>
+            <column name="details" type="JSONB"/>
+        </createTable>
+        <sql splitStatements="false">
+            CREATE OR REPLACE FUNCTION prevent_audit_modifications()
+            RETURNS TRIGGER AS $$
+            BEGIN
+                RAISE EXCEPTION 'Updates and deletes are strictly prohibited on the audit log table.';
+            END;
+            $$ LANGUAGE plpgsql;
+
+            CREATE TRIGGER audit_log_append_only
+            BEFORE UPDATE OR DELETE ON aperture_audit_log
+            FOR EACH ROW EXECUTE FUNCTION prevent_audit_modifications();
+        </sql>
+        <rollback>
+            <sql splitStatements="false">
+                DROP TRIGGER audit_log_append_only ON aperture_audit_log;
+                DROP FUNCTION prevent_audit_modifications();
+            </sql>
+            <!-- Drop new columns before dropping tables that contain them -->
+            <dropColumn tableName="aperture_service_accounts" columnName="security_attributes"/>
+            <!-- Drop tables in reverse dependency order -->
+            <dropTable tableName="aperture_audit_log"/>
+            <dropTable tableName="aperture_service_account_roles"/>
+            <dropTable tableName="aperture_personal_api_keys"/>
+            <dropTable tableName="aperture_service_accounts"/>
+            <dropTable tableName="aperture_refresh_tokens"/>
+            <dropTable tableName="aperture_user_roles"/>
+            <dropTable tableName="aperture_roles"/>
+            <dropTable tableName="aperture_users"/>
+            <dropTable tableName="aperture_tenants"/>
+        </rollback>
+    </changeSet>
+
+    <changeSet id="aperture-011-user-lifecycle" author="aperture">
+        <addColumn tableName="aperture_users">
+            <column name="deleted_at" type="TIMESTAMPTZ"/>
+        </addColumn>
+        <addColumn tableName="aperture_tenants">
+            <column name="deleted_at" type="TIMESTAMPTZ"/>
+        </addColumn>
+
+        <sql>ALTER TABLE aperture_users DROP CONSTRAINT IF EXISTS aperture_users_username_key</sql>
+        <sql>CREATE UNIQUE INDEX uq_aperture_users_username_active ON aperture_users(username) WHERE deleted_at IS NULL</sql>
+
+        <addColumn tableName="aperture_users">
+            <column name="force_password_change" type="BOOLEAN" defaultValueBoolean="false">
+                <constraints nullable="false"/>
+            </column>
+        </addColumn>
+
+        <createTable tableName="aperture_invites">
+            <column name="id" type="VARCHAR(255)"><constraints primaryKey="true" nullable="false"/></column>
+            <column name="tenant_id" type="VARCHAR(255)"><constraints nullable="false"/></column>
+            <column name="token_hash" type="VARCHAR(255)"><constraints unique="true" nullable="false"/></column>
+            <column name="created_by" type="VARCHAR(255)"><constraints nullable="false"/></column>
+            <column name="role_names" type="JSONB" defaultValueComputed="'[]'::jsonb"><constraints nullable="false"/></column>
+            <column name="expires_at" type="TIMESTAMPTZ"><constraints nullable="false"/></column>
+            <column name="accepted_at" type="TIMESTAMPTZ"/>
+            <column name="status" type="VARCHAR(50)" defaultValue="PENDING"><constraints nullable="false"/></column>
+        </createTable>
+        <addForeignKeyConstraint baseTableName="aperture_invites" baseColumnNames="tenant_id"
+                                 referencedTableName="aperture_tenants" referencedColumnNames="id"
+                                 constraintName="fk_aperture_invites_tenant"/>
+        <rollback>
+            <dropTable tableName="aperture_invites"/>
+            <dropColumn tableName="aperture_users" columnName="force_password_change"/>
+            <dropColumn tableName="aperture_users" columnName="deleted_at"/>
+            <dropColumn tableName="aperture_tenants" columnName="deleted_at"/>
+            <sql>DROP INDEX IF EXISTS uq_aperture_users_username_active</sql>
+            <sql>ALTER TABLE aperture_users ADD CONSTRAINT aperture_users_username_key UNIQUE (username)</sql>
+        </rollback>
+    </changeSet>
+
+    <changeSet id="aperture-auth-model-repair" author="aperture">
+        <!-- Update existing data -->
+        <sql>
+            UPDATE aperture_users SET tenant_id = NULL WHERE framework_admin = true;
+        </sql>
+        
+        <!-- Rename framework_admin to super_admin -->
+        <renameColumn tableName="aperture_users" oldColumnName="framework_admin" newColumnName="super_admin" columnDataType="BOOLEAN"/>
+        
+        <!-- Fix constraint for super admin -->
+        <sql>
+            ALTER TABLE aperture_users DROP CONSTRAINT ck_aperture_users_tenant_or_framework_admin;
+            ALTER TABLE aperture_users ADD CONSTRAINT ck_aperture_users_tenant_or_super_admin 
+            CHECK ((tenant_id IS NOT NULL AND super_admin = false) OR (tenant_id IS NULL AND super_admin = true));
+        </sql>
+
+        <!-- Create aperture_tenant_admins -->
+        <createTable tableName="aperture_tenant_admins">
+            <column name="tenant_id" type="VARCHAR(255)"><constraints nullable="false"/></column>
+            <column name="user_id" type="VARCHAR(255)"><constraints nullable="false"/></column>
+            <column name="created_at" type="TIMESTAMPTZ"><constraints nullable="false"/></column>
+            <column name="created_by" type="VARCHAR(255)"/>
+        </createTable>
+        <addPrimaryKey tableName="aperture_tenant_admins" columnNames="tenant_id, user_id" constraintName="pk_aperture_tenant_admins"/>
+        <addForeignKeyConstraint baseTableName="aperture_tenant_admins" baseColumnNames="tenant_id" referencedTableName="aperture_tenants" referencedColumnNames="id" constraintName="fk_aperture_tenant_admins_tenant"/>
+        <addForeignKeyConstraint baseTableName="aperture_tenant_admins" baseColumnNames="tenant_id, user_id" referencedTableName="aperture_users" referencedColumnNames="tenant_id, id" constraintName="fk_aperture_tenant_admins_user"/>
+
+
+
+        <!-- Create aperture_tenant_settings -->
+        <createTable tableName="aperture_tenant_settings">
+            <column name="tenant_id" type="VARCHAR(255)"><constraints primaryKey="true" nullable="false"/></column>
+            <column name="settings" type="JSONB" defaultValueComputed="'{}'::jsonb"><constraints nullable="false"/></column>
+            <column name="updated_at" type="TIMESTAMPTZ"><constraints nullable="false"/></column>
+            <column name="updated_by" type="VARCHAR(255)"/>
+        </createTable>
+        <addForeignKeyConstraint baseTableName="aperture_tenant_settings" baseColumnNames="tenant_id" referencedTableName="aperture_tenants" referencedColumnNames="id" constraintName="fk_aperture_tenant_settings_tenant"/>
+
+        <createTable tableName="aperture_global_settings">
+            <column name="id" type="VARCHAR(255)"><constraints primaryKey="true" nullable="false"/></column>
+            <column name="settings" type="JSONB" defaultValueComputed="'{}'::jsonb"><constraints nullable="false"/></column>
+            <column name="updated_at" type="TIMESTAMPTZ"><constraints nullable="false"/></column>
+            <column name="updated_by" type="VARCHAR(255)"/>
+        </createTable>
+        
+        <!-- Add security_attributes and profile defaults to invites -->
+        <addColumn tableName="aperture_invites">
+            <column name="security_attributes" type="JSONB" defaultValueComputed="'{}'::jsonb"/>
+            <column name="profile" type="JSONB" defaultValueComputed="'{}'::jsonb"/>
+        </addColumn>
+
+        <rollback>
+            <dropColumn tableName="aperture_invites" columnName="profile"/>
+            <dropColumn tableName="aperture_invites" columnName="security_attributes"/>
+            <dropTable tableName="aperture_global_settings"/>
+            <dropTable tableName="aperture_tenant_settings"/>
+
+            <dropTable tableName="aperture_tenant_admins"/>
+            <renameColumn tableName="aperture_users" oldColumnName="super_admin" newColumnName="framework_admin" columnDataType="BOOLEAN"/>
+            <sql>
+                ALTER TABLE aperture_users DROP CONSTRAINT ck_aperture_users_tenant_or_super_admin;
+                ALTER TABLE aperture_users ADD CONSTRAINT ck_aperture_users_tenant_or_framework_admin
+                CHECK (tenant_id IS NOT NULL OR framework_admin = true);
+            </sql>
+        </rollback>
+    </changeSet>
+</databaseChangeLog>

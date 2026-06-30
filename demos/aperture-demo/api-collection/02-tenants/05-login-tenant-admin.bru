@@ -1,0 +1,30 @@
+meta {
+  name: Login Tenant Admin
+  type: http
+  seq: 5
+}
+
+post {
+  url: {{baseUrl}}/auth/login
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "username": "{{tenantAdminUsername}}",
+    "password": "{{tenantAdminPassword}}"
+  }
+}
+
+script:post-response {
+  if (res.status === 200) {
+    bru.setVar("tenantAdminToken", res.body.accessToken);
+    bru.setVar("tenantAdminRefreshToken", res.body.refreshToken);
+  }
+}
+
+assert {
+  res.status: eq 200
+  res.body.accessToken: isDefined
+}

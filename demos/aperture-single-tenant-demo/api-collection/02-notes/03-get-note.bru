@@ -1,0 +1,31 @@
+meta {
+  name: Get Note
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{baseUrl}}/api/v1/notes/{{noteId}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+headers {
+  Accept: application/vnd.api+json
+}
+
+script:post-response {
+  if (res.status === 200) {
+    var version = res.body.data.attributes.version;
+    bru.setVar("noteEtag", '"' + version + '"');
+  }
+}
+
+assert {
+  res.status: eq 200
+  res.body.data.id: isDefined
+}

@@ -1,0 +1,43 @@
+apiVersion: aperture.itsjool.com/v1
+kind: Entity
+metadata:
+  name: Customer
+spec:
+  description: "A business customer within the tenant"
+  tenantScoped: true
+  softDelete: true
+  optimisticLocking: true
+  fields:
+    name:
+      type: string
+      required: true
+      description: "Legal name of the customer"
+    email:
+      type: string
+      required: true
+      encrypted: true
+      description: "Primary contact email address"
+    phone_number:
+      type: string
+      since: 2
+      description: "Customer phone number"
+    invoices:
+      type: ref
+      target: Invoice
+      relation: OneToMany
+      mappedBy: customer
+      description: "Invoices issued to this customer"
+  permissions:
+    Accountant: [create, read, update]
+    Viewer: [read]
+  hooks:
+    TenantProvisioned:
+      phase: POSTCOMMIT
+      async: true
+      onFailure: warn
+      url: http://hook-service:8080/hooks/tenant-provisioned
+    EnrichCustomer:
+      phase: PREENRICH
+      async: false
+      onFailure: passthrough
+      url: http://hook-service:8080/hooks/enrich-customer

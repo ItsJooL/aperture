@@ -1,0 +1,83 @@
+meta {
+  name: Atomic — Create Invoice with Line Items
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/api/v1/operations
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tenantAdminToken}}
+}
+
+headers {
+  Content-Type: application/vnd.api+json;ext="https://jsonapi.org/ext/atomic"
+  Accept: application/vnd.api+json;ext="https://jsonapi.org/ext/atomic"
+}
+
+body:json {
+  {
+    "atomic:operations": [
+      {
+        "op": "add",
+        "data": {
+          "type": "invoices",
+          "lid": "new-invoice",
+          "attributes": { "amount": 1500, "status": "DRAFT" },
+          "relationships": {
+            "customer": { "data": { "type": "customers", "id": "{{customerId}}" } }
+          }
+        }
+      },
+      {
+        "op": "add",
+        "data": {
+          "type": "lineitems",
+          "lid": "li-1",
+          "attributes": { "quantity": 1, "unit_price": 999.00 },
+          "relationships": {
+            "invoice": { "data": { "type": "invoices", "lid": "new-invoice" } }
+          }
+        }
+      },
+      {
+        "op": "add",
+        "data": {
+          "type": "lineitems",
+          "lid": "li-2",
+          "attributes": { "quantity": 1, "unit_price": 501.00 },
+          "relationships": {
+            "invoice": { "data": { "type": "invoices", "lid": "new-invoice" } }
+          }
+        }
+      }
+    ]
+  }
+}
+
+docs {
+  Creates an Invoice and two LineItems in a single atomic transaction.
+  The LineItems reference the new Invoice using lid (local identifier)
+  before the Invoice has a real database ID.
+
+  Run 01-create-customer first to populate {{customerId}}.
+}
+
+script:post-response {
+  if (res.status === 200) {
+    var results = res.body["atomic:results"];
+    if (results && results[0] && results[0].data) {
+      bru.setVar("atomicInvoiceId", results[0].data.id);
+    }
+  }
+}
+
+assert {
+  res.status: eq 200
+  res.body["atomic:results"]: isDefined
+  res.body["atomic:results"].length: eq 3
+}

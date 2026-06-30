@@ -1,0 +1,44 @@
+meta {
+  name: Update Customer
+  type: http
+  seq: 4
+}
+
+patch {
+  url: {{baseUrl}}/api/v1/customers/{{customerId}}
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tenantAdminToken}}
+}
+
+headers {
+  Content-Type: application/vnd.api+json
+  Accept: application/vnd.api+json
+  If-Match: {{customerEtag}}
+}
+
+body:json {
+  {
+    "data": {
+      "type": "customers",
+      "id": "{{customerId}}",
+      "attributes": {
+        "name": "Bruno Test Corp Updated"
+      }
+    }
+  }
+}
+
+script:post-response {
+  if (res.status === 204) {
+    var etag = parseInt(bru.getVar("customerEtag").replace(/"/g, ""), 10) + 1;
+    bru.setVar("customerEtag", '"' + etag + '"');
+  }
+}
+
+assert {
+  res.status: eq 204
+}

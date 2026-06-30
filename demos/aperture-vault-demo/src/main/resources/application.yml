@@ -1,0 +1,38 @@
+elide:
+  json-api:
+    path: /api/
+    enabled: true
+
+spring:
+  cloud:
+    vault:
+      kv:
+        enabled: false
+    compatibility-verifier:
+      enabled: false
+  application:
+    name: aperture-vault-demo
+  sql:
+    init:
+      mode: always
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/aperture}
+    username: ${DB_USER:postgres}
+    password: ${POSTGRES_PASSWORD:password}
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    open-in-view: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+  liquibase:
+    change-log: classpath:db/changelog/db.changelog-master.xml
+
+aperture:
+  auth:
+    refresh-duration: PT720H
+    jwt:
+      secret: demo-only-jwt-secret-change-me-32-bytes-minimum
+      issuer: aperture-vault-demo
+      audience: aperture-vault-demo-api
+      access-duration: PT15M

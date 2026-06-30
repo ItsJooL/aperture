@@ -1,0 +1,16 @@
+meta {
+  name: 07 — Atomic Operations
+  type: folder
+  seq: 7
+}
+
+docs {
+  JSON:API Atomic Operations (https://jsonapi.org/ext/atomic/) allows multiple
+  create/update/remove operations to execute inside a single database transaction.
+
+  Endpoint: POST /api/v{n}/operations
+  Content-Type: application/vnd.api+json;ext="https://jsonapi.org/ext/atomic"
+
+  Use local IDs (lid) to reference newly-created resources within the same batch.
+  If any operation fails the entire batch rolls back — nothing is persisted.
+}

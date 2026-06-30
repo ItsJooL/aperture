@@ -1,0 +1,24 @@
+meta {
+  name: Delete Customer
+  type: http
+  seq: 5
+}
+
+delete {
+  url: {{baseUrl}}/api/v1/customers/{{customerId}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tenantAdminToken}}
+}
+
+headers {
+  Accept: application/vnd.api+json
+  If-Match: {{customerEtag}}
+}
+
+assert {
+  res.status: eq 204
+}

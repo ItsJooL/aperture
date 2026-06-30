@@ -1,0 +1,7 @@
+apiVersion: aperture.itsjool.com/v1
+kind: AbacPolicy
+metadata:
+  name: FinanceTeamOnly
+spec:
+  description: "Only finance team can view this"
+  expression: "#user.securityAttributes['department'] == 'finance'"

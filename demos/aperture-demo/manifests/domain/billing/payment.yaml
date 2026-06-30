@@ -1,0 +1,25 @@
+apiVersion: aperture.itsjool.com/v1
+kind: Entity
+metadata:
+  name: Payment
+spec:
+  description: "A payment applied against an invoice"
+  tenantScoped: true
+  fields:
+    amount:
+      type: decimal
+      description: "Payment amount"
+    invoice:
+      type: ref
+      target: Invoice
+      relation: ManyToOne
+      description: "Invoice this payment is applied to"
+  permissions:
+    Accountant: [create, read, update]
+    Viewer: [read]
+  hooks:
+    ValidatePayment:
+      phase: PRECOMMIT
+      async: false
+      onFailure: reject
+      url: http://hook-service:8080/hooks/validate-payment

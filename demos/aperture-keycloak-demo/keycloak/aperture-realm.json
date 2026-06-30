@@ -1,0 +1,57 @@
+{
+  "realm": "aperture",
+  "enabled": true,
+  "registrationAllowed": false,
+  "resetPasswordAllowed": false,
+  "editUsernameAllowed": false,
+  "bruteForceProtected": false,
+  "requiredActions": [
+    { "alias": "CONFIGURE_TOTP",       "providerId": "CONFIGURE_TOTP",       "enabled": true,  "defaultAction": false, "priority": 10 },
+    { "alias": "TERMS_AND_CONDITIONS", "providerId": "TERMS_AND_CONDITIONS", "enabled": false, "defaultAction": false, "priority": 20 },
+    { "alias": "UPDATE_PASSWORD",      "providerId": "UPDATE_PASSWORD",      "enabled": true,  "defaultAction": false, "priority": 30 },
+    { "alias": "UPDATE_PROFILE",       "providerId": "UPDATE_PROFILE",       "enabled": true,  "defaultAction": false, "priority": 40 },
+    { "alias": "VERIFY_EMAIL",         "providerId": "VERIFY_EMAIL",         "enabled": true,  "defaultAction": false, "priority": 50 },
+    { "alias": "delete_account",       "providerId": "delete_account",       "enabled": false, "defaultAction": false, "priority": 60 },
+    { "alias": "VERIFY_PROFILE",       "providerId": "VERIFY_PROFILE",       "enabled": true,  "defaultAction": false, "priority": 90 }
+  ],
+  "clients": [
+    {
+      "clientId": "aperture-api",
+      "enabled": true,
+      "publicClient": true,
+      "directAccessGrantsEnabled": true,
+      "standardFlowEnabled": false,
+      "protocol": "openid-connect"
+    }
+  ],
+  "roles": {
+    "realm": [
+      { "name": "Admin", "description": "Full access to Aperture API" },
+      { "name": "User",  "description": "Read products, create orders" }
+    ]
+  },
+  "users": [
+    {
+      "username": "admin@keycloak-demo.com",
+      "email": "admin@keycloak-demo.com",
+      "emailVerified": true,
+      "firstName": "Aperture",
+      "lastName": "Admin",
+      "enabled": true,
+      "requiredActions": [],
+      "credentials": [{ "type": "password", "value": "Admin123!", "temporary": false }],
+      "realmRoles": ["Admin"]
+    },
+    {
+      "username": "user@keycloak-demo.com",
+      "email": "user@keycloak-demo.com",
+      "emailVerified": true,
+      "firstName": "Aperture",
+      "lastName": "User",
+      "enabled": true,
+      "requiredActions": [],
+      "credentials": [{ "type": "password", "value": "User123!", "temporary": false }],
+      "realmRoles": ["User"]
+    }
+  ]
+}

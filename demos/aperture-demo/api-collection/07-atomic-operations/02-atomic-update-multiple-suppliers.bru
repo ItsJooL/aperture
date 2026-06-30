@@ -1,0 +1,55 @@
+meta {
+  name: Atomic — Update Multiple Suppliers
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{baseUrl}}/api/v1/operations
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tenantAdminToken}}
+}
+
+headers {
+  Content-Type: application/vnd.api+json;ext="https://jsonapi.org/ext/atomic"
+  Accept: application/vnd.api+json;ext="https://jsonapi.org/ext/atomic"
+}
+
+body:json {
+  {
+    "atomic:operations": [
+      {
+        "op": "update",
+        "data": {
+          "type": "suppliers",
+          "id": "50000000-0000-0000-0000-000000000001",
+          "attributes": { "company_name": "Acme Supplies (updated)" }
+        }
+      },
+      {
+        "op": "update",
+        "data": {
+          "type": "suppliers",
+          "id": "50000000-0000-0000-0000-000000000002",
+          "attributes": { "company_name": "Acme Logistics (updated)" }
+        }
+      }
+    ]
+  }
+}
+
+docs {
+  Updates two suppliers in a single atomic transaction. Both changes
+  commit together or both roll back. The response contains one result
+  entry per operation (null data for updates with no changes returned).
+}
+
+assert {
+  res.status: eq 200
+  res.body["atomic:results"]: isDefined
+  res.body["atomic:results"].length: eq 2
+}

@@ -1,0 +1,44 @@
+meta {
+  name: Create Patient
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{baseUrl}}/api/v1/patients
+  body: json
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{token}}
+  X-Tenant-ID: 00000000-0000-0000-0000-000000000101
+  Content-Type: application/vnd.api+json
+  Accept: application/vnd.api+json
+}
+
+body:json {
+  {
+    "data": {
+      "type": "patients",
+      "attributes": {
+        "name": "Jane",
+        "medical_history_notes": "Top Secret Diagnosis"
+      }
+    }
+  }
+}
+
+assert {
+  res.status: eq 201
+  res.body.data.attributes.medical_history_notes: eq Top Secret Diagnosis
+}
+
+script:post-response {
+  const body = res.getBody();
+  const id = body.data?.id;
+  if (!id) {
+    throw new Error("Expected JSON:API response data.id");
+  }
+  bru.setEnvVar("patientId", id);
+}
