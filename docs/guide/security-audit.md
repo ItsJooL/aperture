@@ -124,25 +124,39 @@ Use optimistic locking for high-contention entities (e.g., `Customer`) where sil
 
 ## Rate limiting
 
-The built-in rate limiter uses a token bucket algorithm per `(tenant, user, operation)` triple. Default capacity and refill rates are configurable:
+The built-in rate limiter uses three independent token buckets keyed by IP, user, and tenant. The default limits match the runtime defaults and are configurable:
 
 ```yaml
 aperture:
-  rateLimit:
+  rate-limit:
     enabled: true
-    capacity: 100
-    refillTokens: 10
-    refillPeriodSeconds: 1
+    backend: valkey
+    ip:
+      capacity: 100
+      refillTokens: 100
+      windowSeconds: 60
+    user:
+      capacity: 50
+      refillTokens: 50
+      windowSeconds: 60
+    tenant:
+      capacity: 500
+      refillTokens: 500
+      windowSeconds: 60
+    valkey:
+      host: valkey
+      port: 6379
 ```
 
 When a request is rate-limited, Aperture returns `429 Too Many Requests` with headers:
 
 ```
+X-RateLimit-Limit: 50
 X-RateLimit-Remaining: 0
 X-RateLimit-Reset: 1750000000
 ```
 
-The `RateLimitProvider` SPI allows swapping the implementation. The reference implementation keeps state in memory — suitable for single-instance deployments. For distributed/multi-instance deployments, implement `RateLimitProvider` backed by Redis or another shared store.
+The `RateLimitProvider` SPI allows swapping the implementation. The reference implementation keeps state in memory — suitable for single-instance deployments. The demo uses a Valkey-backed provider that loads a small Lua function library once and then executes `FCALL` on each request. For distributed/multi-instance deployments, implement `RateLimitProvider` backed by a shared store. Valkey is a good Redis-compatible option; to keep request overhead low, prefer no persistence or RDB-only snapshots instead of AOF.
 
 ## The audit trail
 

@@ -5,6 +5,7 @@ import com.itsjool.aperture.spi.RateLimitDecision;
 import com.itsjool.aperture.spi.RateLimitKey;
 import com.itsjool.aperture.spi.RateLimitProvider;
 import com.itsjool.aperture.spi.RateLimitRule;
+import com.itsjool.aperture.runtime.config.ApertureRateLimitProperties;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -14,7 +15,6 @@ import org.springframework.web.filter.OncePerRequestFilter;
 import java.io.IOException;
 
 import org.springframework.stereotype.Component;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 
@@ -22,18 +22,29 @@ import org.springframework.core.annotation.Order;
 @Order(Ordered.HIGHEST_PRECEDENCE + 20)
 public class RateLimitFilter extends OncePerRequestFilter {
     private final RateLimitProvider rateLimitProvider;
+    private final ApertureRateLimitProperties rateLimitProperties;
     private final boolean tenancyEnabled;
 
-    public RateLimitFilter(RateLimitProvider rateLimitProvider, @Value("${aperture.tenancy.enabled:true}") boolean tenancyEnabled) {
+    public RateLimitFilter(RateLimitProvider rateLimitProvider, ApertureRateLimitProperties rateLimitProperties, @org.springframework.beans.factory.annotation.Value("${aperture.tenancy.enabled:true}") boolean tenancyEnabled) {
         this.rateLimitProvider = rateLimitProvider;
+        this.rateLimitProperties = rateLimitProperties;
         this.tenancyEnabled = tenancyEnabled;
     }
 
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain) throws ServletException, IOException {
+        if (!rateLimitProperties.isEnabled()) {
+            filterChain.doFilter(request, response);
+            return;
+        }
+
         String ip = request.getRemoteAddr();
-        RateLimitRule ipRule = new RateLimitRule(100, 100, 60);
+        RateLimitRule ipRule = new RateLimitRule(
+            rateLimitProperties.getIp().getCapacity(),
+            rateLimitProperties.getIp().getRefillTokens(),
+            rateLimitProperties.getIp().getWindowSeconds()
+        );
         RateLimitDecision ipDecision = rateLimitProvider.evaluate(new RateLimitKey("ip", ip), ipRule);
         
         if (!ipDecision.allowed()) {
@@ -45,7 +56,11 @@ public class RateLimitFilter extends OncePerRequestFilter {
         if (tenancyEnabled) {
             AperturePrincipal principal = (AperturePrincipal) request.getAttribute("aperturePrincipal");
             if (principal != null) {
-                RateLimitRule userRule = new RateLimitRule(50, 50, 60);
+                RateLimitRule userRule = new RateLimitRule(
+                    rateLimitProperties.getUser().getCapacity(),
+                    rateLimitProperties.getUser().getRefillTokens(),
+                    rateLimitProperties.getUser().getWindowSeconds()
+                );
                 RateLimitDecision userDecision = rateLimitProvider.evaluate(new RateLimitKey("user", principal.userId()), userRule);
                 if (!userDecision.allowed()) {
                     writeRateLimitHeaders(response, userDecision, userRule);
@@ -54,7 +69,11 @@ public class RateLimitFilter extends OncePerRequestFilter {
                 }
 
                 if (principal.tenantId() != null) {
-                    RateLimitRule tenantRule = new RateLimitRule(500, 500, 60);
+                    RateLimitRule tenantRule = new RateLimitRule(
+                        rateLimitProperties.getTenant().getCapacity(),
+                        rateLimitProperties.getTenant().getRefillTokens(),
+                        rateLimitProperties.getTenant().getWindowSeconds()
+                    );
                     RateLimitDecision tenantDecision = rateLimitProvider.evaluate(new RateLimitKey("tenant", principal.tenantId()), tenantRule);
                     if (!tenantDecision.allowed()) {
                         writeRateLimitHeaders(response, tenantDecision, tenantRule);

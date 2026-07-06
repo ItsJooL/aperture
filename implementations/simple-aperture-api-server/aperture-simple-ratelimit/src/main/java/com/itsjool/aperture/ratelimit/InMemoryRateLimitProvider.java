@@ -21,7 +21,7 @@ public class InMemoryRateLimitProvider implements RateLimitProvider {
     @Override
     public RateLimitDecision evaluate(RateLimitKey key, RateLimitRule rule) {
         Bucket bucket = buckets.get(key, k -> Bucket.builder()
-                .addLimit(io.github.bucket4j.Bandwidth.classic(rule.capacity(), io.github.bucket4j.Refill.greedy(rule.capacity(), Duration.ofSeconds(rule.windowSeconds()))))
+                .addLimit(io.github.bucket4j.Bandwidth.classic(rule.capacity(), io.github.bucket4j.Refill.greedy(rule.burst(), Duration.ofSeconds(rule.windowSeconds()))))
                 .build());
 
         ConsumptionProbe probe = bucket.tryConsumeAndReturnRemaining(1);

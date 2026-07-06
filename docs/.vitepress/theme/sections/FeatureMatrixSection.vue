@@ -67,7 +67,7 @@ const categories: Category[] = [
       { name: 'Pluggable identity', desc: 'Swap providers behind the CredentialValidator SPI.', href: '/guide/auth' },
       { name: 'RBAC', desc: 'Role-based permissions declared per entity and operation.', href: '/guide/security-audit#role-based-access-control-rbac' },
       { name: 'ABAC', desc: 'SpEL attribute policies for fine-grained, contextual rules.', href: '/guide/security-audit#attribute-based-access-control-abac' },
-      { name: 'Rate limiting', desc: 'Token-bucket limiter per (tenant, user, operation).', href: '/guide/security-audit#rate-limiting' },
+      { name: 'Rate limiting', desc: 'Three independent token buckets keyed by IP, user, and tenant — configurable, with a pluggable in-memory or Valkey-backed provider.', href: '/guide/security-audit#rate-limiting' },
       { name: 'Audit trail', desc: 'Transactional log of every mutation, tied to the request.', href: '/guide/security-audit#the-audit-trail' },
       { name: 'Bootstrap admin (demo)', desc: 'Demo-only today: aperture-demo seeds a superadmin from an env var on first boot — not yet a general framework feature.', href: '/reference/configuration#bootstrap-admin' },
     ],

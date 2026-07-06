@@ -14,12 +14,16 @@ import com.itsjool.aperture.auth.SimpleServiceAccountIssuer;
 import com.itsjool.aperture.auth.SimpleTenantLifecycleProvider;
 import com.itsjool.aperture.encryption.LocalEncryptionService;
 import com.itsjool.aperture.ratelimit.InMemoryRateLimitProvider;
+import com.itsjool.aperture.ratelimit.ValkeyRateLimitProvider;
+import com.itsjool.aperture.runtime.config.ApertureRateLimitProperties;
 import com.itsjool.aperture.spi.CredentialValidator;
 import com.itsjool.aperture.spi.PrincipalMapper;
+import com.itsjool.aperture.spi.RateLimitProvider;
 import com.itsjool.aperture.spi.ServiceAccountIssuer;
 import com.yahoo.elide.ElideSettingsBuilderCustomizer;
 import com.yahoo.elide.core.dictionary.EntityDictionary;
 import jakarta.annotation.PostConstruct;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.domain.EntityScan;
@@ -92,7 +96,12 @@ public class ApertureSimpleAutoConfiguration {
     }
 
     @Bean
-    public InMemoryRateLimitProvider rateLimitProvider() {
+    @ConditionalOnMissingBean(RateLimitProvider.class)
+    public RateLimitProvider rateLimitProvider(ObjectProvider<ApertureRateLimitProperties> rateLimitPropertiesProvider) {
+        ApertureRateLimitProperties rateLimitProperties = rateLimitPropertiesProvider.getIfAvailable();
+        if (rateLimitProperties != null && "valkey".equalsIgnoreCase(rateLimitProperties.getBackend())) {
+            return new ValkeyRateLimitProvider(rateLimitProperties.getValkey());
+        }
         return new InMemoryRateLimitProvider();
     }
 

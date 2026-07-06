@@ -70,6 +70,49 @@ aperture:
       - https://app.example.com
 ```
 
+## Rate limiting (`aperture.rate-limit`)
+
+| Property | Type | Default | Description |
+|---|---|---|---|
+| `aperture.rate-limit.enabled` | boolean | `true` | Set `false` to skip rate limiting entirely |
+| `aperture.rate-limit.backend` | string | `memory` | Rate-limit provider backend (`memory` or `valkey`) |
+| `aperture.rate-limit.ip.capacity` | integer | `100` | IP bucket maximum burst size |
+| `aperture.rate-limit.ip.refillTokens` | integer | `100` | IP bucket refill amount per window |
+| `aperture.rate-limit.ip.windowSeconds` | integer | `60` | IP bucket refill window |
+| `aperture.rate-limit.user.capacity` | integer | `50` | User bucket maximum burst size |
+| `aperture.rate-limit.user.refillTokens` | integer | `50` | User bucket refill amount per window |
+| `aperture.rate-limit.user.windowSeconds` | integer | `60` | User bucket refill window |
+| `aperture.rate-limit.tenant.capacity` | integer | `500` | Tenant bucket maximum burst size |
+| `aperture.rate-limit.tenant.refillTokens` | integer | `500` | Tenant bucket refill amount per window |
+| `aperture.rate-limit.tenant.windowSeconds` | integer | `60` | Tenant bucket refill window |
+| `aperture.rate-limit.valkey.host` | string | `127.0.0.1` | Valkey host used by the demo/provider |
+| `aperture.rate-limit.valkey.port` | integer | `6379` | Valkey port |
+| `aperture.rate-limit.valkey.libraryName` | string | `aperture_rate_limit` | Loaded Lua function library name |
+| `aperture.rate-limit.valkey.functionName` | string | `consume` | Function name invoked for each rate-limit check |
+| `aperture.rate-limit.valkey.keyPrefix` | string | `aperture:rate-limit:` | Prefix used for bucket keys in Valkey |
+
+```yaml
+aperture:
+  rate-limit:
+    enabled: true
+    backend: memory
+    ip:
+      capacity: 100
+      refillTokens: 100
+      windowSeconds: 60
+    user:
+      capacity: 50
+      refillTokens: 50
+      windowSeconds: 60
+    tenant:
+      capacity: 500
+      refillTokens: 500
+      windowSeconds: 60
+    valkey:
+      host: localhost
+      port: 6379
+```
+
 ## Field encryption (`aperture.encryption.local`)
 
 | Property | Type | Default | Description |

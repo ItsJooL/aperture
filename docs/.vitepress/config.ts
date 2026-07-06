@@ -162,6 +162,7 @@ export default defineConfig({
               items: [
                 { text: 'JWT authentication', link: '/reference/configuration#jwt-authentication-aperture-auth-jwt' },
                 { text: 'CORS',               link: '/reference/configuration#cors-aperture-cors' },
+                { text: 'Rate limiting',      link: '/reference/configuration#rate-limiting-aperture-rate-limit' },
                 { text: 'Field encryption',   link: '/reference/configuration#field-encryption-aperture-encryption-local' },
                 { text: 'Hooks',              link: '/reference/configuration#hooks-aperture-hooks' },
                 { text: 'GraphQL',            link: '/reference/configuration#graphql-elide-graphql' },
