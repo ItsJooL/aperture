@@ -30,6 +30,14 @@ Default configuration (all paths relative to `${project.basedir}`):
 | `lockDirectory` | `.aperture.lock/` |
 | `generatedResourcesDirectory` | `target/generated-resources/` |
 
+### Generated CLI (optional)
+
+Aperture can generate a fully-featured CLI for your API from your manifests — entity CRUD commands, auth, profiles, and optional GraalVM native binary support. It is **off by default**.
+
+See the [Generated CLI guide](/guide/cli) for full setup instructions, GraalVM native builds, platform targeting, and configuration reference.
+
+`mvn clean` deletes `target/` entirely — regenerate with `mvn package` or `mvn verify`.
+
 ## Building
 
 ```bash
@@ -166,6 +174,8 @@ spec:
 
 Removing a version (or setting it to `SUNSET`) requires an API version bump to avoid breaking changes at build time.
 
+Every entity is reachable over GraphQL as well as JSON:API, at `/graphql/{version}` — off by default, and gated on the same path-based versioning as the REST endpoints. Nested relationship traversal and mutations both work against the same permission and manifest model as REST. See [GraphQL configuration](/reference/configuration#graphql-elide-graphql) to turn it on.
+
 ## Docker deployment
 
 Aperture apps are standard Spring Boot applications. Package with Maven, copy the JAR into a runtime image.
@@ -198,7 +208,10 @@ All Aperture configuration is environment-variable-driven. Required at runtime:
 | `APERTURE_JWT_SECRET` | HMAC signing key — minimum 32 bytes |
 | `APERTURE_ENCRYPTION_KEY` | AES-256 encryption key — 32-byte Base64 (`openssl rand -base64 32`) |
 | `APERTURE_HOOK_SECRET` | Shared secret for hook request signing |
-| `APERTURE_BOOTSTRAP_ADMIN_PASSWORD` | Initial superadmin password |
+
+`APERTURE_BOOTSTRAP_ADMIN_PASSWORD` (seen in the demo compose files) is **not** a general
+framework variable — see [Bootstrap admin](/reference/configuration#bootstrap-admin) for what
+actually consumes it.
 
 ### Schema migration on startup
 
@@ -236,7 +249,6 @@ services:
       APERTURE_JWT_SECRET: ${APERTURE_JWT_SECRET}
       APERTURE_ENCRYPTION_KEY: ${APERTURE_ENCRYPTION_KEY}
       APERTURE_HOOK_SECRET: ${APERTURE_HOOK_SECRET}
-      APERTURE_BOOTSTRAP_ADMIN_PASSWORD: ${APERTURE_BOOTSTRAP_ADMIN_PASSWORD}
     depends_on:
       postgres:
         condition: service_healthy

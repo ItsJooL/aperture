@@ -9,6 +9,8 @@
       <HooksIcon    v-if="icon === 'hooks'"    />
       <SecurityIcon v-if="icon === 'security'" />
       <McpIcon      v-if="icon === 'mcp'"      />
+      <GraphQLIcon  v-if="icon === 'graphql'"  />
+      <CliIcon      v-if="icon === 'cli'"      />
     </div>
     <div class="fr-text">
       <h3><slot name="title" /></h3>
@@ -26,6 +28,8 @@ import AuthIcon     from '../icons/AuthIcon.vue'
 import HooksIcon    from '../icons/HooksIcon.vue'
 import SecurityIcon from '../icons/SecurityIcon.vue'
 import McpIcon      from '../icons/McpIcon.vue'
+import GraphQLIcon  from '../icons/GraphQLIcon.vue'
+import CliIcon      from '../icons/CliIcon.vue'
 
 defineProps<{ icon: string; reverse?: boolean }>()
 </script>

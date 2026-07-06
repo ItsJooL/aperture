@@ -1,0 +1,14 @@
+# Tenant-scoped invoices — require a customer relationship (ManyToOne).
+# amount and customer are required. status enum: DRAFT | ISSUED | PAID
+invoices:
+  - customer: Initech Corporation   # resolved to customer ID at test time
+    amount: 199.97                  # 3x Widget Pro (49.99 * 3) + line items reconcile separately
+    status: DRAFT
+
+  - customer: Umbrella Labs
+    amount: 999.00
+    status: ISSUED
+
+  - customer: Globex Corp
+    amount: 39.98                   # 2x Gadget Basic
+    status: DRAFT

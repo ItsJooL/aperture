@@ -11,10 +11,12 @@ spec:
     name:
       type: string
       required: true
+      unique: true
       description: "Product name"
     sku:
       type: string
       required: true
+      unique: true
       description: "Stock-keeping unit code"
     description:
       type: string

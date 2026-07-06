@@ -9,6 +9,7 @@ spec:
   fields:
     code:
       type: string
+      unique: true
       description: "ISO 4217 currency code (e.g. USD, EUR)"
   permissions:
     Accountant: [read]

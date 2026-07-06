@@ -6,7 +6,7 @@ End-to-end demo of the Aperture API server with two tenants, hook validation, at
 
 ```bash
 # Build and start the full stack (api-server, postgres, hook-service, jaeger, seeder)
-docker compose up -d
+mise run docker-deploy
 
 # Wait for all services to become healthy (~60-90s on cold build)
 docker compose ps
@@ -14,11 +14,30 @@ docker compose ps
 
 The seeder runs automatically once the api-server is healthy. It provisions two tenants (`Acme Corp` and `TechStart Inc`) with users, products, customers, and invoices.
 
+## Mise Tasks
+
+Run `mise run` in this directory for the interactive task picker. Common tasks:
+
+```bash
+mise run docker-deploy  # build and start API, backing services, seeder, and UI
+mise run docker-clear   # stop the stack and remove containers, volumes, and local images
+mise run build-api      # Maven package for the demo API
+mise run build-cli      # build the generated CLI
+mise run build-ui       # build the web UI
+mise run test           # Maven tests
+mise run test-cli       # CLI smoke test against a live stack
+mise run test-ui        # UI tests
+```
+
+From the repository root, these same tasks are available as `demos:aperture-demo:*`,
+for example `mise run demos:aperture-demo:docker-deploy`.
+
 ## Services
 
 | Service      | URL                           | Description                  |
 |-------------|-------------------------------|------------------------------|
 | api-server  | http://localhost:8080         | JSON:API + framework routes  |
+| web-ui      | http://localhost:3780         | Vue billing workspace SPA    |
 | hook-service| http://localhost:8081         | Webhook handler              |
 | jaeger      | http://localhost:16686        | Distributed trace UI         |
 | postgres    | localhost:5432                | PostgreSQL 15                |
@@ -32,6 +51,12 @@ The seeder runs automatically once the api-server is healthy. It provisions two 
 | Acme Corp | viewer@acme.com         | Viewer123!        | Viewer       |
 | TechStart | admin@techstart.com     | TechAdmin123!     | TenantAdmin  |
 | TechStart | dev@techstart.com       | DevPass123!       | Accountant   |
+
+The web UI has built-in one-click login for these seeded users — you don't need to type
+credentials by hand. Open <http://localhost:3780>: the "Demo personas" panel at the top of
+the login screen lets you jump straight into any seeded workspace. Once signed in, the same
+persona and tenant switcher stays pinned in the top-right of the workspace so you can hop
+between roles and tenants without signing out.
 
 ## Walkthrough
 
@@ -113,12 +138,12 @@ Open http://localhost:16686 and select `aperture-demo` service to see traces for
 
 ## Bruno API Collection
 
-Import `api-collection/` into [Bruno](https://usebruno.com) for a full set of ready-to-run requests covering auth, tenant management, CRUD, atomic operations, hooks, and cleanup.
+Import `api-collection/` into [Bruno](https://usebruno.com) for a full set of ready-to-run requests: auth, tenant management, users, invites, service accounts, entity CRUD, atomic operations, MCP, optimistic locking, GraphQL, and `scopedBy` filtering, plus a cleanup folder. `api-collection/10-cli/README.md` maps each of those folders to the equivalent `mise run build-cli`-built CLI command for people who'd rather run commands than click through requests — see also `mise run test-cli` for the automated version of that walkthrough.
 
 ## Tear Down
 
 ```bash
-docker compose down -v   # stops containers and removes the data volume
+mise run docker-clear
 ```
 
 ## TLS (optional)
@@ -139,7 +164,8 @@ openssl req -x509 -newkey rsa:4096 -keyout certs/tls.key -out certs/tls.crt \
 Then uncomment the TLS lines in `docker-compose.yml` and restart:
 
 ```bash
-docker compose down && docker compose up -d
+mise run docker-clear
+mise run docker-deploy
 ```
 
 Self-signed certificates will show browser security warnings. For production, use a certificate from a trusted CA (Let's Encrypt, internal PKI, etc.). HTTP→HTTPS redirect requires a reverse proxy (nginx, traefik, AWS ALB) — Aperture does not provide a redirect connector.

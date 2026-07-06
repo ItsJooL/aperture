@@ -1,0 +1,19 @@
+meta {
+  name: 11 — GraphQL
+  type: folder
+  seq: 11
+}
+
+docs {
+  Elide also exposes every entity over GraphQL at /graphql/{version} — same
+  entity dictionary, same permissions, same manifests as JSON:API, just a
+  different transport. Like JSON:API, it requires an explicit API version:
+  the header-based strategy is disabled by default in this demo (only the
+  path strategy is enabled), so /graphql alone returns "Invalid API Version" —
+  use /graphql/v3 (or v1/v2).
+
+  Query and mutation field names are the plural JSON:API resource path
+  (customers, invoices, lineitems, ...), not the singular entity name.
+
+  Run 01-auth first to populate {{tenantAdminToken}}.
+}

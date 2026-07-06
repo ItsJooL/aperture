@@ -30,6 +30,8 @@ manifests/
 
 ## Manifest kinds
 
+> For a by-example tour of every kind and field-level feature — `scopedBy`, `tenantScoped`, relationships, hooks, permissions, MCP, and more — see [Manifest Authoring](/guide/manifests).
+
 | Kind | Purpose |
 |---|---|
 | `Entity` | Declares a domain entity with fields, permissions, policies, and hooks |
@@ -95,7 +97,7 @@ spec:
 | `integer` | `Integer` | `INTEGER` |
 | `boolean` | `Boolean` | `BOOLEAN` |
 | `uuid` | `UUID` | `UUID` |
-| `datetime` | `Instant` | `TIMESTAMPTZ` |
+| `datetime` | `LocalDateTime` | `TIMESTAMPTZ` |
 | `ref` | `@ManyToOne` / `@OneToMany` | FK column (ManyToOne only) |
 
 ## The build pipeline
@@ -120,6 +122,13 @@ For each entity, the code generator produces:
 - Permission annotations (`@ReadPermission`, `@CreatePermission`, `@UpdatePermission`, `@DeletePermission`)
 - ABAC policy check classes for any `policies:` declared
 - MCP tool class (if `mcp.enabled: true` in framework config)
+
+Optionally (when `<cli><enabled>true</enabled></cli>` is set in the plugin config):
+
+- A standalone Maven project at `target/generated-cli/aperture-cli/` containing a Picocli-based CLI
+  with CRUD commands for every entity, auth commands, and a native image build profile
+
+The generation system uses an `ApertureGenerationTarget` SPI internally. Custom generation targets are not yet configurable via the plugin — this is planned for a future release. CLI generation *is* extensible through `<cli><extensions>`: put an implementation of `CliAuthExtension` (custom auth commands) and/or `CliCommandContribution` (additional top-level commands) on the Maven plugin classpath and list its class name in the plugin configuration — see [Generated CLI → Custom auth extensions](/guide/cli#custom-auth-extensions) and [Custom commands](/guide/cli#custom-commands).
 
 For the changeset generator:
 

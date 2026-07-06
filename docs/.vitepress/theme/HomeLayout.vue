@@ -7,19 +7,22 @@
         <a href="/" class="h-logo">
           <BrandWordmark class="h-logo-wordmark" />
         </a>
-        <div class="h-nav-links">
-          <a href="/guide/">Guide</a>
-          <a href="/reference/manifest-schema">Reference</a>
-          <a href="/examples/billing-demo">Examples</a>
+        <div class="h-nav-links" :class="{ open: mobileMenuOpen }">
+          <a href="/guide/" @click="mobileMenuOpen = false">Guide</a>
+          <a href="/reference/manifest-schema" @click="mobileMenuOpen = false">Reference</a>
+          <a href="/examples/billing-demo" @click="mobileMenuOpen = false">Examples</a>
         </div>
       </div>
       <div class="h-nav-right">
         <a href="https://github.com/ItsJooL/aperture" class="h-github" target="_blank" rel="noopener">
-          <GitHubIcon /> GitHub
+          <GitHubIcon /> <span class="h-github-label">GitHub</span>
         </a>
         <button class="h-theme-toggle" @click="toggleTheme" :aria-label="isDark ? 'Switch to light mode' : 'Switch to dark mode'">
           <SunIcon v-if="isDark" />
           <MoonIcon v-else />
+        </button>
+        <button class="h-menu-toggle" @click="mobileMenuOpen = !mobileMenuOpen" :aria-expanded="mobileMenuOpen" aria-label="Toggle navigation menu">
+          <span /><span /><span />
         </button>
       </div>
     </nav>
@@ -35,10 +38,11 @@
     </nav>
 
     <!-- SECTIONS -->
-    <HeroSection     id="hero"     />
-    <HowItWorks      id="how"      />
-    <FeaturesSection id="features" />
-    <CtaSection      id="cta"      />
+    <HeroSection          id="hero"     />
+    <HowItWorks           id="how"      />
+    <FeaturesSection      id="features" />
+    <FeatureMatrixSection id="matrix"   />
+    <CtaSection           id="cta"      />
 
   </div>
 </template>
@@ -46,23 +50,26 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
 import { useData } from 'vitepress'
-import HeroSection     from './sections/HeroSection.vue'
-import HowItWorks      from './sections/HowItWorks.vue'
-import FeaturesSection from './sections/FeaturesSection.vue'
-import CtaSection      from './sections/CtaSection.vue'
+import HeroSection          from './sections/HeroSection.vue'
+import HowItWorks           from './sections/HowItWorks.vue'
+import FeaturesSection      from './sections/FeaturesSection.vue'
+import FeatureMatrixSection from './sections/FeatureMatrixSection.vue'
+import CtaSection           from './sections/CtaSection.vue'
 import BrandWordmark   from './components/BrandWordmark.vue'
 import GitHubIcon      from './icons/GitHubIcon.vue'
 import SunIcon         from './icons/SunIcon.vue'
 import MoonIcon        from './icons/MoonIcon.vue'
 
 const sections = [
-  { id: 'hero',     label: 'Home'         },
-  { id: 'how',      label: 'How it works' },
-  { id: 'features', label: 'Features'     },
-  { id: 'cta',      label: 'Get started'  },
+  { id: 'hero',     label: 'Home'          },
+  { id: 'how',      label: 'How it works'  },
+  { id: 'features', label: 'Features'      },
+  { id: 'matrix',   label: 'All features'  },
+  { id: 'cta',      label: 'Get started'   },
 ]
 
 const activeSection = ref('hero')
+const mobileMenuOpen = ref(false)
 
 // Use VitePress's own isDark ref — persists to localStorage and syncs with
 // the toggle that appears in the DefaultTheme navbar on all other pages.
@@ -135,6 +142,15 @@ onUnmounted(() => observer?.disconnect())
   cursor: pointer; transition: all .15s; color: var(--home-text-2);
 }
 .h-theme-toggle:hover { border-color: var(--home-accent); }
+.h-menu-toggle {
+  display: none;
+  width: 34px; height: 34px; border-radius: 7px;
+  background: var(--home-surface-2); border: 1px solid var(--home-border);
+  flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+  cursor: pointer; transition: border-color .15s;
+}
+.h-menu-toggle:hover { border-color: var(--home-accent); }
+.h-menu-toggle span { width: 15px; height: 1.5px; background: var(--home-text-2); border-radius: 1px; }
 .h-dot-nav {
   position: fixed; right: 22px; top: 50%; transform: translateY(-50%);
   display: flex; flex-direction: column; gap: 12px; z-index: 199;
@@ -147,5 +163,23 @@ onUnmounted(() => observer?.disconnect())
 .h-dot-nav a.active {
   background: var(--home-accent); border-color: var(--home-accent);
   opacity: 1; transform: scale(1.3);
+}
+
+@media (max-width: 640px) {
+  .h-nav { padding: 0 16px; }
+  .h-nav-links {
+    display: none;
+    position: absolute; top: 58px; left: 0; right: 0;
+    flex-direction: column; gap: 0; margin-left: 0;
+    background: var(--home-surface); border-bottom: 1px solid var(--home-border);
+    padding: 6px 16px 12px;
+  }
+  .h-nav-links.open { display: flex; }
+  .h-nav-links a { padding: 11px 0; border-bottom: 1px solid var(--home-border); }
+  .h-nav-links a:last-child { border-bottom: none; }
+  .h-github-label { display: none; }
+  .h-github { padding: 8px; }
+  .h-nav-right { gap: 8px; }
+  .h-menu-toggle { display: flex; }
 }
 </style>

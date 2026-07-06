@@ -9,9 +9,11 @@ spec:
   fields:
     code:
       type: string
+      unique: true
       description: "ISO 3166-1 alpha-2 country code"
     name:
       type: string
+      unique: true
       description: "Full country name"
   permissions:
     Accountant: [read]

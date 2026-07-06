@@ -26,24 +26,34 @@
         Atomic operations, sparse fieldsets, compound documents, RSQL filtering, sorting, and pagination come standard on every entity. The open standard answers the questions your team would otherwise argue about.
       </FeatureRow>
 
-      <FeatureRow icon="tenancy">
+      <FeatureRow icon="graphql">
+        <template #title>GraphQL, powered by Elide</template>
+        The same entity dictionary — same permissions, same manifests — is also queryable as GraphQL. Traverse an invoice, its customer, and every line item in one round trip instead of chaining REST calls.
+      </FeatureRow>
+
+      <FeatureRow icon="tenancy" :reverse="true">
         <template #title>Multi-tenancy out of the box</template>
         POOL mode adds tenant isolation at the database level — every query auto-filtered, every FK constraint tenant-aware. NONE mode for single-tenant deployments. Same codebase, different config.
       </FeatureRow>
 
-      <FeatureRow icon="auth" :reverse="true">
+      <FeatureRow icon="auth">
         <template #title>Pluggable auth and identity</template>
         JWT and API key auth built in. Implement one interface to swap in Keycloak, Okta, or any identity provider. Everything else — tenancy, RBAC, hooks, audit — stays completely unchanged.
       </FeatureRow>
 
-      <FeatureRow icon="hooks">
+      <FeatureRow icon="hooks" :reverse="true">
         <template #title>Four lifecycle hook types</template>
         <code>validate</code> blocks, <code>mutate</code> modifies, <code>trigger</code> fires async, <code>guard</code> runs pre-auth. You implement logic over HTTP — Aperture handles signing, retries, and timeouts.
       </FeatureRow>
 
-      <FeatureRow icon="security" :reverse="true">
+      <FeatureRow icon="security">
         <template #title>RBAC + ABAC security model</template>
         Role-based permissions and SpEL attribute policies live in the manifest. Field encryption, rate limiting, optimistic locking, and a transactional audit trail are all included.
+      </FeatureRow>
+
+      <FeatureRow icon="cli" :reverse="true">
+        <template #title>A CLI for your API, generated</template>
+        A manifest-driven, kubectl-style CLI: verb-first CRUD for every entity, declarative <code>apply</code>, config profiles, and shell completion — shipped as a fat JAR or a ~30ms GraalVM native binary. Auth is pluggable too, with OIDC device-code login available out of the box.
       </FeatureRow>
 
       <!-- SVG overlay — drawn after mount from measured icon positions -->

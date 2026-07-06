@@ -1,0 +1,18 @@
+# Line items — belong to an invoice and reference a product.
+# invoice must be set with an explicit id: field (invoices have no unique display name).
+# product is resolved by name via the in-run cache or API lookup.
+lineitems:
+  - product: Widget Pro
+    description: Widget Pro x3
+    quantity: 3
+    unit_price: 49.99
+
+  - product: Service Package Gold
+    description: Annual support subscription
+    quantity: 1
+    unit_price: 999.00
+
+  - product: Gadget Basic
+    description: Gadget Basic x2
+    quantity: 2
+    unit_price: 19.99

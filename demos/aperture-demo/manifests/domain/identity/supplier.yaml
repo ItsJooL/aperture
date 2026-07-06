@@ -9,6 +9,7 @@ spec:
     company_name:
       type: string
       required: true
+      unique: true
       description: "Legal company name of the supplier"
   permissions:
     Accountant: [read]

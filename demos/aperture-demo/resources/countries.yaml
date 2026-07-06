@@ -1,0 +1,9 @@
+# Global (non-tenant-scoped) country reference data
+# Readable by Accountant and Viewer roles.
+countries:
+  - code: US
+    name: United States
+  - code: GB
+    name: United Kingdom
+  - code: DE
+    name: Germany

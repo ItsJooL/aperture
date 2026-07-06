@@ -5,6 +5,8 @@ description: Complete YAML specification for every Aperture manifest kind.
 
 # Manifest Schema
 
+> Looking for a task-oriented tour instead of a field-by-field list? See [Manifest Authoring](/guide/manifests) for minimal working YAML per kind and per feature, including the `scopedBy` deep dive.
+
 Manifests are YAML files in the `manifests/` directory (recursive). Every manifest has the same three top-level keys:
 
 ```yaml
@@ -34,6 +36,7 @@ spec:
   tenantScoped: true         # default: false
   optimisticLocking: false   # default: false
   softDelete: false          # default: false
+  scopedBy: account          # optional — name of a ManyToOne ref field
   plural: invoices           # optional — overrides default pluralisation
   fields: { ... }
   permissions: { ... }
@@ -117,6 +120,13 @@ mcp:
 | `optimisticLocking` | `false` | Adds `version` column; requires `If-Match` on mutations |
 | `softDelete` | `false` | Adds `deleted_at` column; filters `deleted_at IS NULL` |
 
+### `spec.scopedBy`
+
+Name of a `ManyToOne` ref field declared in `spec.fields`. Every read of this entity is filtered
+by a per-request `X-Aperture-Scope-<Field>` header value. This is a mandatory query filter, not
+per-user authorization — requests without a matching header value are denied, but any caller who
+can set the header can pick which scope to read.
+
 ---
 
 ## FrameworkConfig
@@ -134,6 +144,8 @@ spec:
     - Accountant
     - Viewer
   # Note: TenantAdmin and SuperAdmin are platform authorities — do not list them here
+  cli:
+    binaryName: acme          # name of the generated CLI binary; defaults to "aperture"
   mcp:
     enabled: true
     transport: stateless      # stateless (HTTP) is the only supported transport

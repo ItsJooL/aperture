@@ -1,0 +1,6 @@
+# Payments applied against invoices.
+# invoice must be set with an explicit id: field (invoices have no unique natural key).
+# Example — fill in a real invoice UUID after creating invoices:
+# payments:
+#   - invoice: <invoice-uuid>
+#     amount: 999.00

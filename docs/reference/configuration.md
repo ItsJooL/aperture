@@ -114,6 +114,26 @@ aperture:
 | `spring.ai.mcp.server.name` | string | — | MCP server name shown to clients |
 | `spring.ai.mcp.server.version` | string | — | MCP server version shown to clients |
 
+## GraphQL (`elide.graphql`)
+
+Aperture's entity dictionary is also queryable over GraphQL — same entities, same permissions, same manifests, just a different transport. This is a native Elide/Spring property, not an `aperture.*` one, and it isn't manifest-driven: there's no per-entity or per-field GraphQL config, it's a single on/off switch for the whole app.
+
+| Property | Type | Default | Description |
+|---|---|---|---|
+| `elide.graphql.enabled` | boolean | `false` | Enable the GraphQL endpoint |
+| `elide.graphql.path` | string | `/graphql` | Base path; the API version is appended, e.g. `/graphql/v1` |
+
+```yaml
+elide:
+  graphql:
+    enabled: true
+    path: /graphql
+```
+
+GraphQL requires the path-based API versioning strategy (`elide.api-versioning-strategy.path.enabled: true` — see [API versioning](/guide/build-deploy#api-versioning)); there is no unversioned `/graphql` route. Query and mutation field names are the plural JSON:API resource path (`customers`, `invoices`, `lineitems`), not the singular entity name, and results come back as Relay-style connections (`{ edges { node { ... } } }`).
+
+To disable GraphQL entirely, omit the `elide.graphql` block or set `elide.graphql.enabled: false` — this is also the default if the block is absent.
+
 ## Security (`aperture.server`)
 
 | Property | Type | Default | Description |
@@ -138,15 +158,18 @@ When enabled, the generated OpenAPI spec includes all entity endpoints, auth and
 
 ## Bootstrap admin
 
-The superadmin account used during initial setup:
+There is no `aperture.bootstrap.*` property in the framework, and the runtime/starter do not
+read `APERTURE_BOOTSTRAP_ADMIN_PASSWORD` — automatic superadmin provisioning is not currently a
+general Aperture feature, despite what earlier revisions of this page implied. Setting
+`aperture.bootstrap.admin-password` in your own `application.yml` has no effect; nothing binds it.
 
-```yaml
-aperture:
-  bootstrap:
-    admin-password: ${APERTURE_BOOTSTRAP_ADMIN_PASSWORD}
-```
-
-This account has `SuperAdmin` role and is used to provision the first tenant. Set a strong password and change it after initial setup.
+What exists today is demo-specific: `demos/aperture-demo` ships its own `DemoBootstrap`
+component (active only when `aperture.profile=demo`) that creates a fixed
+`superadmin@framework.local` user on `ApplicationReadyEvent`, reading the raw
+`APERTURE_BOOTSTRAP_ADMIN_PASSWORD` environment variable directly — not through any
+`aperture.*` configuration property. If your own application needs a bootstrap superadmin,
+write an equivalent `ApplicationReadyEvent` listener; see
+`demos/aperture-demo/src/main/java/com/itsjool/aperture/demo/DemoBootstrap.java` for the pattern.
 
 ## Complete example (`application.yml`)
 
@@ -179,6 +202,7 @@ aperture:
       key: ${APERTURE_ENCRYPTION_KEY}
   hooks:
     secret: ${APERTURE_HOOK_SECRET}
-  bootstrap:
-    admin-password: ${APERTURE_BOOTSTRAP_ADMIN_PASSWORD}
 ```
+
+`APERTURE_BOOTSTRAP_ADMIN_PASSWORD` is not read by this configuration — see
+[Bootstrap admin](#bootstrap-admin) above.

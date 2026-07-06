@@ -1,0 +1,58 @@
+meta {
+  name: Query — Invoices with Customer and Line Items
+  type: graphql
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/graphql/v3
+  body: graphql
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tenantAdminToken}}
+}
+
+body:graphql {
+  query Invoices {
+    invoices {
+      edges {
+        node {
+          id
+          amount
+          status
+          customer {
+            edges {
+              node {
+                name
+                email
+              }
+            }
+          }
+          lineItems {
+            edges {
+              node {
+                description
+                quantity
+                unit_price
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+docs {
+  One round trip for an invoice, its customer, and every line item — the
+  JSON:API equivalent needs either three separate requests or an `include=`
+  compound-document query per invoice. This is the "GraphQL done well" case:
+  a graph-shaped read across three entity types in a single call.
+}
+
+assert {
+  res.status: eq 200
+  res.body.data.invoices.edges: isDefined
+}

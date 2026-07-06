@@ -1,0 +1,46 @@
+meta {
+  name: Mutation — Create Customer
+  type: graphql
+  seq: 2
+}
+
+post {
+  url: {{baseUrl}}/graphql/v3
+  body: graphql
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tenantAdminToken}}
+}
+
+body:graphql {
+  mutation CreateCustomer($name: String!, $email: String!) {
+    customers(op: UPSERT, data: { name: $name, email: $email }) {
+      edges {
+        node {
+          id
+          name
+        }
+      }
+    }
+  }
+}
+
+body:graphql:vars {
+  {
+    "name": "GraphQL Bruno Corp",
+    "email": "graphql-bruno@test.example"
+  }
+}
+
+script:post-response {
+  if (res.body.data && res.body.data.customers) {
+    bru.setVar("graphqlCustomerId", res.body.data.customers.edges[0].node.id);
+  }
+}
+
+assert {
+  res.status: eq 200
+  res.body.data.customers.edges[0].node.id: isDefined
+}

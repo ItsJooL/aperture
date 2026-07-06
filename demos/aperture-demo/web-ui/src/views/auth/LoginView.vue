@@ -20,6 +20,31 @@
       </div>
     </section>
     <section class="auth-panel">
+      <AppCard class="auth-card demo-quickbar-card" padded>
+        <div class="demo-quickbar-heading">
+          <span class="demo-quickbar-icon" aria-hidden="true"><Sparkles class="button-icon" /></span>
+          <div>
+            <p class="page-kicker">Demo personas · one-click login</p>
+            <h2 class="card-title">Jump straight into a seeded workspace</h2>
+          </div>
+        </div>
+        <div class="demo-chip-row">
+          <button
+            v-for="persona in demoPersonas"
+            :key="persona.id"
+            type="button"
+            class="demo-chip"
+            :disabled="loading"
+            :title="persona.description"
+            @click="loginAs(persona)"
+          >
+            <strong>{{ persona.label }}</strong>
+            <small>{{ persona.tenant }} · {{ persona.role }}</small>
+          </button>
+        </div>
+        <p class="demo-chip-hint muted">Hover a persona for what it can do — no password needed.</p>
+      </AppCard>
+
       <AppCard class="auth-card">
         <p class="page-kicker">Welcome back</p>
         <h2 style="font-size:2rem; margin:.25rem 0 .6rem; letter-spacing:-.04em;">Sign in</h2>
@@ -31,28 +56,6 @@
           <RouterLink to="/accept-invite" class="muted" style="text-align:center; font-weight:700;">Accept an invitation instead</RouterLink>
         </form>
       </AppCard>
-
-      <AppCard class="auth-card demo-login-card">
-        <p class="page-kicker">Demo personas</p>
-        <h2 class="card-title">Jump into a workspace</h2>
-        <p class="card-description">Pick a seeded user to see real tenant isolation, RBAC and ABAC behavior.</p>
-        <div class="demo-persona-list">
-          <button
-            v-for="persona in demoPersonas"
-            :key="persona.id"
-            type="button"
-            class="demo-persona-card"
-            :disabled="loading"
-            @click="loginAs(persona)"
-          >
-            <span>
-              <strong>{{ persona.label }}</strong>
-              <small>{{ persona.tenant }} · {{ persona.role }}</small>
-            </span>
-            <em>{{ persona.description }}</em>
-          </button>
-        </div>
-      </AppCard>
     </section>
   </main>
 </template>
@@ -60,6 +63,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { useRoute, useRouter, RouterLink } from 'vue-router'
+import { Sparkles } from '@lucide/vue'
 import AppButton from '@/components/ui/AppButton.vue'
 import AppCard from '@/components/ui/AppCard.vue'
 import AppInput from '@/components/ui/AppInput.vue'

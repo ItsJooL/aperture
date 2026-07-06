@@ -1,0 +1,6 @@
+# Global (non-tenant-scoped) currencies used by Products
+# These are created by SuperAdmin and readable by all tenants.
+currencies:
+  - code: USD   # US Dollar — primary test currency
+  - code: EUR   # Euro
+  - code: GBP   # British Pound Sterling

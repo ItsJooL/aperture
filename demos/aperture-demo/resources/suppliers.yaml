@@ -1,0 +1,5 @@
+# Tenant-scoped supplier definitions (managed by Accountant/Admin roles)
+suppliers:
+  - company_name: Acme Parts Ltd
+  - company_name: Global Materials Inc
+  - company_name: Tech Components GmbH

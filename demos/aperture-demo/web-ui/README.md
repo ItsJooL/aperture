@@ -12,6 +12,11 @@ npm run dev
 
 Open <http://localhost:5173>. The backend must be running (`docker compose up -d` from `demos/aperture-demo`).
 
+The login screen has a "Demo personas" panel at the top with one-click buttons for every
+seeded user — no need to type credentials. Once signed in, the same persona/tenant switcher
+stays pinned in the top-right of the workspace so you can hop between roles and tenants
+without signing out.
+
 `.env.example`:
 
 ```env

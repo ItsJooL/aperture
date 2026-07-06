@@ -19,7 +19,7 @@ This demo proves that Aperture encrypted fields can use an enterprise KMS withou
 ## Automated Verification
 
 ```bash
-mvn -pl demos/aperture-vault-demo test
+mise run test
 ```
 
 Expected result:
@@ -34,15 +34,19 @@ Expected result:
 Build the jar:
 
 ```bash
-mvn -pl demos/aperture-vault-demo package -DskipTests
+mise run build-api
 ```
 
 Start the stack:
 
 ```bash
 cd demos/aperture-vault-demo
-docker compose up --build --force-recreate --renew-anon-volumes
+mise run docker-deploy
 ```
+
+Run `mise run` in this directory for the interactive task picker. From the repository root,
+the same tasks are available as `demos:aperture-vault-demo:*`, for example
+`mise run demos:aperture-vault-demo:test`.
 
 Login:
 

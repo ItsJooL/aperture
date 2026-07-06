@@ -11,6 +11,7 @@ spec:
     name:
       type: string
       required: true
+      unique: true
       description: "Legal name of the customer"
     email:
       type: string

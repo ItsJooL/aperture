@@ -27,6 +27,7 @@ const routes: RouteRecordRaw[] = [
       { path: 'invoices/new', name: 'invoice-new', component: () => import('@/views/invoices/InvoiceBuilderView.vue'), meta: { requiresPermission: 'invoices:write' } },
       { path: 'invoices/:id', name: 'invoice-detail', component: () => import('@/views/invoices/InvoiceDetailView.vue'), meta: { requiresPermission: 'invoices:read' } },
       { path: 'payments', name: 'payments', component: () => import('@/views/payments/PaymentsView.vue'), meta: { requiresPermission: 'payments:read' } },
+      { path: 'insights', name: 'insights', component: () => import('@/views/insights/GraphQLInsightsView.vue'), meta: { requiresPermission: 'invoices:read' } },
       { path: 'suppliers', name: 'suppliers', component: () => import('@/views/suppliers/SuppliersView.vue'), meta: { requiresPermission: 'suppliers:read' } },
       { path: 'admin', name: 'admin', component: () => import('@/views/admin/AdminView.vue'), meta: { requiresAdmin: true, requiresPermission: 'admin:view' } },
       { path: 'settings', name: 'settings', component: () => import('@/views/SettingsView.vue') },

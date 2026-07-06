@@ -1,0 +1,61 @@
+# Atomic multi-resource demo.
+#
+#   aperture apply -f resources/products.yaml   # one-time: seed products this file references
+#   aperture apply -f resources-atomic/order.yaml --atomic
+#
+# Places a full order — a new customer, their invoice, a line item against an
+# existing product, and a partial payment — as one JSON:API Atomic Operations
+# batch. If any single operation fails (e.g. the ValidateInvoice or
+# CheckLineItem hook rejects something), the whole batch rolls back: nothing
+# is created, not even the customer. Verified live with a deliberate-failure
+# test (invalid invoice status -> zero resources created).
+#
+# No --api-version needed: the generated CLI bakes in the manifest's ACTIVE
+# version (GlobalOptions.DEFAULT_API_VERSION, currently 3) as the fallback used
+# whenever neither --api-version nor a profile's pinned version is set.
+#
+# Only one line item on purpose: two or more new LineItems in the same batch,
+# each referencing this same new Invoice (by lid) *and* an existing Product
+# (by id), triggers a Hibernate TransientObjectException server-side — a
+# narrower, separate bug from the ones this session fixed. See
+# dev-notes/known-issues/elide-multi-version-api-bugs.md (Issue 3 addendum)
+# for the isolation trail, including a cascade-annotation fix that was tried
+# and reverted because it silently skipped Elide's tenant-ID assignment hook.
+# One LineItem + one Payment against the same new Invoice works reliably.
+#
+# Kept separate from resources/ on purpose: resources/customers.yaml and
+# resources/invoices.yaml are meant for the default (non-atomic)
+# `apply -f resources/` seeding flow, which has a skip-on-409/--upsert path for
+# idempotency. `--atomic` has no such path at all — every run unconditionally
+# POSTs "add" operations, so re-running this file creates duplicates rather
+# than erroring or skipping (this demo's Customer.email isn't actually
+# unique-constrained either, so there's no 409 to catch regardless — see
+# dev-notes/reviews/2026-07-03-cli-kubectl-comparison.md). Re-apply only when
+# you mean to create another order.
+#
+# Cross-referencing note: the customer and product are referenced by natural
+# key (name/sku), resolved via the CLI's in-run cache and API lookups. Invoice
+# itself has no natural key, so the line item and payment below reference it
+# via an explicit _ref instead — a user-chosen, order-independent label (see
+# docs/guide/cli.md). Falling back to the internal positional label
+# (invoices-N) still works but isn't recommended for hand-authored fixtures.
+customers:
+  - name: Roadrunner Distribution
+    email: ap@roadrunner-distribution.example
+
+invoices:
+  - _ref: order-invoice
+    customer: Roadrunner Distribution   # new customer above, resolved by name
+    amount: 449.99
+    status: DRAFT
+
+lineitems:
+  - invoice: order-invoice
+    product: Widget Pro                 # from resources/products.yaml
+    description: Widget Pro x9
+    quantity: 9
+    unit_price: 49.99
+
+payments:
+  - invoice: order-invoice
+    amount: 200.00

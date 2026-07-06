@@ -1,6 +1,11 @@
 # Aperture Demos
 
-Four runnable demos showing different deployment configurations of the Aperture framework. Each is a self-contained Spring Boot application with Docker Compose for local development and a Testcontainers component test suite.
+Five runnable demos showing different deployment configurations of the Aperture framework. Each is a self-contained Spring Boot application with Docker Compose for local development and a Testcontainers component test suite.
+
+Each demo has local `mise` tasks for common workflows. From a demo directory, run `mise run` for
+the interactive picker, or run tasks such as `mise run docker-deploy`, `mise run docker-clear`,
+`mise run build-api`, and `mise run test`. From the repository root, the same tasks are available
+with catalog names such as `mise run demos:aperture-demo:docker-deploy`.
 
 ---
 
@@ -14,9 +19,14 @@ The reference demo. Multiple tenants share one database schema, separated by an 
 
 ```bash
 cd demos/aperture-demo
-docker compose up -d
-# Browse http://localhost:3000 after ~60s
+mise run docker-deploy
+# Browse http://localhost:3780 after ~60s
 ```
+
+Bruno collection: `api-collection/` covers auth, tenant management, users, invites,
+service accounts, entity CRUD, atomic operations, MCP, optimistic locking, GraphQL, and
+`scopedBy` filtering, plus a cleanup folder — with a `10-cli/` README mapping each folder
+to the equivalent generated-CLI command (`mise run test-cli` runs the automated version).
 
 ---
 
@@ -30,8 +40,11 @@ Proves the `tenancyMode: none` code path end-to-end. Domain tables have no tenan
 
 ```bash
 cd demos/aperture-single-tenant-demo
-docker compose up -d
+mise run docker-deploy
 ```
+
+Bruno collection: `api-collection/` covers auth and Note CRUD for both the
+Admin and ReadOnly roles, plus a cleanup folder.
 
 **Component test coverage:**
 - Bootstrap admin can log in
@@ -87,10 +100,38 @@ This suppresses `SimpleAuthConfiguration` (no JWT beans, no `AuthController`) an
 
 ```bash
 cd demos/aperture-keycloak-demo
-docker compose up -d
+mise run docker-deploy
 # Keycloak admin UI: http://localhost:8180  admin/admin
 # Aperture API:      http://localhost:8080
 ```
+
+Bruno collection: `api-collection/` covers the Keycloak ROPC token exchange
+(the same testing-convenience grant the component tests use) plus Product/Order
+CRUD as Admin and User, and a cleanup folder.
+
+---
+
+## aperture-keycloak-cli-demo — OIDC device-code CLI
+
+Proves the generated CLI auth override SPI against Keycloak's OIDC device authorization grant. The API uses the shared `aperture-keycloak-auth` server-side JWT validation module; the generated CLI uses `aperture-cli-auth-oidc` to acquire and refresh bearer tokens.
+
+**Domain**: Product and Order entities with Admin and User roles  
+**Auth**: Keycloak JWT for the API; OIDC device-code login for the generated CLI  
+**Highlights**: full `CliAuthExtension` source override, OIDC discovery, device-code polling, token refresh, Keycloak public CLI client
+
+```bash
+cd demos/aperture-keycloak-cli-demo
+mise run build-api
+mise run docker-deploy
+# Keycloak admin UI: http://localhost:8181  admin/admin
+# Aperture API:      http://localhost:8081
+```
+
+Then follow the device login walkthrough in `demos/aperture-keycloak-cli-demo/README.md`,
+or run `./device-flow-smoke.sh` from that directory to drive the same flow headlessly
+(curl standing in for the browser). Bruno collection: `api-collection/` covers
+password-grant requests against the server-audience `aperture-api` client for
+Product/Order CRUD, plus a cleanup folder.
 
 ---
 
@@ -104,10 +145,13 @@ Proves that Aperture's field encryption can be backed by an enterprise KMS witho
 
 ```bash
 cd demos/aperture-vault-demo
-docker compose up --build --force-recreate --renew-anon-volumes
+mise run docker-deploy
 ```
 
 API clients send and receive plaintext. Postgres stores Vault ciphertext (`vault:v1:...`). The encryption context binds ciphertext to the tenant — data encrypted under one tenant cannot be decrypted under another.
+
+Bruno collection: `api-collection/` walks Login → Create Patient → Get Patient →
+Verify Ciphertext (see `aperture-vault-demo/README.md` for the full walkthrough).
 
 ---
 
@@ -118,3 +162,5 @@ All demos share:
 - `aperture-maven-plugin:generate` driving code generation from YAML manifests
 - Liquibase schema migration from generated lock files
 - `@SpringBootTest` component tests exercising the real API boundary
+- A Bruno collection (`api-collection/`) of ready-to-run HTTP requests mirroring
+  the demo's walkthrough — see each demo's section above for what it covers

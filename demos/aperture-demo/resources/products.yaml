@@ -1,0 +1,30 @@
+# Tenant-scoped products (optimisticLocking + softDelete, optional currency relationship)
+# name, sku, and unit_price are required.
+products:
+  - name: Widget Pro
+    sku: WGT-001
+    description: Standard widget with extended warranty
+    unit_price: 49.99
+    category: HARDWARE
+    active: true
+
+  - name: Gadget Basic
+    sku: GDG-100
+    description: Entry-level gadget for general use
+    unit_price: 19.99
+    category: HARDWARE
+    active: true
+
+  - name: Service Package Gold
+    sku: SVC-GOLD
+    description: Annual gold-tier support subscription
+    unit_price: 999.00
+    category: SERVICE
+    active: true
+
+  - name: Bolt Kit M8
+    sku: BLT-M8-100
+    description: Pack of 100 M8 stainless bolts
+    unit_price: 12.50
+    category: HARDWARE
+    active: true

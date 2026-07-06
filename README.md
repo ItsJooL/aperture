@@ -91,10 +91,13 @@ mindmap
         aperture-simple-ratelimit
         aperture-simple-mcp
         aperture-simple-starter
+      aperture-keycloak-auth
+      aperture-cli-auth-oidc
     demos
       aperture-demo
       aperture-single-tenant-demo
       aperture-keycloak-demo
+      aperture-keycloak-cli-demo
       aperture-vault-demo
 ```
 
@@ -119,12 +122,20 @@ mvn test                         # unit tests
 mvn verify                       # unit + component tests (requires Docker)
 ```
 
+Project workflows are also exposed as `mise` tasks. From the repository root,
+run `mise run` for the interactive task picker, or run a task directly:
+
+```bash
+mise run docs:test
+mise run demos:aperture-demo:docker-deploy
+```
+
 Run the reference demo:
 
 ```bash
 cd demos/aperture-demo
-docker compose up -d
-# Browse to http://localhost:3000 after ~60 seconds
+mise run docker-deploy
+# Browse to http://localhost:3780 after ~60 seconds
 ```
 
 See the [quick-start guide](https://aperture.itsjool.com/guide/quick-start) for a step-by-step walkthrough.

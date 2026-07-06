@@ -25,7 +25,8 @@ services:
     ports:
       - "8080:8080"
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
+      # The eclipse-temurin-jre-alpine base image has no curl; wget (busybox) does.
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/actuator/health"]
       interval: 10s
       retries: 10
       start_period: 60s

@@ -23,6 +23,9 @@
     </aside>
 
     <div class="demo-floating-panel" aria-label="Demo switcher">
+      <span class="demo-floating-icon" title="Demo mode — switch personas or tenants instantly" aria-hidden="true">
+        <Sparkles class="button-icon" />
+      </span>
       <div class="demo-switcher">
         <label>
           <span>Persona</span>
@@ -57,6 +60,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { RouterLink, RouterView, useRoute, useRouter } from 'vue-router'
+import { Sparkles } from '@lucide/vue'
 import AppButton from '@/components/ui/AppButton.vue'
 import { defaultPersonaForTenant, demoPersonas, demoTenants, demoTenantIds, personaById, personaForUsername } from '@/data/demoPersonas'
 import { extractRoleNames, type Permission } from '@/stores/permissions'
@@ -73,6 +77,7 @@ const navItems: Array<{ label: string; to: string; permission?: Permission; admi
   { label: 'Products', to: '/products', permission: 'products:read' },
   { label: 'Invoices', to: '/invoices', permission: 'invoices:read' },
   { label: 'Payments', to: '/payments', permission: 'payments:read' },
+  { label: 'Insights', to: '/insights', permission: 'invoices:read' },
   { label: 'Suppliers', to: '/suppliers', permission: 'suppliers:read' },
   { label: 'Admin', to: '/admin', permission: 'admin:view', admin: true },
   { label: 'Settings', to: '/settings' },

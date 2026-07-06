@@ -1,0 +1,11 @@
+# Tenant-scoped customers (optimisticLocking + softDelete enabled)
+# email is required; name is required.
+customers:
+  - name: Initech Corporation
+    email: accounts@initech.example
+  - name: Umbrella Labs
+    email: billing@umbrella.example
+  - name: Globex Corp
+    email: ar@globex.example
+  - name: Wayne Enterprises
+    email: wayne@wayneent.example

@@ -340,6 +340,40 @@ const resourceHandlers = [
   }),
 ]
 
+// ── GraphQL ────────────────────────────────────────────────────────────────────
+//
+// Elide's GraphQL responses use Relay-style connections (`{ edges: { node } }`) and are not
+// JSON:API documents. This mocks the single query the Insights view relies on
+// (see api-collection/11-graphql/01-query-invoices-with-customer-and-lineitems.bru).
+
+function toConnection<T>(nodes: T[]) {
+  return { edges: nodes.map((node) => ({ node })) }
+}
+
+const graphqlHandlers = [
+  http.post(url('/graphql/v3'), async ({ request }) => {
+    const body = await request.json() as { query?: string }
+    const query = body.query ?? ''
+
+    if (!query.includes('invoices')) {
+      return HttpResponse.json({ data: null, errors: [{ message: `Unsupported mock GraphQL query: ${query}` }] })
+    }
+
+    const customer = getCustomers()[0]
+    const items = getLineItems()
+
+    const invoiceNodes = getInvoices().map((invoice) => ({
+      id: invoice.id,
+      amount: invoice.amount,
+      status: invoice.status.toUpperCase(),
+      customer: toConnection(customer ? [{ name: customer.name, email: customer.email }] : []),
+      lineItems: toConnection(items.map((item) => ({ description: item.description, quantity: item.quantity, unit_price: item.unit_price }))),
+    }))
+
+    return HttpResponse.json({ data: { invoices: toConnection(invoiceNodes) } })
+  }),
+]
+
 import type { JsonApiDocument } from '@/api/jsonapi/types'
 import type { Invoice, LineItem } from '@/api/types/domain'
 
@@ -347,4 +381,5 @@ export const handlers = [
   ...authHandlers,
   ...adminHandlers,
   ...resourceHandlers,
+  ...graphqlHandlers,
 ]

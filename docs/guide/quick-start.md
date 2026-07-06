@@ -28,7 +28,7 @@ This starts six services:
 | `postgres` | 5432 | PostgreSQL — data store |
 | `api-server` | 8080 | The Aperture-generated JSON:API server |
 | `hook-service` | 8081 | Demo webhook handler (validate-invoice, enrich-customer) |
-| `ui` | 3000 | Web dashboard — browse to `http://localhost:3000` |
+| `ui` | 3780 | Web dashboard — browse to `http://localhost:3780` |
 | `seeder` | — | Seeds demo tenants, users, and data, then exits |
 | `jaeger` | 16686 | Distributed tracing UI (optional) |
 
