@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+#MISE description="Preview the built VitePress documentation site"
+set -euo pipefail
+
+TASK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+DOCS_DIR="$(cd "$TASK_DIR/.." && pwd)"
+
+cd "$DOCS_DIR"
+if [ ! -d node_modules ]; then
+  npm install
+fi
+npm run preview -- --host 0.0.0.0

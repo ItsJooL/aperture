@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+#MISE description="Build and start the aperture-vault-demo stack"
+set -euo pipefail
+
+TASK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+DEMO_DIR="$(cd "$TASK_DIR/.." && pwd)"
+
+cd "$DEMO_DIR"
+docker compose up --build --force-recreate --renew-anon-volumes

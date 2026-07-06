@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+#MISE description="Stop aperture-vault-demo and remove containers, volumes, and local images"
+set -euo pipefail
+
+TASK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+DEMO_DIR="$(cd "$TASK_DIR/.." && pwd)"
+
+cd "$DEMO_DIR"
+docker compose down -v --rmi local --remove-orphans

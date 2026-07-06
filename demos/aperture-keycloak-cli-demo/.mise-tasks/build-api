@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+#MISE description="Build the aperture-keycloak-cli-demo API and generated CLI"
+set -euo pipefail
+
+TASK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+DEMO_DIR="$(cd "$TASK_DIR/.." && pwd)"
+REPO_ROOT="$(cd "$DEMO_DIR/../.." && pwd)"
+
+cd "$REPO_ROOT"
+mvn -pl demos/aperture-keycloak-cli-demo -am package -DskipTests

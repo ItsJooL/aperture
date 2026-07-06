@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+#MISE description="Run the aperture-demo generated CLI smoke test against a live stack"
+set -euo pipefail
+
+TASK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+DEMO_DIR="$(cd "$TASK_DIR/.." && pwd)"
+
+cd "$DEMO_DIR"
+./cli-smoke-test.sh
