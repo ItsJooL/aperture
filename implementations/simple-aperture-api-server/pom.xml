@@ -15,6 +15,7 @@
         <module>aperture-simple-audit</module>
         <module>aperture-simple-starter</module>
         <module>aperture-simple-mcp</module>
+        <module>aperture-simple-cli</module>
     </modules>
     <dependencies>
         <dependency>

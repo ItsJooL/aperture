@@ -2,6 +2,10 @@ package com.itsjool.aperture.plugin;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.itsjool.aperture.cli.oidc.OidcDeviceCodeCliExtension;
+import com.itsjool.aperture.cli.spi.AuthPaths;
+import com.itsjool.aperture.cli.spi.CliAuthExtension;
+import com.itsjool.aperture.cli.spi.CliCommandContribution;
 import org.apache.maven.model.Resource;
 import org.apache.maven.plugin.MojoExecutionException;
 import org.apache.maven.project.MavenProject;
@@ -290,6 +294,479 @@ class ApertureGenerateMojoTest {
         java.util.Set<String> methodSet = new java.util.HashSet<>();
         metadata.get("allowedHttpMethods").forEach(m -> methodSet.add(m.asText()));
         assertThat(methodSet).contains("GET", "OPTIONS");
+    }
+
+    @Test
+    void generatesAdminSecurityChecks() throws Exception {
+        Path manifests = Files.createDirectories(tempDir.resolve("manifests-admin-checks"));
+        Path sources = tempDir.resolve("sources-admin-checks");
+        Path resources = tempDir.resolve("resources-admin-checks");
+        Path locks = tempDir.resolve("locks-admin-checks");
+        writeManifest(manifests, "entity.yaml", """
+            apiVersion: aperture.itsjool.com/v1
+            kind: Entity
+            metadata: { name: Order }
+            spec:
+              fields:
+                total: { type: decimal, required: true }
+              permissions:
+                Admin: [create, read, update, delete]
+            """);
+        writeManifest(manifests, "versions.yaml", """
+            apiVersion: aperture.itsjool.com/v1
+            kind: ApiVersionConfig
+            metadata: { name: versions }
+            spec:
+              versions:
+                "1": { status: ACTIVE }
+            """);
+        writeManifest(manifests, "framework.yaml", """
+            apiVersion: aperture.itsjool.com/v1
+            kind: FrameworkConfig
+            metadata: { name: framework }
+            spec:
+              defaultRoles: [Admin]
+            """);
+        writeManifest(manifests, "roles.yaml", """
+            apiVersion: aperture.itsjool.com/v1
+            kind: RoleDefinition
+            metadata: { name: roles }
+            spec:
+              roles:
+                Admin: { description: Administrator }
+            """);
+        ApertureGenerateMojo mojo = new ApertureGenerateMojo();
+        mojo.setProject(new MavenProject());
+        mojo.setManifestDirectory(manifests.toFile());
+        mojo.setOutputDirectory(sources.toFile());
+        mojo.setGeneratedResourcesDirectory(resources.toFile());
+        mojo.setLockDirectory(locks.toFile());
+        mojo.execute();
+
+        assertThat(sources.resolve("com/itsjool/aperture/generated/security/SuperAdminCheck.java"))
+            .exists().content().contains("SuperAdminCheck");
+        assertThat(sources.resolve("com/itsjool/aperture/generated/security/TenantAdminCheck.java"))
+            .exists().content().contains("TenantAdminCheck");
+    }
+
+    @Test
+    void generatesAbacPolicyCheck() throws Exception {
+        Path manifests = Files.createDirectories(tempDir.resolve("manifests-abac"));
+        Path sources = tempDir.resolve("sources-abac");
+        Path resources = tempDir.resolve("resources-abac");
+        Path locks = tempDir.resolve("locks-abac");
+        writeManifest(manifests, "entity.yaml", """
+            apiVersion: aperture.itsjool.com/v1
+            kind: Entity
+            metadata: { name: Document }
+            spec:
+              fields:
+                title: { type: string, required: true }
+              permissions:
+                Editor: [create, read, update]
+              policies:
+                EuRegionOnly: [read]
+            """);
+        writeManifest(manifests, "versions.yaml", """
+            apiVersion: aperture.itsjool.com/v1
+            kind: ApiVersionConfig
+            metadata: { name: versions }
+            spec:
+              versions:
+                "1": { status: ACTIVE }
+            """);
+        writeManifest(manifests, "framework.yaml", """
+            apiVersion: aperture.itsjool.com/v1
+            kind: FrameworkConfig
+            metadata: { name: framework }
+            spec:
+              defaultRoles: [Editor]
+            """);
+        writeManifest(manifests, "roles.yaml", """
+            apiVersion: aperture.itsjool.com/v1
+            kind: RoleDefinition
+            metadata: { name: roles }
+            spec:
+              roles:
+                Editor: { description: Editor }
+            """);
+        writeManifest(manifests, "principal-attributes.yaml", """
+            apiVersion: aperture.itsjool.com/v1
+            kind: PrincipalAttributeDefinition
+            metadata: { name: principal-attributes }
+            spec:
+              securityAttributes:
+                region:
+                  type: string
+            """);
+        writeManifest(manifests, "policy.yaml", """
+            apiVersion: aperture.itsjool.com/v1
+            kind: AbacPolicy
+            metadata: { name: EuRegionOnly }
+            spec:
+              expression: "#user.securityAttributes['region'] == 'eu'"
+            """);
+        ApertureGenerateMojo mojo = new ApertureGenerateMojo();
+        mojo.setProject(new MavenProject());
+        mojo.setManifestDirectory(manifests.toFile());
+        mojo.setOutputDirectory(sources.toFile());
+        mojo.setGeneratedResourcesDirectory(resources.toFile());
+        mojo.setLockDirectory(locks.toFile());
+        mojo.execute();
+
+        assertThat(sources.resolve("com/itsjool/aperture/generated/security/EuRegionOnlyCheck.java"))
+            .exists().content().contains("EuRegionOnlyCheck");
+    }
+
+    @Test
+    void mcpToolGenerationRunsWhenEnabled() throws Exception {
+        Path manifests = Files.createDirectories(tempDir.resolve("manifests-mcp-on"));
+        Path sources = tempDir.resolve("sources-mcp-on");
+        Path resources = tempDir.resolve("resources-mcp-on");
+        Path locks = tempDir.resolve("locks-mcp-on");
+        writeManifest(manifests, "entity.yaml", """
+            apiVersion: aperture.itsjool.com/v1
+            kind: Entity
+            metadata: { name: Widget }
+            spec:
+              fields:
+                name: { type: string, required: true }
+              permissions:
+                Admin: [create, read, update, delete]
+            """);
+        writeManifest(manifests, "versions.yaml", """
+            apiVersion: aperture.itsjool.com/v1
+            kind: ApiVersionConfig
+            metadata: { name: versions }
+            spec:
+              versions:
+                "1": { status: ACTIVE }
+            """);
+        writeManifest(manifests, "framework.yaml", """
+            apiVersion: aperture.itsjool.com/v1
+            kind: FrameworkConfig
+            metadata: { name: framework }
+            spec:
+              defaultRoles: [Admin]
+              mcp:
+                enabled: true
+                serverName: widget-server
+            """);
+        writeManifest(manifests, "roles.yaml", """
+            apiVersion: aperture.itsjool.com/v1
+            kind: RoleDefinition
+            metadata: { name: roles }
+            spec:
+              roles:
+                Admin: { description: Admin }
+            """);
+        ApertureGenerateMojo mojo = new ApertureGenerateMojo();
+        mojo.setProject(new MavenProject());
+        mojo.setManifestDirectory(manifests.toFile());
+        mojo.setOutputDirectory(sources.toFile());
+        mojo.setGeneratedResourcesDirectory(resources.toFile());
+        mojo.setLockDirectory(locks.toFile());
+        mojo.execute();
+
+        assertThat(sources.resolve("com/itsjool/aperture/generated/mcp/WidgetV1McpTools.java"))
+            .exists().content().contains("WidgetV1McpTools");
+    }
+
+    @Test
+    void mcpToolGenerationSkippedWhenDisabled() throws Exception {
+        Path manifests = Files.createDirectories(tempDir.resolve("manifests-mcp-off"));
+        Path sources = tempDir.resolve("sources-mcp-off");
+        Path resources = tempDir.resolve("resources-mcp-off");
+        Path locks = tempDir.resolve("locks-mcp-off");
+        writeManifest(manifests, "entity.yaml", """
+            apiVersion: aperture.itsjool.com/v1
+            kind: Entity
+            metadata: { name: Gadget }
+            spec:
+              fields:
+                name: { type: string, required: true }
+              permissions:
+                Admin: [create, read, update, delete]
+            """);
+        writeManifest(manifests, "versions.yaml", """
+            apiVersion: aperture.itsjool.com/v1
+            kind: ApiVersionConfig
+            metadata: { name: versions }
+            spec:
+              versions:
+                "1": { status: ACTIVE }
+            """);
+        writeManifest(manifests, "framework.yaml", """
+            apiVersion: aperture.itsjool.com/v1
+            kind: FrameworkConfig
+            metadata: { name: framework }
+            spec:
+              defaultRoles: [Admin]
+            """);
+        writeManifest(manifests, "roles.yaml", """
+            apiVersion: aperture.itsjool.com/v1
+            kind: RoleDefinition
+            metadata: { name: roles }
+            spec:
+              roles:
+                Admin: { description: Admin }
+            """);
+        ApertureGenerateMojo mojo = new ApertureGenerateMojo();
+        mojo.setProject(new MavenProject());
+        mojo.setManifestDirectory(manifests.toFile());
+        mojo.setOutputDirectory(sources.toFile());
+        mojo.setGeneratedResourcesDirectory(resources.toFile());
+        mojo.setLockDirectory(locks.toFile());
+        mojo.execute();
+
+        try (java.util.stream.Stream<java.nio.file.Path> walk = Files.walk(sources)) {
+            assertThat(walk.filter(p -> p.toString().contains("McpTool")).toList()).isEmpty();
+        }
+    }
+
+    @Test
+    void generatesOpenApiYaml() throws Exception {
+        Path manifests = Files.createDirectories(tempDir.resolve("manifests-oas"));
+        Path sources = tempDir.resolve("sources-oas");
+        Path resources = tempDir.resolve("resources-oas");
+        Path locks = tempDir.resolve("locks-oas");
+        writeManifest(manifests, "entity.yaml", """
+            apiVersion: aperture.itsjool.com/v1
+            kind: Entity
+            metadata: { name: Item }
+            spec:
+              fields:
+                label: { type: string, required: true }
+              permissions:
+                Admin: [create, read, update, delete]
+            """);
+        writeManifest(manifests, "versions.yaml", """
+            apiVersion: aperture.itsjool.com/v1
+            kind: ApiVersionConfig
+            metadata: { name: versions }
+            spec:
+              versions:
+                "1": { status: ACTIVE }
+            """);
+        writeManifest(manifests, "framework.yaml", """
+            apiVersion: aperture.itsjool.com/v1
+            kind: FrameworkConfig
+            metadata: { name: framework }
+            spec:
+              defaultRoles: [Admin]
+            """);
+        writeManifest(manifests, "roles.yaml", """
+            apiVersion: aperture.itsjool.com/v1
+            kind: RoleDefinition
+            metadata: { name: roles }
+            spec:
+              roles:
+                Admin: { description: Admin }
+            """);
+        ApertureGenerateMojo mojo = new ApertureGenerateMojo();
+        mojo.setProject(new MavenProject());
+        mojo.setManifestDirectory(manifests.toFile());
+        mojo.setOutputDirectory(sources.toFile());
+        mojo.setGeneratedResourcesDirectory(resources.toFile());
+        mojo.setLockDirectory(locks.toFile());
+        mojo.execute();
+
+        assertThat(resources.resolve("aperture-openapi.yaml"))
+            .exists().content().contains("openapi:", "items");
+    }
+
+    @Test
+    void cliCommandContributionExtensionReachesGeneratedCliProject() throws Exception {
+        Path manifests = Files.createDirectories(tempDir.resolve("manifests-command-contribution"));
+        Path sources = tempDir.resolve("sources-command-contribution");
+        Path resources = tempDir.resolve("resources-command-contribution");
+        Path locks = tempDir.resolve("locks-command-contribution");
+        writeStatusManifests(manifests);
+
+        ApertureGenerateMojo mojo = new ApertureGenerateMojo();
+        mojo.setProject(new MavenProject());
+        mojo.setManifestDirectory(manifests.toFile());
+        mojo.setOutputDirectory(sources.toFile());
+        mojo.setGeneratedResourcesDirectory(resources.toFile());
+        mojo.setLockDirectory(locks.toFile());
+        ApertureGenerateMojo.CliConfig cli = new ApertureGenerateMojo.CliConfig();
+        cli.setEnabled(true);
+        cli.setExtensions(java.util.List.of(StubCommandContribution.class.getName()));
+        mojo.setCli(cli);
+
+        mojo.execute();
+
+        // The cli target directory is allocated relative to the resources build directory's
+        // parent (see StagingGenerationContext.allocateTargetDirectory), i.e. resources.getParent().
+        Path cliRoot = resources.getParent().resolve("generated-cli/aperture-cli");
+        Path commandFile = cliRoot.resolve(
+            "src/main/java/com/itsjool/aperture/cli/cmd/StubStatusCommand.java");
+        assertThat(commandFile).exists().content().contains("package com.itsjool.aperture.cli.cmd;");
+
+        String main = Files.readString(cliRoot.resolve(
+            "src/main/java/com/itsjool/aperture/cli/ApertureCli.java"));
+        assertThat(main).contains("StubStatusCommand.class");
+    }
+
+    @Test
+    void extensionClassImplementingNeitherInterfaceFailsWithMojoExecutionException() throws Exception {
+        Path manifests = Files.createDirectories(tempDir.resolve("manifests-bad-extension"));
+        Path sources = tempDir.resolve("sources-bad-extension");
+        Path resources = tempDir.resolve("resources-bad-extension");
+        Path locks = tempDir.resolve("locks-bad-extension");
+        writeStatusManifests(manifests);
+
+        ApertureGenerateMojo mojo = new ApertureGenerateMojo();
+        mojo.setProject(new MavenProject());
+        mojo.setManifestDirectory(manifests.toFile());
+        mojo.setOutputDirectory(sources.toFile());
+        mojo.setGeneratedResourcesDirectory(resources.toFile());
+        mojo.setLockDirectory(locks.toFile());
+        ApertureGenerateMojo.CliConfig cli = new ApertureGenerateMojo.CliConfig();
+        cli.setEnabled(true);
+        cli.setExtensions(java.util.List.of(NotAnExtension.class.getName()));
+        mojo.setCli(cli);
+
+        assertThatThrownBy(mojo::execute)
+            .isInstanceOf(MojoExecutionException.class)
+            .hasMessageContaining("does not implement CliAuthExtension or CliCommandContribution");
+    }
+
+    @Test
+    void multipleCliAuthExtensionsFailWithMojoExecutionException() throws Exception {
+        Path manifests = Files.createDirectories(tempDir.resolve("manifests-multiple-auth-extensions"));
+        Path sources = tempDir.resolve("sources-multiple-auth-extensions");
+        Path resources = tempDir.resolve("resources-multiple-auth-extensions");
+        Path locks = tempDir.resolve("locks-multiple-auth-extensions");
+        writeStatusManifests(manifests);
+
+        ApertureGenerateMojo mojo = new ApertureGenerateMojo();
+        mojo.setProject(new MavenProject());
+        mojo.setManifestDirectory(manifests.toFile());
+        mojo.setOutputDirectory(sources.toFile());
+        mojo.setGeneratedResourcesDirectory(resources.toFile());
+        mojo.setLockDirectory(locks.toFile());
+        ApertureGenerateMojo.CliConfig cli = new ApertureGenerateMojo.CliConfig();
+        cli.setEnabled(true);
+        cli.setExtensions(java.util.List.of(StubAuthExtensionA.class.getName(), StubAuthExtensionB.class.getName()));
+        mojo.setCli(cli);
+
+        assertThatThrownBy(mojo::execute)
+            .isInstanceOf(MojoExecutionException.class)
+            .hasMessageContaining("Only one CliAuthExtension");
+    }
+
+    @Test
+    void oidcDeviceCodeCliAuthExtensionReachesGeneratedCliProjectAsRealTierTwoAuth() throws Exception {
+        Path manifests = Files.createDirectories(tempDir.resolve("manifests-oidc-auth-extension"));
+        Path sources = tempDir.resolve("sources-oidc-auth-extension");
+        Path resources = tempDir.resolve("resources-oidc-auth-extension");
+        Path locks = tempDir.resolve("locks-oidc-auth-extension");
+        writeStatusManifests(manifests);
+
+        ApertureGenerateMojo mojo = new ApertureGenerateMojo();
+        mojo.setProject(new MavenProject());
+        mojo.setManifestDirectory(manifests.toFile());
+        mojo.setOutputDirectory(sources.toFile());
+        mojo.setGeneratedResourcesDirectory(resources.toFile());
+        mojo.setLockDirectory(locks.toFile());
+        ApertureGenerateMojo.CliConfig cli = new ApertureGenerateMojo.CliConfig();
+        cli.setEnabled(true);
+        cli.setExtensions(java.util.List.of(OidcDeviceCodeCliExtension.class.getName()));
+        mojo.setCli(cli);
+
+        mojo.execute();
+
+        // The cli target directory is allocated relative to the resources build directory's
+        // parent (see StagingGenerationContext.allocateTargetDirectory), i.e. resources.getParent().
+        Path cliRoot = resources.getParent().resolve("generated-cli/aperture-cli");
+        Path authCommandFile = cliRoot.resolve("src/main/java/com/itsjool/aperture/cli/cmd/AuthCommand.java");
+        assertThat(authCommandFile).exists().content()
+            .contains("package com.itsjool.aperture.cli.cmd;")
+            .contains("urn:ietf:params:oauth:grant-type:device_code")
+            .contains("device_authorization_endpoint")
+            .contains("authorization_pending");
+        assertThat(cliRoot.resolve("src/main/java/com/itsjool/aperture/cli/cmd/SimpleAuthCommand.java"))
+            .doesNotExist();
+
+        String main = Files.readString(cliRoot.resolve(
+            "src/main/java/com/itsjool/aperture/cli/ApertureCli.java"));
+        assertThat(main).contains("AuthCommand.class");
+    }
+
+    private void writeStatusManifests(Path manifests) throws Exception {
+        writeManifest(manifests, "entity.yaml", """
+            apiVersion: aperture.itsjool.com/v1
+            kind: Entity
+            metadata: { name: Customer }
+            spec:
+              fields:
+                name: { type: string, required: true }
+              permissions:
+                Admin: [create, read, update, delete]
+            """);
+        writeManifest(manifests, "versions.yaml", """
+            apiVersion: aperture.itsjool.com/v1
+            kind: ApiVersionConfig
+            metadata: { name: versions }
+            spec:
+              versions:
+                "1": { status: ACTIVE }
+            """);
+        writeManifest(manifests, "framework.yaml", """
+            apiVersion: aperture.itsjool.com/v1
+            kind: FrameworkConfig
+            metadata: { name: framework }
+            spec:
+              defaultRoles: [Admin]
+            """);
+        writeManifest(manifests, "roles.yaml", """
+            apiVersion: aperture.itsjool.com/v1
+            kind: RoleDefinition
+            metadata: { name: roles }
+            spec:
+              roles:
+                Admin: { description: Admin }
+            """);
+    }
+
+    /** Test-only stub — a real implementation would live in its own artifact, same as
+     *  {@code SimpleStatusCliContribution} in aperture-simple-cli. */
+    public static class StubCommandContribution implements CliCommandContribution {
+        @Override public String id() { return "stub-status"; }
+        @Override public String commandClassName() { return "StubStatusCommand"; }
+        @Override public String commandSource(String binaryName) {
+            return """
+                package com.itsjool.aperture.cli.cmd;
+
+                import picocli.CommandLine.Command;
+
+                @Command(name = "stub-status", description = "stub")
+                public class StubStatusCommand implements Runnable {
+                    @Override public void run() { System.out.println("stub"); }
+                }
+                """;
+        }
+    }
+
+    public static class StubAuthExtensionA implements CliAuthExtension {
+        @Override public String id() { return "stub-auth-a"; }
+        @Override public AuthPaths authPaths() { return authPathsFor("/a"); }
+    }
+
+    public static class StubAuthExtensionB implements CliAuthExtension {
+        @Override public String id() { return "stub-auth-b"; }
+        @Override public AuthPaths authPaths() { return authPathsFor("/b"); }
+    }
+
+    private static AuthPaths authPathsFor(String prefix) {
+        return new AuthPaths(prefix + "/login", prefix + "/refresh", prefix + "/logout",
+            prefix + "/me", prefix + "/token", prefix + "/api-keys");
+    }
+
+    /** Test-only stub implementing neither {@code CliAuthExtension} nor
+     *  {@code CliCommandContribution} — exercises the mojo's misconfiguration guard. */
+    public static class NotAnExtension {
     }
 
     private static void writeManifest(Path directory, String name, String contents) throws Exception {

@@ -14,7 +14,7 @@ public record ResolvedDomainModel(
     }
 
     public ResolvedDomainModel(List<EntityDef> entities, List<MigrationDef> migrations) {
-        this(entities, migrations, new FrameworkConfigDef(List.of(), null, null), List.of(), List.of(), List.of(), List.of());
+        this(entities, migrations, new FrameworkConfigDef(List.of(), null, null, null), List.of(), List.of(), List.of(), List.of());
     }
 
     public ResolvedDomainModel(

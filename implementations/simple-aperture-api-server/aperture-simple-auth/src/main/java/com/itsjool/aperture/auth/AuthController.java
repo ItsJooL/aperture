@@ -197,8 +197,12 @@ public class AuthController {
         AperturePrincipal p = (AperturePrincipal) rawPrincipal;
         com.itsjool.aperture.spi.ApiKeyCreateCommand cmd = new com.itsjool.aperture.spi.ApiKeyCreateCommand(
                 p.tenantId(), p.userId(), req.name(), req.expiresAt(), req.nonExpiring(), req.domainRoles(), req.securityAttributes());
-        com.itsjool.aperture.spi.ApiKeyCreationResult res = provider.createApiKey(cmd);
-        return ResponseEntity.status(HttpStatus.CREATED).body(res);
+        try {
+            com.itsjool.aperture.spi.ApiKeyCreationResult res = provider.createApiKey(cmd);
+            return ResponseEntity.status(HttpStatus.CREATED).body(res);
+        } catch (IdentityAdministrationValidationException e) {
+            return ResponseEntity.badRequest().body(new ErrorResponse("bad_request", e.getMessage()));
+        }
     }
 
     @GetMapping("/me/api-keys")
