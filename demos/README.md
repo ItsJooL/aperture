@@ -17,6 +17,8 @@ The reference demo. Multiple tenants share one database schema, separated by an 
 **Auth**: Aperture's built-in JWT auth (`/auth/login`)  
 **Highlights**: POOL tenancy, optimistic locking, soft delete, field encryption, hooks (validate/mutate/trigger/guard), rate limiting, audit log, MCP server, atomic operations, distributed tracing
 
+The rate-limit component test now runs against a Valkey-backed provider with a deterministic low-capacity request path so it proves the configured `429` response and the `X-RateLimit-*` headers without changing the demo’s default runtime limits.
+
 ```bash
 cd demos/aperture-demo
 mise run docker-deploy

@@ -1,0 +1,23 @@
+meta {
+  name: List Customers 2
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/api/v1/customers
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tenantAdminToken}}
+}
+
+headers {
+  Accept: application/vnd.api+json
+}
+
+assert {
+  res.status: eq 429
+}

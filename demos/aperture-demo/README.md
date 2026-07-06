@@ -5,7 +5,7 @@ End-to-end demo of the Aperture API server with two tenants, hook validation, at
 ## Quick Start
 
 ```bash
-# Build and start the full stack (api-server, postgres, hook-service, jaeger, seeder)
+# Build and start the full stack (api-server, postgres, hook-service, jaeger, valkey, seeder)
 mise run docker-deploy
 
 # Wait for all services to become healthy (~60-90s on cold build)
@@ -40,6 +40,7 @@ for example `mise run demos:aperture-demo:docker-deploy`.
 | web-ui      | http://localhost:3780         | Vue billing workspace SPA    |
 | hook-service| http://localhost:8081         | Webhook handler              |
 | jaeger      | http://localhost:16686        | Distributed trace UI         |
+| valkey      | localhost:6379                | Rate-limit backing store     |
 | postgres    | localhost:5432                | PostgreSQL 15                |
 
 ## Demo Credentials
@@ -138,7 +139,9 @@ Open http://localhost:16686 and select `aperture-demo` service to see traces for
 
 ## Bruno API Collection
 
-Import `api-collection/` into [Bruno](https://usebruno.com) for a full set of ready-to-run requests: auth, tenant management, users, invites, service accounts, entity CRUD, atomic operations, MCP, optimistic locking, GraphQL, and `scopedBy` filtering, plus a cleanup folder. `api-collection/10-cli/README.md` maps each of those folders to the equivalent `mise run build-cli`-built CLI command for people who'd rather run commands than click through requests — see also `mise run test-cli` for the automated version of that walkthrough.
+Import `api-collection/` into [Bruno](https://usebruno.com) for a full set of ready-to-run requests: auth, tenant management, users, invites, service accounts, entity CRUD, atomic operations, MCP, optimistic locking, GraphQL, `scopedBy` filtering, and rate limiting, plus a cleanup folder. `api-collection/10-cli/README.md` maps each of those folders to the equivalent `mise run build-cli`-built CLI command for people who'd rather run commands than click through requests — see also `mise run test-cli` for the automated version of that walkthrough.
+
+The `13-rate-limit` folder is the interactive mirror of the rate-limit walk-through. It exercises the Valkey-backed provider and shows the `429 Too Many Requests` path with the `X-RateLimit-*` headers once the login request plus the first GET consume the configured IP bucket.
 
 ## Tear Down
 

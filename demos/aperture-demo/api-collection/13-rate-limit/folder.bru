@@ -1,0 +1,10 @@
+meta {
+  name: Rate Limit
+  type: folder
+  seq: 13
+}
+
+docs {
+  Run this folder against a fresh demo start so the login request plus the first GET
+  consume the two-token IP bucket and the second GET returns 429 with rate-limit headers.
+}

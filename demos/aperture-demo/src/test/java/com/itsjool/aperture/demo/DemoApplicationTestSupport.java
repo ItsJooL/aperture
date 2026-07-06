@@ -13,8 +13,10 @@ import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.jdbc.Sql;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
+import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Testcontainers;
+import org.testcontainers.utility.DockerImageName;
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -32,6 +34,11 @@ public abstract class DemoApplicationTestSupport {
             .withDatabaseName("aperture")
             .withUsername("aperture")
             .withPassword("password");
+
+    @SuppressWarnings("resource")
+    protected static final GenericContainer<?> valkey = new GenericContainer<>(DockerImageName.parse("valkey/valkey:9.1.0"))
+            .withExposedPorts(6379)
+            .withCommand("valkey-server", "--save", "", "--appendonly", "no");
 
     protected static final okhttp3.mockwebserver.MockWebServer mockWebServer = new okhttp3.mockwebserver.MockWebServer();
 
@@ -77,6 +84,7 @@ public abstract class DemoApplicationTestSupport {
         });
 
         postgres.start();
+        valkey.start();
     }
 
     @DynamicPropertySource
@@ -85,6 +93,9 @@ public abstract class DemoApplicationTestSupport {
         registry.add("spring.datasource.username", postgres::getUsername);
         registry.add("spring.datasource.password", postgres::getPassword);
         registry.add("aperture.hooks.base-url", () -> "http://127.0.0.1:" + mockWebServer.getPort());
+        registry.add("aperture.rate-limit.backend", () -> "valkey");
+        registry.add("aperture.rate-limit.valkey.host", valkey::getHost);
+        registry.add("aperture.rate-limit.valkey.port", () -> valkey.getMappedPort(6379));
     }
 
     protected static final ObjectMapper MAPPER = new ObjectMapper();

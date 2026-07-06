@@ -39,6 +39,16 @@ aperture:
     allowed-origins:
       - http://localhost:5173
       - http://localhost:3780
+  rate-limit:
+    backend: valkey
+    valkey:
+      host: ${APERTURE_RATE_LIMIT_VALKEY_HOST:localhost}
+      port: ${APERTURE_RATE_LIMIT_VALKEY_PORT:6379}
+    # Uncomment the example below to turn the demo into a visible 429 walkthrough.
+    # ip:
+    #   capacity: 2
+    #   refillTokens: 2
+    #   windowSeconds: 60
   mcp:
     enabled: true
   auth:

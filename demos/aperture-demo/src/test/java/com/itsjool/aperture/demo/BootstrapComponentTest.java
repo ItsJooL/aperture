@@ -41,6 +41,9 @@ class BootstrapComponentTest {
         registry.add("spring.datasource.url", postgres::getJdbcUrl);
         registry.add("spring.datasource.username", postgres::getUsername);
         registry.add("spring.datasource.password", postgres::getPassword);
+        registry.add("aperture.rate-limit.backend", () -> "valkey");
+        registry.add("aperture.rate-limit.valkey.host", () -> DemoApplicationTestSupport.valkey.getHost());
+        registry.add("aperture.rate-limit.valkey.port", () -> DemoApplicationTestSupport.valkey.getMappedPort(6379));
     }
 
     @Autowired
