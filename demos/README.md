@@ -1,6 +1,6 @@
 # Aperture Demos
 
-Five runnable demos showing different deployment configurations of the Aperture framework. Each is a self-contained Spring Boot application with Docker Compose for local development and a Testcontainers component test suite.
+Six runnable demos showing different deployment configurations of the Aperture framework. Each is a self-contained Spring Boot application with Docker Compose for local development and a Testcontainers component test suite.
 
 Each demo has local `mise` tasks for common workflows. From a demo directory, run `mise run` for
 the interactive picker, or run tasks such as `mise run docker-deploy`, `mise run docker-clear`,
@@ -55,6 +55,23 @@ Admin and ReadOnly roles, plus a cleanup folder.
 - `/manage/tenants` returns 404 in NONE mode
 - `aperture_tenant_id` column absent from schema
 - Stale ETag on PATCH returns 412
+
+---
+
+## aperture-audit-demo — Audit export to SIEM-style sink
+
+Proves that the `AuditWriter` SPI can fan out audit events to an external HTTP destination while keeping the built-in JDBC audit endpoint available.
+
+**Domain**: Product entity with an encrypted supplier field  
+**Auth**: Aperture's built-in JWT auth  
+**Highlights**: `AuditWriter` SPI, JDBC + webhook composite writer, WireMock SIEM sink, before/after UPDATE details
+
+```bash
+mvn -pl demos/aperture-audit-demo -am package -DskipTests
+cd demos/aperture-audit-demo
+docker compose up -d
+./audit-smoke-test.sh
+```
 
 ---
 

@@ -1,0 +1,55 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: aperture
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: aperture
+    ports:
+      - "5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U aperture"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  wiremock:
+    image: wiremock/wiremock:3.9.2
+    ports:
+      - "8282:8080"
+    volumes:
+      - ./wiremock/mappings:/home/wiremock/mappings:ro,Z
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/__admin/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  api-server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      DB_URL: jdbc:postgresql://postgres:5432/aperture
+      DB_USER: aperture
+      DB_PASS: password
+      APERTURE_PROFILE: demo
+      APERTURE_BOOTSTRAP_ADMIN_PASSWORD: ${APERTURE_BOOTSTRAP_ADMIN_PASSWORD:-changeme-local-only}
+      APERTURE_AUDIT_WEBHOOK_URL: http://wiremock:8080/siem/audit
+      APERTURE_AUDIT_WEBHOOK_FLUSH_INTERVAL: PT1S
+    depends_on:
+      postgres:
+        condition: service_healthy
+      wiremock:
+        condition: service_healthy
+    ports:
+      - "8082:8080"
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
+
+volumes:
+  aperture-audit-data:

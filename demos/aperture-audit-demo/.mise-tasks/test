@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+#MISE description="Run aperture-audit-demo Maven tests"
+set -euo pipefail
+
+TASK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+DEMO_DIR="$(cd "$TASK_DIR/.." && pwd)"
+REPO_ROOT="$(cd "$DEMO_DIR/../.." && pwd)"
+
+cd "$REPO_ROOT"
+mvn -pl demos/aperture-audit-demo test

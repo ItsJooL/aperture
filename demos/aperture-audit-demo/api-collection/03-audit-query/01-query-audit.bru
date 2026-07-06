@@ -1,0 +1,19 @@
+meta {
+  name: Query Audit
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/manage/audit?entity=Product&entityId={{productId}}
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+assert {
+  res.status: eq 200
+  res.body: isArray
+}

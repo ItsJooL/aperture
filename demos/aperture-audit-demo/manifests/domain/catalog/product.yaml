@@ -1,0 +1,27 @@
+apiVersion: aperture.itsjool.com/v1
+kind: Entity
+metadata:
+  name: Product
+spec:
+  description: "A catalog product used to generate visible audit events"
+  plural: Products
+  fields:
+    name:
+      type: string
+      required: true
+      description: "Product name"
+    sku:
+      type: string
+      required: true
+      description: "Stock keeping unit"
+    supplier_secret:
+      type: string
+      encrypted: true
+      description: "Sensitive supplier note included to make audit redaction considerations visible"
+    price:
+      type: decimal
+      required: true
+      description: "Unit price"
+  permissions:
+    Admin: [create, read, update, delete]
+    ReadOnly: [read]

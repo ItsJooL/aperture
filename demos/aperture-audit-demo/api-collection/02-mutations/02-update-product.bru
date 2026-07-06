@@ -1,0 +1,36 @@
+meta {
+  name: Update Product
+  type: http
+  seq: 2
+}
+
+patch {
+  url: {{baseUrl}}/api/v1/products/{{productId}}
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+headers {
+  Content-Type: application/vnd.api+json
+  Accept: application/vnd.api+json
+}
+
+body:json {
+  {
+    "data": {
+      "type": "products",
+      "id": "{{productId}}",
+      "attributes": {
+        "name": "Audit Widget Updated"
+      }
+    }
+  }
+}
+
+assert {
+  res.status: eq 200
+}

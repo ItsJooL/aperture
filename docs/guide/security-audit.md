@@ -171,16 +171,26 @@ entity     TEXT     NOT NULL
 entity_id  TEXT     NOT NULL
 operation  TEXT     NOT NULL     -- CREATE, UPDATE, DELETE
 timestamp  TIMESTAMPTZ NOT NULL
-details    JSONB                 -- before/after values, request metadata
+details    JSONB                 -- changed field path plus before/after values
 ```
 
-Each `AuditEvent` carries: `userId`, `tenantId`, `entity` (entity type name), `entityId`, `operation`, and `detailsJson` (a JSON blob with context).
+Each `AuditEvent` carries: `userId`, `tenantId`, `entity` (entity type name), `entityId`, `operation`, and `detailsJson`. For Elide change events, `detailsJson` is valid JSON with the changed field path and before/after values:
+
+```json
+{
+  "fieldPath": "status",
+  "before": "draft",
+  "after": "approved"
+}
+```
+
+Update details are captured from field-level Elide change events. Create and delete events can have empty details or `null` before/after values depending on what Elide reports for the lifecycle event.
 
 **Write guarantee:** `JdbcAuditWriter` uses an in-memory queue with a capacity of 10,000 events processed by a single background thread. Events are dispatched after the Elide transaction commits — they are not in the same transaction, so audit write failures do not roll back the operation. If you need transactional audit guarantees (fail the mutation if audit fails), implement `AuditWriter` with a transactional outbox pattern.
 
-**Querying audit logs:** `GET /manage/audit` (requires `SuperAdmin` or same-tenant `TenantAdmin`). Supports filtering by `tenantId`, `entity`, `userId`, and date range.
+**Querying audit logs:** `GET /manage/audit` (requires `SuperAdmin` or same-tenant `TenantAdmin`). Supports filtering by `tenantId`, `entity`, `entityId`, `userId`, `from`, and `to`. `from` and `to` are ISO timestamp values compared against the audit event timestamp. Tenant admins are always scoped to their own tenant, even if they pass a different `tenantId`.
 
-**Custom audit destinations:** implement the `AuditWriter` SPI to route audit events to Kafka, S3, a SIEM, or any other destination.
+**Custom audit destinations:** implement the `AuditWriter` SPI to route audit events to Kafka, S3, a SIEM, or any other destination. The `demos/aperture-audit-demo` project shows a composite writer that keeps JDBC audit queries available while also POSTing audit batches to a WireMock SIEM-style HTTP sink.
 
 ```java
 public interface AuditWriter {

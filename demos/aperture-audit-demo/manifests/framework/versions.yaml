@@ -1,0 +1,8 @@
+apiVersion: aperture.itsjool.com/v1
+kind: ApiVersionConfig
+metadata:
+  name: versions
+spec:
+  versions:
+    "1":
+      status: ACTIVE

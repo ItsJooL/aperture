@@ -1,0 +1,15 @@
+{
+  "request": {
+    "method": "POST",
+    "url": "/siem/audit"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "jsonBody": {
+      "accepted": true
+    }
+  }
+}

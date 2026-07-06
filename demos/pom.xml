@@ -20,5 +20,6 @@
         <module>aperture-keycloak-demo</module>
         <module>aperture-keycloak-cli-demo</module>
         <module>aperture-vault-demo</module>
+        <module>aperture-audit-demo</module>
     </modules>
 </project>

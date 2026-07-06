@@ -1,0 +1,45 @@
+meta {
+  name: Create Product
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/api/v1/products
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+headers {
+  Content-Type: application/vnd.api+json
+  Accept: application/vnd.api+json
+}
+
+body:json {
+  {
+    "data": {
+      "type": "products",
+      "attributes": {
+        "name": "Audit Widget",
+        "sku": "AUDIT-001",
+        "supplier_secret": "contract floor 42",
+        "price": 19.99
+      }
+    }
+  }
+}
+
+script:post-response {
+  if (res.status === 201) {
+    bru.setVar("productId", res.body.data.id);
+  }
+}
+
+assert {
+  res.status: eq 201
+  res.body.data.id: isDefined
+}

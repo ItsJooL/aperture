@@ -84,6 +84,7 @@ mindmap
       aperture-maven-plugin
       aperture-provider-spi
     implementations
+      aperture-audit-webhook
       simple-aperture-api-server
         aperture-simple-auth
         aperture-simple-audit
@@ -96,6 +97,7 @@ mindmap
     demos
       aperture-demo
       aperture-mcp-demo
+      aperture-audit-demo
       aperture-single-tenant-demo
       aperture-keycloak-demo
       aperture-keycloak-cli-demo
@@ -137,6 +139,15 @@ Run the reference demo:
 cd demos/aperture-demo
 mise run docker-deploy
 # Browse to http://localhost:3780 after ~60 seconds
+```
+
+Run the focused audit export demo:
+
+```bash
+mvn -pl demos/aperture-audit-demo -am package -DskipTests
+cd demos/aperture-audit-demo
+docker compose up -d
+./audit-smoke-test.sh
 ```
 
 See the [quick-start guide](https://aperture.itsjool.com/guide/quick-start) for a step-by-step walkthrough.

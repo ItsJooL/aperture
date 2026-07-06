@@ -1,0 +1,14 @@
+meta {
+  name: WireMock Requests
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{wiremockUrl}}/__admin/requests?url=/siem/audit
+}
+
+assert {
+  res.status: eq 200
+  res.body.requests: isArray
+}
