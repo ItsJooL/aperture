@@ -1,0 +1,37 @@
+meta {
+  name: Update Product
+  type: http
+  seq: 4
+}
+
+patch {
+  url: {{baseUrl}}/api/v1/products/{{productId}}
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{adminToken}}
+}
+
+headers {
+  Content-Type: application/vnd.api+json
+  Accept: application/vnd.api+json
+}
+
+body:json {
+  {
+    "data": {
+      "type": "products",
+      "id": "{{productId}}",
+      "attributes": {
+        "name": "Test Widget Updated",
+        "price": 34.99
+      }
+    }
+  }
+}
+
+assert {
+  res.status: eq 204
+}

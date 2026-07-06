@@ -7,7 +7,7 @@
         <artifactId>aperture-demos-parent</artifactId>
         <version>1.0.0-SNAPSHOT</version>
     </parent>
-    <artifactId>aperture-keycloak-demo</artifactId>
+    <artifactId>aperture-keycloak-cli-demo</artifactId>
 
     <dependencies>
         <dependency>
@@ -78,6 +78,13 @@
                 <groupId>com.itsjool</groupId>
                 <artifactId>aperture-maven-plugin</artifactId>
                 <version>1.0.0-SNAPSHOT</version>
+                <dependencies>
+                    <dependency>
+                        <groupId>com.itsjool</groupId>
+                        <artifactId>aperture-cli-auth-oidc</artifactId>
+                        <version>${project.version}</version>
+                    </dependency>
+                </dependencies>
                 <executions>
                     <execution>
                         <goals><goal>generate</goal></goals>
@@ -85,7 +92,33 @@
                 </executions>
                 <configuration>
                     <manifestDirectory>${project.basedir}/manifests</manifestDirectory>
+                    <cli>
+                        <enabled>true</enabled>
+                        <extensions>
+                            <extension>com.itsjool.aperture.cli.oidc.OidcDeviceCodeCliExtension</extension>
+                        </extensions>
+                    </cli>
                 </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>exec-maven-plugin</artifactId>
+                <version>3.5.0</version>
+                <executions>
+                    <execution>
+                        <id>build-generated-cli</id>
+                        <phase>test-compile</phase>
+                        <goals><goal>exec</goal></goals>
+                        <configuration>
+                            <executable>/bin/sh</executable>
+                            <workingDirectory>${project.build.directory}/generated-cli/aperture-cli</workingDirectory>
+                            <arguments>
+                                <argument>-c</argument>
+                                <argument>if command -v native-image &gt;/dev/null 2&gt;&amp;1; then echo "[apkc] native-image found - building native binary" &amp;&amp; mvn package -Pnative -DskipTests --no-transfer-progress; else echo "[apkc] native-image not found - building fat JAR" &amp;&amp; mvn package -DskipTests --no-transfer-progress; fi</argument>
+                            </arguments>
+                        </configuration>
+                    </execution>
+                </executions>
             </plugin>
         </plugins>
     </build>

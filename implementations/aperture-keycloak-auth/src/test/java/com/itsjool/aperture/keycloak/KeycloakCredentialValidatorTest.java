@@ -26,7 +26,7 @@ class KeycloakCredentialValidatorTest {
         return Jwt.withTokenValue("test-token")
                 .header("alg", "RS256")
                 .claims(c -> {
-                    // structural — must be filtered out
+                    // structural - must be filtered out
                     c.put("sub", "u1");
                     c.put("iss", "https://keycloak.example.com/realms/test");
                     c.put("aud", "account");
@@ -37,7 +37,7 @@ class KeycloakCredentialValidatorTest {
                     c.put("azp", "my-client");
                     c.put("session_state", "abc123");
                     c.put("acr", "1");
-                    // business / profile — must be kept
+                    // business / profile - must be kept
                     c.put("name", "Alice Smith");
                     c.put("given_name", "Alice");
                     c.put("family_name", "Smith");
@@ -112,7 +112,7 @@ class KeycloakCredentialValidatorTest {
                     c.put("exp", Instant.now().plusSeconds(3600));
                     c.put("iat", Instant.now());
                     c.put("email", "bob@test.com");
-                    // null value — must be excluded
+                    // null value - must be excluded
                     c.put("picture", null);
                 })
                 .build();

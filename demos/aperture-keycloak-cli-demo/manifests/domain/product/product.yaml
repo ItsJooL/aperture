@@ -1,0 +1,18 @@
+apiVersion: aperture.itsjool.com/v1
+kind: Entity
+metadata:
+  name: Product
+spec:
+  softDelete: true
+  fields:
+    name:
+      type: string
+      required: true
+    price:
+      type: decimal
+      required: true
+    sku:
+      type: string
+  permissions:
+    Admin: [create, read, update, delete]
+    User: [read]

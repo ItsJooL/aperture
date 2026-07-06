@@ -1,0 +1,24 @@
+meta {
+  name: Get Product
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{baseUrl}}/api/v1/products/{{productId}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{adminToken}}
+}
+
+headers {
+  Accept: application/vnd.api+json
+}
+
+assert {
+  res.status: eq 200
+  res.body.data.id: isDefined
+}

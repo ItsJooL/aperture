@@ -20,7 +20,7 @@ services:
     volumes:
       - ./keycloak/aperture-realm.json:/opt/keycloak/data/import/aperture-realm.json:ro,z
     ports:
-      - "8180:8080"
+      - "8181:8080"
     healthcheck:
       # The keycloak image ships neither curl nor wget; probe the health endpoint with
       # bash's /dev/tcp pseudo-device instead. KC_HEALTH_ENABLED above turns on the
@@ -33,7 +33,7 @@ services:
   api-server:
     build:
       context: ../../
-      dockerfile: demos/aperture-keycloak-demo/Dockerfile
+      dockerfile: demos/aperture-keycloak-cli-demo/Dockerfile
     environment:
       DB_URL: jdbc:postgresql://postgres:5432/aperture
       DB_USER: aperture
@@ -45,7 +45,7 @@ services:
       keycloak:
         condition: service_healthy
     ports:
-      - "8080:8080"
+      - "8081:8080"
     healthcheck:
       # The eclipse-temurin-jre-alpine base image has no curl; wget (busybox) does.
       test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/actuator/health"]

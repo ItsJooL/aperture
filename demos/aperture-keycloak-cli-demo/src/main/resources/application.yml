@@ -1,0 +1,35 @@
+elide:
+  json-api:
+    path: /api/
+    enabled: true
+  graphql:
+    path: /graphql
+    enabled: false
+  api-versioning-strategy:
+    path:
+      enabled: true
+
+spring:
+  application:
+    name: aperture-keycloak-cli-demo
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/aperture}
+    username: ${DB_USER:aperture}
+    password: ${DB_PASS:password}
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    open-in-view: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+  liquibase:
+    change-log: classpath:db/changelog/db.changelog-master.xml
+
+aperture:
+  auth:
+    simple:
+      enabled: false
+
+keycloak:
+  jwks-uri: ${KEYCLOAK_JWKS_URI:http://localhost:8181/realms/aperture/protocol/openid-connect/certs}
+  security-claim-mappings: ${KEYCLOAK_SECURITY_CLAIM_MAPPINGS:kc_region:region}

@@ -15,5 +15,7 @@
 
     <modules>
         <module>simple-aperture-api-server</module>
+        <module>aperture-keycloak-auth</module>
+        <module>aperture-cli-auth-oidc</module>
     </modules>
 </project>

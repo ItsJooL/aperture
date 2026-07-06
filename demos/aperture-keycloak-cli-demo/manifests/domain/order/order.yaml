@@ -1,0 +1,16 @@
+apiVersion: aperture.itsjool.com/v1
+kind: Entity
+metadata:
+  name: Order
+spec:
+  softDelete: true
+  fields:
+    quantity:
+      type: integer
+      required: true
+    status:
+      type: string
+      required: true
+  permissions:
+    Admin: [create, read, update, delete]
+    User: [create, read]

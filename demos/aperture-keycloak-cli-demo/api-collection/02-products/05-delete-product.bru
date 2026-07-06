@@ -1,0 +1,23 @@
+meta {
+  name: Delete Product
+  type: http
+  seq: 5
+}
+
+delete {
+  url: {{baseUrl}}/api/v1/products/{{productId}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{adminToken}}
+}
+
+headers {
+  Accept: application/vnd.api+json
+}
+
+assert {
+  res.status: eq 204
+}
