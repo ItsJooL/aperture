@@ -13,7 +13,7 @@ final class JsonAttributes {
 
     static Map<String, Object> copy(Map<String, ?> source) {
         if (source == null) {
-            throw new IllegalArgumentException("attributes must not be null");
+            return Map.of();
         }
         Map<String, Object> copy = new LinkedHashMap<>();
         source.forEach((key, value) -> {

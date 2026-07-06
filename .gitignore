@@ -1,5 +1,6 @@
 # Maven
 **/target/
+!**/src/**/target/
 
 # Java
 *.class
@@ -28,3 +29,8 @@ Thumbs.db
 
 # Logs
 *.log
+
+# Local AI agent instructions and ephemeral dev work (not tracked)
+AGENTS.md
+dev-notes/
+.worktrees/

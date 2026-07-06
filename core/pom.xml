@@ -19,6 +19,10 @@
         <module>aperture-mcp</module>
         <module>aperture-changeset</module>
         <module>aperture-core-runtime</module>
+        <module>aperture-generation-spi</module>
+        <module>aperture-generation</module>
+        <module>aperture-cli-generator</module>
+        <module>aperture-cli-spi</module>
         <module>aperture-maven-plugin</module>
     </modules>
 </project>
