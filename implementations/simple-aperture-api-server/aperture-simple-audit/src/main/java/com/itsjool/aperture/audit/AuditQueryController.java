@@ -25,7 +25,10 @@ public class AuditQueryController {
             HttpServletRequest httpRequest,
             @RequestParam(required = false) String entity,
             @RequestParam(required = false) String entityId,
-            @RequestParam(required = false) String tenantId) {
+            @RequestParam(required = false) String tenantId,
+            @RequestParam(required = false) String userId,
+            @RequestParam(required = false) String from,
+            @RequestParam(required = false) String to) {
 
         AperturePrincipal principal = (AperturePrincipal) httpRequest.getAttribute("aperturePrincipal");
         if (principal == null) {
@@ -59,6 +62,18 @@ public class AuditQueryController {
         if (entityId != null) {
             sql.append(" AND entity_id = ?");
             args.add(entityId);
+        }
+        if (userId != null) {
+            sql.append(" AND user_id = ?");
+            args.add(userId);
+        }
+        if (from != null) {
+            sql.append(" AND timestamp >= ?");
+            args.add(from);
+        }
+        if (to != null) {
+            sql.append(" AND timestamp <= ?");
+            args.add(to);
         }
 
         sql.append(" ORDER BY timestamp DESC LIMIT 100");

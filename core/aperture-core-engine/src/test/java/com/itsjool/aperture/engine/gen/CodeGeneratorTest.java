@@ -56,6 +56,28 @@ class CodeGeneratorTest {
     }
 
     @Test
+    void generatesUpdateAuditHookOnEntityFields() {
+        EntityDef entity = new EntityDef("Product", "Products", null, null, false, false, false, Map.of(
+            "name", new FieldDef("String", true, false, false, false, null, null, null, null, null, null, null),
+            "price", new FieldDef("decimal", false, false, false, false, null, null, null, null, null, null, null)
+        ), null, null, null, Map.of(), Map.of());
+
+        List<String> classes = new CodeGenerator().generateForEntity(entity, TenancyMode.NONE, List.of("1"));
+        String joined = String.join("\n\n", classes);
+
+        assertThat(joined).containsSubsequence(
+            "operation = Operation.UPDATE",
+            "hook = AuditBridge.class",
+            "private String name;"
+        );
+        assertThat(joined).containsSubsequence(
+            "operation = Operation.UPDATE",
+            "hook = AuditBridge.class",
+            "private BigDecimal price;"
+        );
+    }
+
+    @Test
     void since_fieldAbsentFromEarlierVersions_presentFromTargetVersion() {
         EntityDef entity = new EntityDef("Product", "products", null, null, false, false, false, Map.of(
             "name", new FieldDef("String", true, false, false, false, null, null, null, null, null, null, null),

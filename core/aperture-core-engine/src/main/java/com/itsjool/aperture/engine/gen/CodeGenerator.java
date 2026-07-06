@@ -87,11 +87,6 @@ public class CodeGenerator {
                 .addMember("hook", "$T.class", ClassName.bestGuess(ApertureRuntimeClassNames.AUDIT_BRIDGE))
                 .build())
             .addAnnotation(com.palantir.javapoet.AnnotationSpec.builder(ClassName.get("com.yahoo.elide.annotation", "LifeCycleHookBinding"))
-                .addMember("operation", "$T.$L", ClassName.get("com.yahoo.elide.annotation.LifeCycleHookBinding", "Operation"), "UPDATE")
-                .addMember("phase", "$T.$L", ClassName.get("com.yahoo.elide.annotation.LifeCycleHookBinding", "TransactionPhase"), "POSTCOMMIT")
-                .addMember("hook", "$T.class", ClassName.bestGuess(ApertureRuntimeClassNames.AUDIT_BRIDGE))
-                .build())
-            .addAnnotation(com.palantir.javapoet.AnnotationSpec.builder(ClassName.get("com.yahoo.elide.annotation", "LifeCycleHookBinding"))
                 .addMember("operation", "$T.$L", ClassName.get("com.yahoo.elide.annotation.LifeCycleHookBinding", "Operation"), "DELETE")
                 .addMember("phase", "$T.$L", ClassName.get("com.yahoo.elide.annotation.LifeCycleHookBinding", "TransactionPhase"), "POSTCOMMIT")
                 .addMember("hook", "$T.class", ClassName.bestGuess(ApertureRuntimeClassNames.AUDIT_BRIDGE))
@@ -313,6 +308,11 @@ public class CodeGenerator {
                 if (field.required()) {
                     fieldBuilder.addAnnotation(ClassName.get("jakarta.validation.constraints", "NotNull"));
                 }
+                fieldBuilder.addAnnotation(com.palantir.javapoet.AnnotationSpec.builder(ClassName.get("com.yahoo.elide.annotation", "LifeCycleHookBinding"))
+                    .addMember("operation", "$T.$L", ClassName.get("com.yahoo.elide.annotation.LifeCycleHookBinding", "Operation"), "UPDATE")
+                    .addMember("phase", "$T.$L", ClassName.get("com.yahoo.elide.annotation.LifeCycleHookBinding", "TransactionPhase"), "POSTCOMMIT")
+                    .addMember("hook", "$T.class", ClassName.bestGuess(ApertureRuntimeClassNames.AUDIT_BRIDGE))
+                    .build());
                 typeBuilder.addField(fieldBuilder.build());
 
                 // Getters and Setters

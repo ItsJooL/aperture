@@ -1,10 +1,14 @@
 package com.itsjool.aperture.runtime.audit;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.itsjool.aperture.spi.AuditEvent;
 import com.itsjool.aperture.spi.AuditWriter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -22,10 +26,16 @@ import jakarta.annotation.PreDestroy;
 public class AuditBridge implements LifeCycleHook<Object> {
     private static final Logger log = LoggerFactory.getLogger(AuditBridge.class);
     private final AuditWriter auditWriter;
+    private final ObjectMapper objectMapper;
     private final ExecutorService executor;
 
     public AuditBridge(AuditWriter auditWriter) {
+        this(auditWriter, new ObjectMapper());
+    }
+
+    public AuditBridge(AuditWriter auditWriter, ObjectMapper objectMapper) {
         this.auditWriter = auditWriter;
+        this.objectMapper = objectMapper;
         this.executor = Executors.newSingleThreadExecutor(r -> {
             Thread t = new Thread(r, "AuditBridge-Worker");
             t.setDaemon(true);
@@ -66,7 +76,7 @@ public class AuditBridge implements LifeCycleHook<Object> {
         String opName = operation.name();
         String details = "{}";
         if (changes.isPresent()) {
-            details = "{\"changed\": true}"; // Simplified
+            details = buildDetailsJson(changes.get());
         }
 
         AuditEvent event = new AuditEvent(
@@ -86,6 +96,19 @@ public class AuditBridge implements LifeCycleHook<Object> {
                 log.error("Failed to write audit event asynchronously", e);
             }
         });
+    }
+
+    private String buildDetailsJson(ChangeSpec changeSpec) {
+        Map<String, Object> details = new LinkedHashMap<>();
+        details.put("fieldPath", changeSpec.getFieldName());
+        details.put("before", changeSpec.getOriginal());
+        details.put("after", changeSpec.getModified());
+        try {
+            return objectMapper.writeValueAsString(details);
+        } catch (JsonProcessingException e) {
+            log.warn("Failed to serialize audit change details; writing fallback details JSON", e);
+            return "{\"detailsSerializationFailed\":true}";
+        }
     }
 
     @PreDestroy

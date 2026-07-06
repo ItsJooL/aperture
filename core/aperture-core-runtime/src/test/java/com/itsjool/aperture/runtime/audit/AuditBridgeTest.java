@@ -2,6 +2,8 @@ package com.itsjool.aperture.runtime.audit;
 
 import com.itsjool.aperture.spi.AuditEvent;
 import com.itsjool.aperture.spi.AuditWriter;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.yahoo.elide.annotation.LifeCycleHookBinding.Operation;
 import com.yahoo.elide.annotation.LifeCycleHookBinding.TransactionPhase;
 import com.yahoo.elide.core.security.ChangeSpec;
@@ -20,6 +22,7 @@ import static org.mockito.Mockito.*;
 
 class AuditBridgeTest {
 
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
     private AuditBridge auditBridge;
     @Mock
     private AuditWriter auditWriter;
@@ -74,6 +77,35 @@ class AuditBridgeTest {
         assertFalse(executor.isTerminated());
         auditBridge.shutdown();
         assertTrue(executor.isTerminated());
+    }
+
+    @Test
+    void changeSpecDetailsContainFieldPathBeforeAndAfterValues() throws Exception {
+        ChangeSpec changeSpec = new ChangeSpec(null, "status", "draft", "approved");
+
+        auditBridge.execute(Operation.UPDATE, TransactionPhase.POSTCOMMIT, new Item("audit-1"), null, Optional.of(changeSpec));
+
+        ArgumentCaptor<AuditEvent> captor = ArgumentCaptor.forClass(AuditEvent.class);
+        verify(auditWriter, timeout(500)).write(captor.capture());
+
+        JsonNode details = OBJECT_MAPPER.readTree(captor.getValue().detailsJson());
+        assertEquals("status", details.get("fieldPath").asText());
+        assertEquals("draft", details.get("before").asText());
+        assertEquals("approved", details.get("after").asText());
+    }
+
+    @Test
+    void changeSpecDetailsAreValidJsonWhenOriginalValueIsNull() throws Exception {
+        ChangeSpec changeSpec = new ChangeSpec(null, "status", null, "draft");
+
+        auditBridge.execute(Operation.CREATE, TransactionPhase.POSTCOMMIT, new Item("audit-2"), null, Optional.of(changeSpec));
+
+        ArgumentCaptor<AuditEvent> captor = ArgumentCaptor.forClass(AuditEvent.class);
+        verify(auditWriter, timeout(500)).write(captor.capture());
+
+        JsonNode details = OBJECT_MAPPER.readTree(captor.getValue().detailsJson());
+        assertTrue(details.get("before").isNull());
+        assertEquals("draft", details.get("after").asText());
     }
 
     // Test entity classes for version suffix stripping
