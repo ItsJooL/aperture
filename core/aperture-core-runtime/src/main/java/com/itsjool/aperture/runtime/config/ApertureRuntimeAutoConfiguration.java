@@ -3,7 +3,6 @@ package com.itsjool.aperture.runtime.config;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.itsjool.aperture.runtime.cors.ApertureCorsFilter;
 import com.itsjool.aperture.runtime.cors.CorsProperties;
-import com.itsjool.aperture.runtime.config.ApertureRateLimitProperties;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;

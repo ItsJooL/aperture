@@ -1,11 +1,11 @@
 package com.itsjool.aperture.runtime.filter;
 
+import com.itsjool.aperture.runtime.config.ApertureRateLimitProperties;
 import com.itsjool.aperture.spi.AperturePrincipal;
 import com.itsjool.aperture.spi.RateLimitDecision;
 import com.itsjool.aperture.spi.RateLimitKey;
 import com.itsjool.aperture.spi.RateLimitProvider;
 import com.itsjool.aperture.spi.RateLimitRule;
-import com.itsjool.aperture.runtime.config.ApertureRateLimitProperties;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -14,6 +14,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
@@ -25,7 +26,7 @@ public class RateLimitFilter extends OncePerRequestFilter {
     private final ApertureRateLimitProperties rateLimitProperties;
     private final boolean tenancyEnabled;
 
-    public RateLimitFilter(RateLimitProvider rateLimitProvider, ApertureRateLimitProperties rateLimitProperties, @org.springframework.beans.factory.annotation.Value("${aperture.tenancy.enabled:true}") boolean tenancyEnabled) {
+    public RateLimitFilter(RateLimitProvider rateLimitProvider, ApertureRateLimitProperties rateLimitProperties, @Value("${aperture.tenancy.enabled:true}") boolean tenancyEnabled) {
         this.rateLimitProvider = rateLimitProvider;
         this.rateLimitProperties = rateLimitProperties;
         this.tenancyEnabled = tenancyEnabled;
