@@ -163,6 +163,78 @@ class DiffEngineTest {
     }
 
     @Test
+    void addedScopedByOnExistingEntityIsBreaking() {
+        EntityDef oldTask = new EntityDef("Task", "tasks", null, null, false, false, false,
+            Map.of("project", new FieldDef("ref", true, false, false, false, null, null, null, "ManyToOne", "Project", null, null)),
+            null, null, null, null, null, null);
+        EntityDef newTask = new EntityDef("Task", "tasks", null, null, false, false, false,
+            Map.of("project", new FieldDef("ref", true, false, false, false, null, null, null, "ManyToOne", "Project", null, null)),
+            null, null, null, null, null, "project");
+
+        DiffResult diff = new DiffEngine().computeDiff(
+            new ResolvedDomainModel(List.of(oldTask)),
+            new ResolvedDomainModel(List.of(newTask)),
+            List.of("1"));
+
+        assertThat(diff.hasBreakingChanges()).isTrue();
+    }
+
+    @Test
+    void removedScopedByOnExistingEntityIsNonBreaking() {
+        EntityDef oldTask = new EntityDef("Task", "tasks", null, null, false, false, false,
+            Map.of("project", new FieldDef("ref", true, false, false, false, null, null, null, "ManyToOne", "Project", null, null)),
+            null, null, null, null, null, "project");
+        EntityDef newTask = new EntityDef("Task", "tasks", null, null, false, false, false,
+            Map.of("project", new FieldDef("ref", true, false, false, false, null, null, null, "ManyToOne", "Project", null, null)),
+            null, null, null, null, null, null);
+
+        DiffResult diff = new DiffEngine().computeDiff(
+            new ResolvedDomainModel(List.of(oldTask)),
+            new ResolvedDomainModel(List.of(newTask)),
+            List.of("1"));
+
+        assertThat(diff.hasBreakingChanges()).isFalse();
+    }
+
+    @Test
+    void changedScopedByFieldOnExistingEntityIsBreaking() {
+        EntityDef oldTask = new EntityDef("Task", "tasks", null, null, false, false, false,
+            Map.of(
+                "project", new FieldDef("ref", true, false, false, false, null, null, null, "ManyToOne", "Project", null, null),
+                "team", new FieldDef("ref", true, false, false, false, null, null, null, "ManyToOne", "Team", null, null)
+            ), null, null, null, null, null, "project");
+        EntityDef newTask = new EntityDef("Task", "tasks", null, null, false, false, false,
+            Map.of(
+                "project", new FieldDef("ref", true, false, false, false, null, null, null, "ManyToOne", "Project", null, null),
+                "team", new FieldDef("ref", true, false, false, false, null, null, null, "ManyToOne", "Team", null, null)
+            ), null, null, null, null, null, "team");
+
+        DiffResult diff = new DiffEngine().computeDiff(
+            new ResolvedDomainModel(List.of(oldTask)),
+            new ResolvedDomainModel(List.of(newTask)),
+            List.of("1"));
+
+        assertThat(diff.hasBreakingChanges()).isTrue();
+    }
+
+    @Test
+    void unchangedScopedByProducesNoBreakingFinding() {
+        EntityDef oldTask = new EntityDef("Task", "tasks", null, null, false, false, false,
+            Map.of("project", new FieldDef("ref", true, false, false, false, null, null, null, "ManyToOne", "Project", null, null)),
+            null, null, null, null, null, "project");
+        EntityDef newTask = new EntityDef("Task", "tasks", null, null, false, false, false,
+            Map.of("project", new FieldDef("ref", true, false, false, false, null, null, null, "ManyToOne", "Project", null, null)),
+            null, null, null, null, null, "project");
+
+        DiffResult diff = new DiffEngine().computeDiff(
+            new ResolvedDomainModel(List.of(oldTask)),
+            new ResolvedDomainModel(List.of(newTask)),
+            List.of("1"));
+
+        assertThat(diff.hasBreakingChanges()).isFalse();
+    }
+
+    @Test
     void addedOwningReferenceFieldIsSafeButRequiresColumnAndFk() {
         EntityDef customer = new EntityDef("Customer", "customers", null, null, false, false, true,
             Map.of("name", new FieldDef("String", true, false, false, false, "1", null, null, null, null, null, null)),

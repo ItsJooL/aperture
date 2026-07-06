@@ -1,0 +1,48 @@
+meta {
+  name: Create Project B
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{baseUrl}}/api/v1/projects
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tenantAdminToken}}
+}
+
+headers {
+  Content-Type: application/vnd.api+json
+  Accept: application/vnd.api+json
+}
+
+body:json {
+  {
+    "data": {
+      "type": "projects",
+      "attributes": {
+        "name": "Beacon Rollout (bruno)"
+      }
+    }
+  }
+}
+
+docs {
+  A second project, used only by 07-create-task-mismatched-scope so the mismatch
+  is real: a Task relationship pointing at Project B while the request carries a
+  X-Aperture-Scope-Project header naming Project A.
+}
+
+script:post-response {
+  if (res.status === 201) {
+    bru.setVar("scopeProjectBId", res.body.data.id);
+  }
+}
+
+assert {
+  res.status: eq 201
+  res.body.data.id: isDefined
+}

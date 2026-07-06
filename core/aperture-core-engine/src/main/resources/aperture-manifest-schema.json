@@ -29,6 +29,7 @@
               "optimisticLocking": { "type": "boolean" },
               "softDelete": { "type": "boolean" },
               "tenantScoped": { "type": "boolean" },
+              "scopedBy": { "type": "string", "description": "Name of a ManyToOne ref field; every read of this entity is then filtered by a per-request X-Aperture-Scope-<Field> header value (mandatory query filter, not per-user authorization)." },
               "pagination": {
                 "type": "object",
                 "properties": {
@@ -63,7 +64,19 @@
                 "type": "array",
                 "items": { "type": "string" }
               },
-              "hooks": { "type": "object" }
+              "hooks": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "object",
+                  "properties": {
+                    "phase": { "type": "string" },
+                    "async": { "type": "boolean" },
+                    "onFailure": { "type": "string" },
+                    "url": { "type": "string" }
+                  },
+                  "required": ["url"]
+                }
+              }
             },
             "required": ["fields"]
           }
@@ -98,6 +111,15 @@
                 "type": "string",
                 "enum": ["none", "pool"],
                 "default": "pool"
+              },
+              "cli": {
+                "type": "object",
+                "properties": {
+                  "binaryName": {
+                    "type": "string",
+                    "description": "Name of the generated CLI binary (e.g. 'acme'). Defaults to 'aperture'."
+                  }
+                }
               }
             }
           }

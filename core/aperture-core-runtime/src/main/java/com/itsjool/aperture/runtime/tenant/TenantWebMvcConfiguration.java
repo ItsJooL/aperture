@@ -17,18 +17,25 @@ public class TenantWebMvcConfiguration implements WebMvcConfigurer {
         configurer.setTaskExecutor(executor);
     }
 
+    /** Carries the per-request context holders across the servlet-to-async-executor thread
+     *  hop: Elide's Spring controllers return {@code Callable}, so the request is processed
+     *  on this executor's thread — plain ThreadLocals populated by AuthFilter on the servlet
+     *  thread are invisible there unless re-set here. */
     private static class TenantTaskDecorator implements TaskDecorator {
         @Override
         public Runnable decorate(Runnable runnable) {
             String tenantId = TenantContextHolder.getTenantId();
+            java.util.Map<String, String> scopes = com.itsjool.aperture.runtime.scope.ScopeContextHolder.snapshot();
             return () -> {
                 if (tenantId != null) {
                     TenantContextHolder.setTenantId(tenantId);
                 }
+                com.itsjool.aperture.runtime.scope.ScopeContextHolder.restore(scopes);
                 try {
                     runnable.run();
                 } finally {
                     TenantContextHolder.clear();
+                    com.itsjool.aperture.runtime.scope.ScopeContextHolder.clear();
                 }
             };
         }

@@ -1,0 +1,15 @@
+# Task is scopedBy: project — reads (get/list) 403 without an X-Aperture-Scope-Project
+# header naming a project id; the CLI sends it via --scope project=<id> or a persisted
+# `config set-scope project <id>`. Creates are validated, not injected: applying this file
+# with no scope context in effect succeeds regardless of which project each task names
+# (see docs/guide/cli.md "Scope context" and manifests/domain/work/task.yaml).
+tasks:
+  - title: Inventory legacy endpoints
+    status: TODO
+    project: Apollo Migration
+  - title: Cut over DNS
+    status: IN_PROGRESS
+    project: Apollo Migration
+  - title: Draft rollout announcement
+    status: TODO
+    project: Beacon Rollout

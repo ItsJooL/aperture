@@ -57,7 +57,7 @@ public class ManifestParser {
         }
 
             if (files.isEmpty()) {
-                return new ResolvedDomainModel(entities, migrations, new FrameworkConfigDef(List.of(), null, null),
+                return new ResolvedDomainModel(entities, migrations, new FrameworkConfigDef(List.of(), null, null, null),
                     roleDefinitions, abacPolicies, apiVersionConfigs, principalAttributeDefinitions);
             }
 
@@ -84,7 +84,7 @@ public class ManifestParser {
 
                 if ("Entity".equals(kind)) {
                     EntityDef def = mapper.treeToValue(specNode, EntityDef.class);
-                    EntityDef newDef = new EntityDef(name, def.plural(), def.description(), def.mcpConfig(), def.optimisticLocking(), def.softDelete(), def.tenantScoped(), def.fields(), def.permissions(), def.policies(), def.publicOperations(), def.abacRules(), def.hooks());
+                    EntityDef newDef = new EntityDef(name, def.plural(), def.description(), def.mcpConfig(), def.optimisticLocking(), def.softDelete(), def.tenantScoped(), def.fields(), def.permissions(), def.policies(), def.publicOperations(), def.abacRules(), def.hooks(), def.scopedBy());
                     entities.add(newDef);
                     locationMap.put(newDef, f.getPath());
                 } else if ("Migration".equals(kind)) {
@@ -127,7 +127,7 @@ public class ManifestParser {
         }
         
         ResolvedDomainModel model = new ResolvedDomainModel(entities, migrations,
-            config != null ? config : new FrameworkConfigDef(List.of(), null, null),
+            config != null ? config : new FrameworkConfigDef(List.of(), null, null, null),
             roleDefinitions, abacPolicies, apiVersionConfigs, principalAttributeDefinitions);
             
         new com.itsjool.aperture.engine.validator.DomainModelValidator().validate(model, locationMap);

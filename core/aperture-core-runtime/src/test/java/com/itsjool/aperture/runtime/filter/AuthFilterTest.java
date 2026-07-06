@@ -2,6 +2,7 @@ package com.itsjool.aperture.runtime.filter;
 
 import com.itsjool.aperture.runtime.config.ApertureRuntimeMetadata;
 import com.itsjool.aperture.runtime.config.TenancyMode;
+import com.itsjool.aperture.runtime.scope.ScopeContextHolder;
 import com.itsjool.aperture.runtime.tenant.TenantContextHolder;
 import com.itsjool.aperture.spi.AperturePrincipal;
 import com.itsjool.aperture.spi.CredentialValidator;
@@ -163,6 +164,36 @@ class AuthFilterTest {
         filter.doFilter(request, response, chain);
         assertFalse(chainCalled[0]);
         assertEquals(HttpServletResponse.SC_FORBIDDEN, response.getStatus());
+    }
+
+    @Test
+    void camelCaseScopeHeaderLandsUnderLowercaseKey() throws Exception {
+        // The generated <Entity>V<n>ScopeFilter looks up ScopeContextHolder using the
+        // lowercased manifest field name (e.g. "parentproject" for a scopedBy: parentProject
+        // field), so the header-derived key must be lowercased the same way or a camelCase
+        // scopedBy field can never match.
+        CredentialValidator validator = req -> ValidationResult.success("user-1");
+        PrincipalMapper mapper = res -> new AperturePrincipal("user-1", "tenant-A", Collections.emptySet(), com.itsjool.aperture.spi.PrincipalKind.USER, java.util.Map.of(), Collections.emptyMap());
+        authFilter = new AuthFilter(validator, mapper, POOL_METADATA);
+
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        request.setRequestURI("/api/resource");
+        request.addHeader("X-Aperture-Scope-ParentProject", "project-123");
+        RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(request));
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        boolean[] chainCalled = {false};
+        FilterChain chain = (req, res) -> {
+            chainCalled[0] = true;
+            assertEquals("project-123", ScopeContextHolder.get("parentproject"));
+            assertNull(ScopeContextHolder.get("ParentProject"));
+            assertNull(ScopeContextHolder.get("parentProject"));
+        };
+
+        authFilter.doFilter(request, response, chain);
+
+        assertTrue(chainCalled[0]);
+        assertNull(ScopeContextHolder.get("parentproject")); // cleared after request
     }
 
     @Test

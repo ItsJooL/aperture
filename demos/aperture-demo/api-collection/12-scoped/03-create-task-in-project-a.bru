@@ -1,0 +1,58 @@
+meta {
+  name: Create Task in Project A
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{baseUrl}}/api/v1/tasks
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tenantAdminToken}}
+}
+
+headers {
+  Content-Type: application/vnd.api+json
+  Accept: application/vnd.api+json
+  X-Aperture-Scope-Project: {{scopeProjectAId}}
+}
+
+body:json {
+  {
+    "data": {
+      "type": "tasks",
+      "attributes": {
+        "title": "Inventory legacy endpoints",
+        "status": "TODO"
+      },
+      "relationships": {
+        "project": { "data": { "type": "projects", "id": "{{scopeProjectAId}}" } }
+      }
+    }
+  }
+}
+
+docs {
+  Creates need the scope header too: the header here names the same Project A the
+  relationship points at, so the create succeeds. Omitting the header entirely does
+  NOT work — Elide evaluates ReadPermission when serializing the created Task back,
+  and the fail-closed scope filter 403s without X-Aperture-Scope-Project on this
+  single-object read-back (a collection read like 04 returns 200 with an empty
+  page instead; verified live via cli-smoke-test.sh). Contrast with
+  07-create-task-mismatched-scope, where the header conflicts with the
+  relationship and the write is rejected with 400 before anything is persisted.
+}
+
+script:post-response {
+  if (res.status === 201) {
+    bru.setVar("scopedTaskId", res.body.data.id);
+  }
+}
+
+assert {
+  res.status: eq 201
+  res.body.data.id: isDefined
+}

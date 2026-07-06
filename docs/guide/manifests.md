@@ -1,0 +1,324 @@
+---
+title: Manifest Authoring
+description: Every manifest kind and field-level feature, each with a minimal working YAML snippet and a pointer to the deep dive.
+---
+
+# Manifest Authoring
+
+This page is the practical, by-example companion to the [Manifest Schema reference](/reference/manifest-schema). Where the reference lists every field, this page shows the smallest YAML that exercises each feature, says when you'd reach for it, and links out to the deep-dive guide. It does not repeat what those pages already say well — start with [Core Concepts](/guide/core-concepts) for the manifest directory layout, the build pipeline, and lock files.
+
+## Manifest kinds
+
+Every manifest is a YAML file under `manifests/` (any subdirectory, read recursively) with the same three top-level keys — `apiVersion`, `kind`, `metadata.name` — plus a `spec` whose shape depends on `kind`. Seven kinds exist:
+
+| Kind | Declares |
+|---|---|
+| [`Entity`](#entity) | A domain entity: fields, permissions, policies, hooks |
+| [`FrameworkConfig`](#frameworkconfig) | Tenancy mode, default roles, MCP, CLI binary name — one per project |
+| [`ApiVersionConfig`](#apiversionconfig) | API versions and their ACTIVE/SUNSET status |
+| [`RoleDefinition`](#roledefinition) | The named domain roles available in the system |
+| [`AbacPolicy`](#abacpolicy) | A named attribute-based access rule, referenced by name in `policies` |
+| [`PrincipalAttributeDefinition`](#principalattributedefinition) | The security attribute keys ABAC policies may reference |
+| [`Migration`](#migration) | A manual SQL migration with rollback |
+
+Each kind has a full field-by-field table in the [schema reference](/reference/manifest-schema). What follows is the minimal instance of each.
+
+### Entity
+
+```yaml
+apiVersion: aperture.itsjool.com/v1
+kind: Entity
+metadata:
+  name: Product
+spec:
+  fields:
+    name:
+      type: string
+      required: true
+      unique: true
+  permissions:
+    Viewer: [read]
+```
+
+`spec.fields` is the only required key. Everything else — `tenantScoped`, `scopedBy`, `optimisticLocking`, `softDelete`, `permissions`, `policies`, `hooks` — is covered section by section below. See [Entity](/reference/manifest-schema#entity) for the full field table.
+
+### FrameworkConfig
+
+```yaml
+apiVersion: aperture.itsjool.com/v1
+kind: FrameworkConfig
+metadata:
+  name: config
+spec:
+  tenancyMode: pool          # pool (default) | none
+  defaultRoles: [Viewer]
+```
+
+One per project. See [Multi-Tenancy](/guide/multi-tenancy) for `tenancyMode`, and [MCP exposure](#mcp-exposure) / [CLI generation config](#cli-generation-config) below for the rest of this kind's spec.
+
+### ApiVersionConfig
+
+```yaml
+apiVersion: aperture.itsjool.com/v1
+kind: ApiVersionConfig
+metadata:
+  name: versions
+spec:
+  versions:
+    "1":
+      status: ACTIVE
+```
+
+Declares which API versions exist and whether each is `ACTIVE` or `SUNSET`. Fields gated with `since:` (see [Fields, types, and constraints](#fields-types-and-constraints)) only appear in versions at or above that number. See [Build & Deploy → API versioning](/guide/build-deploy#api-versioning) for how this drives generated versioned entity classes.
+
+### RoleDefinition
+
+```yaml
+apiVersion: aperture.itsjool.com/v1
+kind: RoleDefinition
+metadata:
+  name: roles
+spec:
+  roles:
+    Viewer:
+      description: "Read only"
+```
+
+Declares the domain roles available to reference in `permissions` blocks and assign to users. `SuperAdmin` and `TenantAdmin` are platform authorities, not domain roles — declaring them here fails the build. See [Auth & Identity → Identity administration](/guide/auth#identity-administration).
+
+### AbacPolicy
+
+```yaml
+apiVersion: aperture.itsjool.com/v1
+kind: AbacPolicy
+metadata:
+  name: FinanceTeamOnly
+spec:
+  expression: "#user.securityAttributes['department'] == 'finance'"
+```
+
+A named SpEL rule, referenced by name from an entity's `policies` block. See [Permissions, roles, and ABAC policies](#permissions-roles-and-abac-policies) below.
+
+### PrincipalAttributeDefinition
+
+```yaml
+apiVersion: aperture.itsjool.com/v1
+kind: PrincipalAttributeDefinition
+metadata:
+  name: principal-attributes
+spec:
+  securityAttributes:
+    department:
+      type: string
+      allowedValues: [finance, engineering, sales]
+```
+
+Declares the security attribute keys that ABAC policies and API key delegation may reference. See [PrincipalAttributeDefinition](/reference/manifest-schema#principalattributedefinition) for the delegation and service-account-assignable flags.
+
+### Migration
+
+```yaml
+apiVersion: aperture.itsjool.com/v1
+kind: Migration
+metadata:
+  name: backfill-phone-number
+spec:
+  sql: |
+    UPDATE aperture_customers SET phone_number = '000-000-0000' WHERE phone_number IS NULL;
+  rollback: |
+    UPDATE aperture_customers SET phone_number = NULL WHERE phone_number = '000-000-0000';
+```
+
+For hand-written SQL that doesn't map to a manifest field change — backfills, data fixes. `rollback` is required; the build fails without it. See [Build & Deploy → Manual migration manifests](/guide/build-deploy#manual-migration-manifests).
+
+## Fields, types, and constraints
+
+```yaml
+fields:
+  name:
+    type: string
+    required: true
+    unique: true
+  internalNotes:
+    type: string
+    encrypted: true
+  legacyCode:
+    type: string
+    index: true
+  phoneNumber:
+    type: string
+    since: 2
+    renamedFrom: phone
+```
+
+`unique: true` generates a unique index (and is required for encrypted fields you also want to filter on — see [deterministic encryption](/guide/security-audit#field-level-encryption)). `index: true` generates a plain, non-unique index for a field you filter or sort on often. `since:`/`renamedFrom:` are for versioned rollout and zero-downtime renames — see [Build & Deploy → Schema automation](/guide/build-deploy#schema-automation). `encrypted:` is covered in [Security & Audit → Field-level encryption](/guide/security-audit#field-level-encryption). The full type table (`string`, `decimal`, `integer`, `boolean`, `uuid`, `datetime`, `ref`) is in [Core Concepts](/guide/core-concepts#field-types) and [the reference](/reference/manifest-schema#spec-fields).
+
+## Relationships
+
+```yaml
+# Invoice
+fields:
+  customer:
+    type: ref
+    target: Customer
+    relation: ManyToOne
+    required: true
+  lineItems:
+    type: ref
+    target: LineItem
+    relation: OneToMany
+    mappedBy: invoice
+```
+
+A `ManyToOne` field generates an FK column (`{fieldName}_id`) and is the only kind of relationship field that can also be named in `scopedBy` (below). A `OneToMany` field with `mappedBy` is the inverse side of a relationship declared on the target entity — it generates no column of its own. `target` must name another entity declared somewhere in the manifest set, or the build fails with an unknown-relationship-target error. See [`type: ref` notes](/reference/manifest-schema#spec-fields) in the reference.
+
+## Tenant scoping (`tenantScoped`)
+
+```yaml
+spec:
+  tenantScoped: true
+```
+
+Adds an `aperture_tenant_id` column and auto-filters (and auto-injects on create) every query by the caller's tenant, in POOL mode. Use it for core domain entities that belong to one tenant; leave it `false` for shared reference data (countries, currencies, product catalogs). This is a full guide's worth of behavior on its own — see [Multi-Tenancy](/guide/multi-tenancy) for POOL vs. NONE, tenant-aware foreign keys, and provisioning.
+
+## Scoping by relationship (`scopedBy`)
+
+`scopedBy` partitions an entity's rows by the value of a relationship, carried per-request in a header. It is new, and it is easy to reach for expecting it to behave like `tenantScoped` — it doesn't. Read this section before you use it.
+
+**`scopedBy` is partitioning, not authorization.** Declaring `scopedBy: project` means every read of that entity requires a `X-Aperture-Scope-Project` header naming *which* project's rows to return. It does **not** check whether the caller is allowed to see that project — any authenticated caller who already has ordinary `read` permission on the entity can put any value in that header and read that partition. If you need per-user or per-role restriction on top of the partition, pair `scopedBy` with an `AbacPolicy`, shown below.
+
+### Declaring it
+
+```yaml
+apiVersion: aperture.itsjool.com/v1
+kind: Entity
+metadata:
+  name: Task
+spec:
+  tenantScoped: true
+  scopedBy: project
+  fields:
+    title:
+      type: string
+      required: true
+    project:
+      type: ref
+      target: Project
+      relation: ManyToOne
+      required: true
+  permissions:
+    Member: [create, read, update]
+    Admin:  [create, read, update, delete]
+  policies:
+    ProjectTeamOnly: [read, update]
+```
+
+```yaml
+apiVersion: aperture.itsjool.com/v1
+kind: AbacPolicy
+metadata:
+  name: ProjectTeamOnly
+spec:
+  description: "Only the platform team may touch scoped tasks"
+  expression: "#user.securityAttributes['team'] == 'platform'"
+```
+
+- **Opt-in, per entity.** Only entities that declare `scopedBy` get this filter; every other entity is untouched. This is true by construction, not convention — the filter only exists for an entity whose manifest names it.
+- **Must name a declared `ManyToOne` ref field.** `scopedBy: project` requires a `project` field with `type: ref` and `relation: ManyToOne` on the same entity. Naming an unknown field, a scalar field, or a `OneToMany` field fails the build.
+- **The header is `X-Aperture-Scope-<Field>`.** For `scopedBy: project`, send `X-Aperture-Scope-Project: <project-id>`. The field name is matched **case-insensitively** — the header suffix is canonicalized to lowercase on both the request-parsing side and the generated filter, so `X-Aperture-Scope-Project`, `X-Aperture-Scope-PROJECT`, and a camelCase manifest field like `scopedBy: parentProject` (matched via `X-Aperture-Scope-Parentproject`) all resolve to the same key.
+- **Fail-closed, on every operation — but the failure *shape* differs.** There is no "no scope means everything" fallback; a missing header never widens access. What you get back depends on whether the request evaluates the filter against a **collection** or a **single object**. A **collection read** (`GET /api/v1/tasks`) with no header returns `200` with an **empty page**: Elide compiles the scope check into a SQL `WHERE` predicate for list queries, so nothing matches and no `ForbiddenAccessException` surfaces. **Single-object evaluation** returns `403 Forbidden` — this covers a fetch by id (`GET /api/v1/tasks/<id>`) *and* the read-back a `create`/`update` performs to echo the record it just wrote (so an unscoped `create` still comes back 403 even though the write itself was valid). Either way, no data leaks without the header.
+- **SuperAdmin bypasses it**, the same as tenant scoping.
+- **Applies to JSON:API and GraphQL alike.** The filter is an Elide-level permission check on the generated entity class, not something wired into one API surface — every transport that serves the entity is filtered the same way.
+
+```
+GET /api/v1/tasks
+Authorization: Bearer <token>
+X-Aperture-Scope-Project: 8f14e45f-ceea-4c3f-b8b8-6a1f2f4f5e11
+```
+
+Without the header, this collection query returns `200` with an empty page (the scope predicate matches nothing). With it, Elide adds `WHERE task.project.id = :scope` to the query, on top of any tenant filter already in play. A fetch of a single task by id, by contrast, `403`s without the header — see the fail-closed note above.
+
+### Pair it with ABAC for real per-scope access control
+
+The header narrows *which* partition is queried; it never checks whether the caller *should* see that partition — that's exactly what `policies:` is for. In the example above, `scopedBy: project` picks the partition and `ProjectTeamOnly` (an `AbacPolicy` evaluated against `#user.securityAttributes`) decides who's allowed to query it at all. Neither one substitutes for the other: `scopedBy` alone lets any caller with `read` permission pick any project; `policies` alone doesn't understand "which project" at all. Use both together whenever a scope value should actually gate access, not just organize the result set. See [Permissions, roles, and ABAC policies](#permissions-roles-and-abac-policies) below for how RBAC and ABAC compose.
+
+### The write path: validate on mismatch, fail closed on absence
+
+Unlike `tenantScoped` (which auto-injects the tenant id on create), `scopedBy` never assigns the relationship for you. What it does on a write is two separate checks, with two separate failure modes:
+
+1. **Mismatch → 400, before anything is persisted.** If the request carries a scope value for the entity's `scopedBy` field and the relationship in the payload names a *different* one, the write is rejected outright. Creating a `Task` pointed at a different project than the one named in `X-Aperture-Scope-Project` fails this way.
+2. **Absence → 403, on the response.** Omitting the scope header entirely does **not** let the write through unchecked. A JSON:API response echoes the record it just wrote, and that echo is a read — subject to the same fail-closed scope filter as a plain `GET`. So a `create`/`update` with no scope header at all still comes back `403 Forbidden`, even though the mismatch check found nothing to reject and the row may already be written.
+
+The practical rule: **every operation on a scoped entity needs the matching scope header, full stop.** There's no such thing as an unscoped write that "goes through untouched" — it either matches the header (succeeds), contradicts it (400), or lacks it (403 on read-back). Scope is read context the server checks going in and checks again coming out — it is not an ownership grant, and it will not silently repoint a relationship the way tenant scoping fills in `apertureTenantId`.
+
+### Publishing `scopedBy` is a breaking change
+
+Because the read filter is fail-closed, adding `scopedBy` to an entity that's already published (or repointing it at a different field) silently breaks every existing client that isn't yet sending the header — list calls start returning empty pages and fetch-by-id / write read-backs start returning 403. The diff engine flags both as **breaking**, same as removing a field or changing its type — it requires an API version bump. Removing `scopedBy` only widens access and is classified as safe.
+
+### From the CLI
+
+The generated CLI carries scope context the same way it carries tenant context: `--scope <field>=<value>` for a one-off command, or `config set-scope`/`config unset-scope` to persist it on a profile. See [Scope context (`scopedBy`)](/guide/cli#scope-context-scopedby) in the Generated CLI guide for the full flag reference and precedence rules.
+
+## Optimistic locking and soft delete
+
+```yaml
+spec:
+  optimisticLocking: true
+  softDelete: true
+```
+
+`optimisticLocking` adds a `version` column and requires an `If-Match` header on `PUT`/`PATCH`/`DELETE`, returning `412` on a stale version and `428` if the header is missing — see [Security & Audit → Optimistic locking](/guide/security-audit#optimistic-locking). `softDelete` adds a `deleted_at` column and filters `deleted_at IS NULL` into every read automatically. Both default to `false`.
+
+## Permissions, roles, and ABAC policies
+
+```yaml
+permissions:
+  Accountant: [create, read, update]
+  Viewer:     [read]
+policies:
+  FinanceTeamOnly: [read, update]
+```
+
+RBAC (`permissions`) is OR: any role the caller holds that's listed for an operation grants it. ABAC (`policies`) is AND on top of that: every listed policy for an operation must also pass. `SuperAdmin` and `TenantAdmin` cannot appear in either block — they're platform authorities, not domain roles. Full semantics, the invite/role-assignment flow, and the audit trail are in [Security & Audit](/guide/security-audit) and [Auth & Identity](/guide/auth).
+
+Two build-time rules worth knowing before you write policies:
+
+- **Every declared `AbacPolicy` must be used.** If a policy manifest exists but no entity's `policies` block references it, the build fails with an unattached-policy error.
+- **SpEL expressions can reference `#user` on every operation, `#record` (the existing row) on `read`/`update`/`delete`, and `#input` (the incoming payload) on `create`** — but never `#record` on `create` (there's no existing row yet) or `#input` outside of it. Mixing them fails validation. The demo policies only use `#user.securityAttributes[...]`, which is valid everywhere and the pattern to reach for first.
+
+## Lifecycle hooks
+
+```yaml
+hooks:
+  ValidateInvoice:
+    phase: PRECOMMIT
+    async: false
+    onFailure: reject
+    url: http://hook-service:8080/hooks/validate-invoice
+```
+
+Four phases — `PRESECURITY` (guard), `PREENRICH` (mutate), `PRECOMMIT` (validate), `POSTCOMMIT` (trigger) — each with different capabilities and blocking behavior. One rule enforced at build time: a `PREENRICH` hook must be synchronous (`async: false`), because it modifies the entity before the write and there's nothing to merge back from a fire-and-forget call. See [Hooks & Lifecycle](/guide/hooks) for what each phase is for, the request/response shape, signing, and retries.
+
+## MCP exposure
+
+```yaml
+# framework/config.yaml
+spec:
+  mcp:
+    enabled: true
+    transport: stateless
+    tools: [list, get, create, update, delete]
+```
+
+Turns on MCP tool generation for every entity, project-wide. An individual entity can narrow or opt out of this via an entity-level `mcp` override — see [`spec.mcp`](/reference/manifest-schema#spec-mcp-entity-level-override) in the reference for the shape.
+
+## CLI generation config
+
+```yaml
+# framework/config.yaml
+spec:
+  cli:
+    binaryName: acme
+```
+
+`spec.cli.binaryName` names the generated CLI binary (defaults to `aperture`); it only matters if the Maven plugin's CLI generator is enabled, which is a separate, off-by-default `pom.xml` setting. See the [Generated CLI guide](/guide/cli) for enabling generation, native builds, and everything else about the generated binary.

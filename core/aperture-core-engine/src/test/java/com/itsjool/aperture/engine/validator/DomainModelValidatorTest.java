@@ -66,6 +66,45 @@ class DomainModelValidatorTest {
             .hasMessageContaining("Unknown relationship target");
     }
 
+    // ---------- scopedBy validation ----------
+
+    private static EntityDef scopedEntity(String name, Map<String, FieldDef> fields, String scopedBy) {
+        return new EntityDef(name, name.toLowerCase() + "s", null, null,
+            false, false, false, fields, null, null, null, Map.of(), Map.of(), scopedBy);
+    }
+
+    @Test
+    void scopedByReferencingManyToOneField_passes() {
+        EntityDef project = entity("Project", Map.of("name", stringField()));
+        EntityDef task = scopedEntity("Task", Map.of("project", manyToOneField("Project")), "project");
+
+        assertThatCode(() -> validator.validate(
+            new ResolvedDomainModel(List.of(project, task)), Map.of()))
+            .doesNotThrowAnyException();
+    }
+
+    @Test
+    void scopedByReferencingUndeclaredField_throws() {
+        EntityDef task = scopedEntity("Task", Map.of("name", stringField()), "project");
+
+        assertThatThrownBy(() -> validator.validate(
+            new ResolvedDomainModel(List.of(task)), Map.of()))
+            .isInstanceOf(ManifestValidationException.class)
+            .hasMessageContaining("Unknown scopedBy field")
+            .hasMessageContaining("project");
+    }
+
+    @Test
+    void scopedByReferencingNonRelationshipField_throws() {
+        EntityDef task = scopedEntity("Task", Map.of("project", stringField()), "project");
+
+        assertThatThrownBy(() -> validator.validate(
+            new ResolvedDomainModel(List.of(task)), Map.of()))
+            .isInstanceOf(ManifestValidationException.class)
+            .hasMessageContaining("Invalid scopedBy field")
+            .hasMessageContaining("ManyToOne");
+    }
+
     // ---------- hook phase validation ----------
 
     @Test

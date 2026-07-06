@@ -47,6 +47,10 @@ public class CodeGenerator {
             if (entityDef.softDelete()) {
                 generated.add(generateFilterCheck(entityDef, "SoftDeleteFilter", "deletedAt", false, version));
             }
+            if (entityDef.scopedBy() != null) {
+                generated.add(generateScopeFilterCheck(entityDef, version));
+                generated.add(generateScopeValidationHook(entityDef, version));
+            }
             if (entityDef.hooks() != null) {
                 for (Map.Entry<String, HookDef> hookEntry : entityDef.hooks().entrySet()) {
                     generated.add(generateLifecycleHook(entityDef, hookEntry.getKey(), hookEntry.getValue(), version));
@@ -80,17 +84,17 @@ public class CodeGenerator {
             .addAnnotation(com.palantir.javapoet.AnnotationSpec.builder(ClassName.get("com.yahoo.elide.annotation", "LifeCycleHookBinding"))
                 .addMember("operation", "$T.$L", ClassName.get("com.yahoo.elide.annotation.LifeCycleHookBinding", "Operation"), "CREATE")
                 .addMember("phase", "$T.$L", ClassName.get("com.yahoo.elide.annotation.LifeCycleHookBinding", "TransactionPhase"), "POSTCOMMIT")
-                .addMember("hook", "$T.class", ClassName.get("com.itsjool.aperture.runtime.audit", "AuditBridge"))
+                .addMember("hook", "$T.class", ClassName.bestGuess(ApertureRuntimeClassNames.AUDIT_BRIDGE))
                 .build())
             .addAnnotation(com.palantir.javapoet.AnnotationSpec.builder(ClassName.get("com.yahoo.elide.annotation", "LifeCycleHookBinding"))
                 .addMember("operation", "$T.$L", ClassName.get("com.yahoo.elide.annotation.LifeCycleHookBinding", "Operation"), "UPDATE")
                 .addMember("phase", "$T.$L", ClassName.get("com.yahoo.elide.annotation.LifeCycleHookBinding", "TransactionPhase"), "POSTCOMMIT")
-                .addMember("hook", "$T.class", ClassName.get("com.itsjool.aperture.runtime.audit", "AuditBridge"))
+                .addMember("hook", "$T.class", ClassName.bestGuess(ApertureRuntimeClassNames.AUDIT_BRIDGE))
                 .build())
             .addAnnotation(com.palantir.javapoet.AnnotationSpec.builder(ClassName.get("com.yahoo.elide.annotation", "LifeCycleHookBinding"))
                 .addMember("operation", "$T.$L", ClassName.get("com.yahoo.elide.annotation.LifeCycleHookBinding", "Operation"), "DELETE")
                 .addMember("phase", "$T.$L", ClassName.get("com.yahoo.elide.annotation.LifeCycleHookBinding", "TransactionPhase"), "POSTCOMMIT")
-                .addMember("hook", "$T.class", ClassName.get("com.itsjool.aperture.runtime.audit", "AuditBridge"))
+                .addMember("hook", "$T.class", ClassName.bestGuess(ApertureRuntimeClassNames.AUDIT_BRIDGE))
                 .build())
             .addAnnotation(com.palantir.javapoet.AnnotationSpec.builder(ClassName.get("jakarta.persistence", "Table"))
                 .addMember("name", "$S", entityDef.plural() != null ? "aperture_" + entityDef.plural().toLowerCase() : "aperture_" + entityDef.name().toLowerCase() + "s")
@@ -100,6 +104,10 @@ public class CodeGenerator {
                 .build());
 
         String tenantCheck = (tenancyMode == TenancyMode.POOL && entityDef.tenantScoped()) ? entityDef.name() + "V" + version + "TenantFilter" : null;
+        String scopeCheck = entityDef.scopedBy() != null ? entityDef.name() + "V" + version + "ScopeFilter" : null;
+        String filterChecks = java.util.stream.Stream.of(tenantCheck, scopeCheck)
+            .filter(java.util.Objects::nonNull)
+            .collect(java.util.stream.Collectors.joining(" AND "));
         String softDeleteCheck = entityDef.softDelete() ? entityDef.name() + "V" + version + "SoftDeleteFilter" : null;
 
         java.util.Map<String, java.util.List<String>> roleOps = new java.util.HashMap<>();
@@ -164,11 +172,11 @@ public class CodeGenerator {
             String innerExpr = expr;
             
             String accessExpr;
-            if (tenantCheck != null) {
+            if (!filterChecks.isEmpty()) {
                 if (innerExpr.equals("Prefab.Role.All")) {
-                    accessExpr = "SuperAdminCheck OR " + tenantCheck;
+                    accessExpr = "SuperAdminCheck OR " + filterChecks;
                 } else {
-                    accessExpr = "SuperAdminCheck OR (" + tenantCheck + " AND (TenantAdminCheck OR " + innerExpr + "))";
+                    accessExpr = "SuperAdminCheck OR (" + filterChecks + " AND (TenantAdminCheck OR " + innerExpr + "))";
                 }
             } else {
                 if (innerExpr.equals("Prefab.Role.All")) {
@@ -205,6 +213,20 @@ public class CodeGenerator {
                 .addMember("phase", "$T.PRESECURITY", ClassName.get("com.yahoo.elide.annotation.LifeCycleHookBinding", "TransactionPhase"))
                 .addMember("hook", "$T.class", ClassName.get("com.itsjool.aperture.generated.hooks.v" + version, entityDef.name() + "V" + version + "TenantIdHook"))
                 .build());
+        }
+
+        if (entityDef.scopedBy() != null) {
+            // Write-path is validate-not-inject (v1 policy): if a scope value for this
+            // entity's scopedBy field is present in ScopeContextHolder and the incoming
+            // relationship doesn't match it, reject; otherwise (no scope in context) allow.
+            // Bound on both CREATE and UPDATE since either can (re)point the relationship.
+            for (String op : java.util.List.of("CREATE", "UPDATE")) {
+                typeBuilder.addAnnotation(com.palantir.javapoet.AnnotationSpec.builder(ClassName.get("com.yahoo.elide.annotation", "LifeCycleHookBinding"))
+                    .addMember("operation", "$T.$L", ClassName.get("com.yahoo.elide.annotation.LifeCycleHookBinding", "Operation"), op)
+                    .addMember("phase", "$T.PRESECURITY", ClassName.get("com.yahoo.elide.annotation.LifeCycleHookBinding", "TransactionPhase"))
+                    .addMember("hook", "$T.class", ClassName.get("com.itsjool.aperture.generated.hooks.v" + version, entityDef.name() + "V" + version + "ScopeValidationHook"))
+                    .build());
+            }
         }
 
         if (entityDef.hooks() != null) {
@@ -362,10 +384,50 @@ public class CodeGenerator {
                 .addParameter(ClassName.get("com.itsjool.aperture.generated.v" + version, entityDef.name() + "V" + version), "elideEntity")
                 .addParameter(ClassName.get("com.yahoo.elide.core.security", "RequestScope"), "requestScope")
                 .addParameter(ParameterizedTypeName.get(ClassName.get("java.util", "Optional"), ClassName.get("com.yahoo.elide.core.security", "ChangeSpec")), "changes")
-                .addStatement("com.itsjool.aperture.spi.AperturePrincipal principal = null")
-                .addStatement("if (requestScope.getUser() != null && requestScope.getUser().getPrincipal() instanceof com.itsjool.aperture.spi.AperturePrincipal) principal = (com.itsjool.aperture.spi.AperturePrincipal) requestScope.getUser().getPrincipal()")
-                .addStatement("else principal = (com.itsjool.aperture.spi.AperturePrincipal) org.springframework.web.context.request.RequestContextHolder.currentRequestAttributes().getAttribute(\"aperturePrincipal\", org.springframework.web.context.request.RequestAttributes.SCOPE_REQUEST)")
+                .addStatement("$L principal = null", ApertureRuntimeClassNames.APERTURE_PRINCIPAL)
+                .addStatement("if (requestScope.getUser() != null && requestScope.getUser().getPrincipal() instanceof $L) principal = ($L) requestScope.getUser().getPrincipal()", ApertureRuntimeClassNames.APERTURE_PRINCIPAL, ApertureRuntimeClassNames.APERTURE_PRINCIPAL)
+                .addStatement("else principal = ($L) org.springframework.web.context.request.RequestContextHolder.currentRequestAttributes().getAttribute(\"aperturePrincipal\", org.springframework.web.context.request.RequestAttributes.SCOPE_REQUEST)", ApertureRuntimeClassNames.APERTURE_PRINCIPAL)
                 .addStatement("if (principal != null && principal.tenantId() != null) elideEntity.setApertureTenantId(java.util.UUID.fromString(principal.tenantId()))")
+                .build())
+            .build();
+        return JavaFile.builder("com.itsjool.aperture.generated.hooks.v" + version, hookAdapter).build().toString();
+    }
+
+    /**
+     * Generates the write-path {@code scopedBy} lifecycle hook: v1 policy is
+     * validate-not-inject. Unlike tenant scoping (which auto-injects), a {@code scopedBy}
+     * relationship is explicit on the payload, so this only rejects a mismatch — it never
+     * sets the relationship itself. If no scope value is present in {@link com.itsjool.aperture.runtime.scope.ScopeContextHolder}
+     * (keyed by the lowercased manifest field name, matching {@code generateScopeFilterCheck}
+     * and the header-parsing lowercasing in AuthFilter), the create/update is allowed —
+     * a scope is read context, not an ownership grant. If the incoming relationship is
+     * simply absent, there is nothing to validate against, so that is also allowed (Elide's
+     * own required-field validation is responsible for rejecting a missing required
+     * relationship).
+     */
+    private String generateScopeValidationHook(EntityDef entityDef, String version) {
+        String scopedByField = entityDef.scopedBy();
+        String scopedByKey = scopedByField.toLowerCase();
+        String className = entityDef.name() + "V" + version + "ScopeValidationHook";
+        ClassName entityClass = ClassName.get("com.itsjool.aperture.generated.v" + version, entityDef.name() + "V" + version);
+        String mismatchMessage = "Cannot set '" + scopedByField + "' to a value outside the current scope";
+
+        TypeSpec hookAdapter = TypeSpec.classBuilder(className)
+            .addModifiers(Modifier.PUBLIC)
+            .addSuperinterface(ParameterizedTypeName.get(ClassName.get("com.yahoo.elide.core.lifecycle", "LifeCycleHook"), entityClass))
+            .addMethod(MethodSpec.methodBuilder("execute")
+                .addModifiers(Modifier.PUBLIC)
+                .returns(void.class)
+                .addParameter(ClassName.get("com.yahoo.elide.annotation.LifeCycleHookBinding", "Operation"), "operation")
+                .addParameter(ClassName.get("com.yahoo.elide.annotation.LifeCycleHookBinding", "TransactionPhase"), "phase")
+                .addParameter(entityClass, "elideEntity")
+                .addParameter(ClassName.get("com.yahoo.elide.core.security", "RequestScope"), "requestScope")
+                .addParameter(ParameterizedTypeName.get(ClassName.get("java.util", "Optional"), ClassName.get("com.yahoo.elide.core.security", "ChangeSpec")), "changes")
+                .addStatement("java.lang.String scopeId = $L.get($S)", ApertureRuntimeClassNames.SCOPE_CONTEXT_HOLDER, scopedByKey)
+                .addStatement("if (scopeId == null) return")
+                .addStatement("if (elideEntity.get$L() == null) return", capitalize(scopedByField))
+                .addStatement("if (elideEntity.get$L().getId() == null) return", capitalize(scopedByField))
+                .addStatement("if (!scopeId.equals(elideEntity.get$L().getId().toString())) throw new com.yahoo.elide.core.exceptions.BadRequestException($S)", capitalize(scopedByField), mismatchMessage)
                 .build())
             .build();
         return JavaFile.builder("com.itsjool.aperture.generated.hooks.v" + version, hookAdapter).build().toString();
@@ -385,8 +447,8 @@ public class CodeGenerator {
                 .returns(String.class)
                 .addParameter(String.class, "attribute")
                 .addStatement("if (attribute == null) return null")
-                .addStatement("com.itsjool.aperture.spi.EncryptionService encryptionService = com.itsjool.aperture.runtime.util.SpringContextHelper.getBean(com.itsjool.aperture.spi.EncryptionService.class)")
-                .addStatement("java.lang.String tenantId = com.itsjool.aperture.runtime.tenant.TenantContextHolder.getTenantId()")
+                .addStatement("com.itsjool.aperture.spi.EncryptionService encryptionService = $L.getBean(com.itsjool.aperture.spi.EncryptionService.class)", ApertureRuntimeClassNames.SPRING_CONTEXT_HELPER)
+                .addStatement("java.lang.String tenantId = $L.getTenantId()", ApertureRuntimeClassNames.TENANT_CONTEXT_HOLDER)
                 .addStatement("return encryptionService.encrypt(attribute, new com.itsjool.aperture.spi.EncryptionContext(tenantId, $S, $S, false)).value()", entityDef.name(), fieldName)
                 .build())
             .addMethod(MethodSpec.methodBuilder("convertToEntityAttribute")
@@ -394,8 +456,8 @@ public class CodeGenerator {
                 .returns(String.class)
                 .addParameter(String.class, "dbData")
                 .addStatement("if (dbData == null) return null")
-                .addStatement("com.itsjool.aperture.spi.EncryptionService encryptionService = com.itsjool.aperture.runtime.util.SpringContextHelper.getBean(com.itsjool.aperture.spi.EncryptionService.class)")
-                .addStatement("java.lang.String tenantId = com.itsjool.aperture.runtime.tenant.TenantContextHolder.getTenantId()")
+                .addStatement("com.itsjool.aperture.spi.EncryptionService encryptionService = $L.getBean(com.itsjool.aperture.spi.EncryptionService.class)", ApertureRuntimeClassNames.SPRING_CONTEXT_HELPER)
+                .addStatement("java.lang.String tenantId = $L.getTenantId()", ApertureRuntimeClassNames.TENANT_CONTEXT_HOLDER)
                 .addStatement("return encryptionService.decrypt(new com.itsjool.aperture.spi.EncryptedValue(dbData), new com.itsjool.aperture.spi.EncryptionContext(tenantId, $S, $S, false))", entityDef.name(), fieldName)
                 .build())
             .build();
@@ -412,13 +474,51 @@ public class CodeGenerator {
             .addParameter(ClassName.get("com.yahoo.elide.core.security", "RequestScope"), "requestScope");
             
         if (isTenantFilter) {
-            methodBuilder.addStatement("java.lang.String tenantId = com.itsjool.aperture.runtime.tenant.TenantContextHolder.getTenantId()");
+            methodBuilder.addStatement("java.lang.String tenantId = $L.getTenantId()", ApertureRuntimeClassNames.TENANT_CONTEXT_HOLDER);
             methodBuilder.addStatement("if (tenantId == null) throw new com.yahoo.elide.core.exceptions.ForbiddenAccessException(com.yahoo.elide.annotation.ReadPermission.class)");
             methodBuilder.addStatement("return new com.yahoo.elide.core.filter.predicates.InPredicate(new com.yahoo.elide.core.Path.PathElement(entityClass, com.yahoo.elide.core.type.ClassType.of(java.util.UUID.class), $S), java.util.List.of(java.util.UUID.fromString(tenantId)))", fieldName);
         } else {
             methodBuilder.addStatement("return new com.yahoo.elide.core.filter.predicates.IsNullPredicate(new com.yahoo.elide.core.Path.PathElement(entityClass, com.yahoo.elide.core.type.ClassType.of(java.util.UUID.class), $S))", fieldName);
         }
         
+        TypeSpec filter = TypeSpec.classBuilder(className)
+            .addModifiers(Modifier.PUBLIC)
+            .addAnnotation(com.palantir.javapoet.AnnotationSpec.builder(ClassName.get("com.yahoo.elide.annotation", "SecurityCheck")).addMember("value", "$S", className).build())
+            .superclass(ParameterizedTypeName.get(ClassName.get("com.yahoo.elide.core.security.checks", "FilterExpressionCheck"), ClassName.get("com.itsjool.aperture.generated.v" + version, entityDef.name() + "V" + version)))
+            .addMethod(methodBuilder.build())
+            .build();
+        return JavaFile.builder("com.itsjool.aperture.generated.security", filter).build().toString();
+    }
+
+    /**
+     * Generates a FilterExpressionCheck for {@code scopedBy: <field>} — a real SQL-level
+     * filter on the relationship's foreign key, sourced from {@code ScopeContextHolder}
+     * (populated from an {@code X-Aperture-Scope-<Field>} header; see the runtime class
+     * for what this does and does not guarantee). Denies (like tenant scoping) if no scope
+     * value is present in context, rather than silently returning everything.
+     */
+    private String generateScopeFilterCheck(EntityDef entityDef, String version) {
+        String scopedByField = entityDef.scopedBy();
+        String scopedByKey = scopedByField.toLowerCase();
+        String className = entityDef.name() + "V" + version + "ScopeFilter";
+        FieldDef fieldDef = entityDef.fields().get(scopedByField);
+        String targetEntityName = fieldDef.targetClass();
+        ClassName targetClass = ClassName.get("com.itsjool.aperture.generated.v" + version, targetEntityName + "V" + version);
+
+        MethodSpec.Builder methodBuilder = MethodSpec.methodBuilder("getFilterExpression")
+            .addModifiers(Modifier.PUBLIC)
+            .returns(ClassName.get("com.yahoo.elide.core.filter.expression", "FilterExpression"))
+            .addParameter(ParameterizedTypeName.get(ClassName.get("com.yahoo.elide.core.type", "Type"), com.palantir.javapoet.WildcardTypeName.subtypeOf(Object.class)), "entityClass")
+            .addParameter(ClassName.get("com.yahoo.elide.core.security", "RequestScope"), "requestScope")
+            .addStatement("java.lang.String scopeId = $L.get($S)", ApertureRuntimeClassNames.SCOPE_CONTEXT_HOLDER, scopedByKey)
+            .addStatement("if (scopeId == null) throw new com.yahoo.elide.core.exceptions.ForbiddenAccessException(com.yahoo.elide.annotation.ReadPermission.class)")
+            .addStatement(
+                "return new com.yahoo.elide.core.filter.predicates.InPredicate(new com.yahoo.elide.core.Path(java.util.List.of("
+                    + "new com.yahoo.elide.core.Path.PathElement(entityClass, com.yahoo.elide.core.type.ClassType.of($T.class), $S), "
+                    + "new com.yahoo.elide.core.Path.PathElement(com.yahoo.elide.core.type.ClassType.of($T.class), com.yahoo.elide.core.type.ClassType.of(java.util.UUID.class), $S))), "
+                    + "java.util.List.of(java.util.UUID.fromString(scopeId)))",
+                targetClass, scopedByField, targetClass, "id");
+
         TypeSpec filter = TypeSpec.classBuilder(className)
             .addModifiers(Modifier.PUBLIC)
             .addAnnotation(com.palantir.javapoet.AnnotationSpec.builder(ClassName.get("com.yahoo.elide.annotation", "SecurityCheck")).addMember("value", "$S", className).build())
@@ -456,10 +556,10 @@ public class CodeGenerator {
                 .addParameter(ClassName.get("java.util", "Optional"), "changeSpec")
                 .addStatement("Object recordState = changeSpec.isPresent() && ((com.yahoo.elide.core.security.ChangeSpec) changeSpec.get()).getOriginal() != null ? ((com.yahoo.elide.core.security.ChangeSpec) changeSpec.get()).getOriginal() : record")
                 .addStatement("Object inputState = changeSpec.isPresent() && ((com.yahoo.elide.core.security.ChangeSpec) changeSpec.get()).getModified() != null ? ((com.yahoo.elide.core.security.ChangeSpec) changeSpec.get()).getModified() : record")
-                .addStatement("com.itsjool.aperture.spi.AperturePrincipal principal = null")
-                .addStatement("if (requestScope.getUser() != null && requestScope.getUser().getPrincipal() instanceof com.itsjool.aperture.spi.AperturePrincipal) principal = (com.itsjool.aperture.spi.AperturePrincipal) requestScope.getUser().getPrincipal()")
-                .addStatement("else { org.springframework.web.context.request.RequestAttributes attrs = org.springframework.web.context.request.RequestContextHolder.getRequestAttributes(); if (attrs != null) principal = (com.itsjool.aperture.spi.AperturePrincipal) attrs.getAttribute(\"aperturePrincipal\", org.springframework.web.context.request.RequestAttributes.SCOPE_REQUEST); }")
-                .addStatement("return com.itsjool.aperture.runtime.security.AbacPolicyEvaluator.evaluate(EXPRESSION, recordState, inputState, principal)")
+                .addStatement("$L principal = null", ApertureRuntimeClassNames.APERTURE_PRINCIPAL)
+                .addStatement("if (requestScope.getUser() != null && requestScope.getUser().getPrincipal() instanceof $L) principal = ($L) requestScope.getUser().getPrincipal()", ApertureRuntimeClassNames.APERTURE_PRINCIPAL, ApertureRuntimeClassNames.APERTURE_PRINCIPAL)
+                .addStatement("else { org.springframework.web.context.request.RequestAttributes attrs = org.springframework.web.context.request.RequestContextHolder.getRequestAttributes(); if (attrs != null) principal = ($L) attrs.getAttribute(\"aperturePrincipal\", org.springframework.web.context.request.RequestAttributes.SCOPE_REQUEST); }", ApertureRuntimeClassNames.APERTURE_PRINCIPAL)
+                .addStatement("return $L.evaluate(EXPRESSION, recordState, inputState, principal)", ApertureRuntimeClassNames.ABAC_POLICY_EVALUATOR)
                 .build())
             .build();
         return JavaFile.builder("com.itsjool.aperture.generated.security", check).build().toString();
@@ -478,7 +578,7 @@ public class CodeGenerator {
             .addParameter(ClassName.get("com.itsjool.aperture.generated.v" + version, entityDef.name() + "V" + version), "elideEntity")
             .addParameter(ClassName.get("com.yahoo.elide.core.security", "RequestScope"), "requestScope")
             .addParameter(ParameterizedTypeName.get(ClassName.get("java.util", "Optional"), ClassName.get("com.yahoo.elide.core.security", "ChangeSpec")), "changes")
-            .addStatement("com.itsjool.aperture.runtime.hook.HookExecutor hookExecutor = com.itsjool.aperture.runtime.util.SpringContextHelper.getBean(com.itsjool.aperture.runtime.hook.HookExecutor.class)")
+            .addStatement("$L hookExecutor = $L.getBean($L.class)", ApertureRuntimeClassNames.HOOK_EXECUTOR, ApertureRuntimeClassNames.SPRING_CONTEXT_HELPER, ApertureRuntimeClassNames.HOOK_EXECUTOR)
             .beginControlFlow("if (hookExecutor != null)")
             .addStatement("jakarta.servlet.http.HttpServletRequest req = null")
             .beginControlFlow("try")
@@ -487,9 +587,9 @@ public class CodeGenerator {
             .addComment("Not in web context")
             .endControlFlow()
             .addStatement("String payload = \"{}\"")
-            .addStatement("com.fasterxml.jackson.databind.ObjectMapper __om = com.itsjool.aperture.runtime.util.SpringContextHelper.getBean(com.fasterxml.jackson.databind.ObjectMapper.class)")
+            .addStatement("com.fasterxml.jackson.databind.ObjectMapper __om = $L.getBean(com.fasterxml.jackson.databind.ObjectMapper.class)", ApertureRuntimeClassNames.SPRING_CONTEXT_HELPER)
             .beginControlFlow("try")
-            .addStatement("if (__om != null) payload = com.itsjool.aperture.runtime.hook.HookPayloadBuilder.build(elideEntity, __om)")
+            .addStatement("if (__om != null) payload = $L.build(elideEntity, __om)", ApertureRuntimeClassNames.HOOK_PAYLOAD_BUILDER)
             .nextControlFlow("catch (Exception e)")
             .addComment("Ignore payload serialization error")
             .endControlFlow();
@@ -499,7 +599,7 @@ public class CodeGenerator {
             executeBuilder
                 .addStatement("String responseBody = hookExecutor.executeHookWithResponse($S, $S, payload, req, $S)", phase, hookDef.url(), onFailure)
                 .beginControlFlow("if (responseBody != null && __om != null)")
-                .addStatement("com.itsjool.aperture.runtime.hook.HookPayloadBuilder.applyEnrichmentOverrides(elideEntity, responseBody, __om)")
+                .addStatement("$L.applyEnrichmentOverrides(elideEntity, responseBody, __om)", ApertureRuntimeClassNames.HOOK_PAYLOAD_BUILDER)
                 .endControlFlow();
         } else {
             executeBuilder
@@ -531,9 +631,9 @@ public class CodeGenerator {
                 .addModifiers(Modifier.PUBLIC)
                 .returns(boolean.class)
                 .addParameter(ClassName.get("com.yahoo.elide.core.security", "User"), "user")
-                .addStatement("com.itsjool.aperture.spi.AperturePrincipal principal = null")
-                .addStatement("if (user != null && user.getPrincipal() instanceof com.itsjool.aperture.spi.AperturePrincipal) principal = (com.itsjool.aperture.spi.AperturePrincipal) user.getPrincipal()")
-                .addStatement("else principal = (com.itsjool.aperture.spi.AperturePrincipal) org.springframework.web.context.request.RequestContextHolder.currentRequestAttributes().getAttribute(\"aperturePrincipal\", org.springframework.web.context.request.RequestAttributes.SCOPE_REQUEST)")
+                .addStatement("$L principal = null", ApertureRuntimeClassNames.APERTURE_PRINCIPAL)
+                .addStatement("if (user != null && user.getPrincipal() instanceof $L) principal = ($L) user.getPrincipal()", ApertureRuntimeClassNames.APERTURE_PRINCIPAL, ApertureRuntimeClassNames.APERTURE_PRINCIPAL)
+                .addStatement("else principal = ($L) org.springframework.web.context.request.RequestContextHolder.currentRequestAttributes().getAttribute(\"aperturePrincipal\", org.springframework.web.context.request.RequestAttributes.SCOPE_REQUEST)", ApertureRuntimeClassNames.APERTURE_PRINCIPAL)
                 .addStatement("if (principal == null || principal.roles() == null) return false")
                 .addStatement("return principal.roles().contains($S)", roleName)
                 .build())
@@ -582,9 +682,9 @@ public class CodeGenerator {
                 .addModifiers(Modifier.PUBLIC)
                 .returns(boolean.class)
                 .addParameter(ClassName.get("com.yahoo.elide.core.security", "User"), "user")
-                .addStatement("com.itsjool.aperture.spi.AperturePrincipal principal = null")
-                .addStatement("if (user != null && user.getPrincipal() instanceof com.itsjool.aperture.spi.AperturePrincipal) principal = (com.itsjool.aperture.spi.AperturePrincipal) user.getPrincipal()")
-                .addStatement("else { org.springframework.web.context.request.RequestAttributes attrs = org.springframework.web.context.request.RequestContextHolder.getRequestAttributes(); if (attrs != null) principal = (com.itsjool.aperture.spi.AperturePrincipal) attrs.getAttribute(\"aperturePrincipal\", org.springframework.web.context.request.RequestAttributes.SCOPE_REQUEST); }")
+                .addStatement("$L principal = null", ApertureRuntimeClassNames.APERTURE_PRINCIPAL)
+                .addStatement("if (user != null && user.getPrincipal() instanceof $L) principal = ($L) user.getPrincipal()", ApertureRuntimeClassNames.APERTURE_PRINCIPAL, ApertureRuntimeClassNames.APERTURE_PRINCIPAL)
+                .addStatement("else { org.springframework.web.context.request.RequestAttributes attrs = org.springframework.web.context.request.RequestContextHolder.getRequestAttributes(); if (attrs != null) principal = ($L) attrs.getAttribute(\"aperturePrincipal\", org.springframework.web.context.request.RequestAttributes.SCOPE_REQUEST); }", ApertureRuntimeClassNames.APERTURE_PRINCIPAL)
                 .addStatement("if (principal == null) return false")
                 .addStatement("return principal.superAdmin()")
                 .build())
@@ -600,9 +700,9 @@ public class CodeGenerator {
                 .addModifiers(Modifier.PUBLIC)
                 .returns(boolean.class)
                 .addParameter(ClassName.get("com.yahoo.elide.core.security", "User"), "user")
-                .addStatement("com.itsjool.aperture.spi.AperturePrincipal principal = null")
-                .addStatement("if (user != null && user.getPrincipal() instanceof com.itsjool.aperture.spi.AperturePrincipal) principal = (com.itsjool.aperture.spi.AperturePrincipal) user.getPrincipal()")
-                .addStatement("else { org.springframework.web.context.request.RequestAttributes attrs = org.springframework.web.context.request.RequestContextHolder.getRequestAttributes(); if (attrs != null) principal = (com.itsjool.aperture.spi.AperturePrincipal) attrs.getAttribute(\"aperturePrincipal\", org.springframework.web.context.request.RequestAttributes.SCOPE_REQUEST); }")
+                .addStatement("$L principal = null", ApertureRuntimeClassNames.APERTURE_PRINCIPAL)
+                .addStatement("if (user != null && user.getPrincipal() instanceof $L) principal = ($L) user.getPrincipal()", ApertureRuntimeClassNames.APERTURE_PRINCIPAL, ApertureRuntimeClassNames.APERTURE_PRINCIPAL)
+                .addStatement("else { org.springframework.web.context.request.RequestAttributes attrs = org.springframework.web.context.request.RequestContextHolder.getRequestAttributes(); if (attrs != null) principal = ($L) attrs.getAttribute(\"aperturePrincipal\", org.springframework.web.context.request.RequestAttributes.SCOPE_REQUEST); }", ApertureRuntimeClassNames.APERTURE_PRINCIPAL)
                 .addStatement("if (principal == null) return false")
                 .addStatement("return principal.tenantAdmin()")
                 .build())

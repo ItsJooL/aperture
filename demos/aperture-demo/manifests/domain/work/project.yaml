@@ -1,0 +1,22 @@
+apiVersion: aperture.itsjool.com/v1
+kind: Entity
+metadata:
+  name: Project
+spec:
+  description: "A project that partitions work items (Tasks) via scopedBy — see Task for the pairing"
+  tenantScoped: true
+  fields:
+    name:
+      type: string
+      required: true
+      unique: true
+      description: "Project name"
+    tasks:
+      type: ref
+      target: Task
+      relation: OneToMany
+      mappedBy: project
+      description: "Tasks belonging to this project"
+  permissions:
+    Accountant: [create, read, update]
+    Viewer: [read]

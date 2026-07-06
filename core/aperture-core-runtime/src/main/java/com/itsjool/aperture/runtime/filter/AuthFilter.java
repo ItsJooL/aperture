@@ -2,6 +2,7 @@ package com.itsjool.aperture.runtime.filter;
 
 import com.itsjool.aperture.runtime.config.ApertureRuntimeMetadata;
 import com.itsjool.aperture.runtime.config.TenancyMode;
+import com.itsjool.aperture.runtime.scope.ScopeContextHolder;
 import com.itsjool.aperture.runtime.tenant.TenantContextHolder;
 import com.itsjool.aperture.spi.AperturePrincipal;
 import com.itsjool.aperture.spi.CredentialValidator;
@@ -45,6 +46,7 @@ public class AuthFilter extends OncePerRequestFilter implements org.springframew
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain) throws ServletException, IOException {
         TenantContextHolder.clear();
+        ScopeContextHolder.clear();
         try {
             String uri = request.getRequestURI();
             if (uri.equals("/auth/login") || uri.equals("/auth/token") || uri.equals("/auth/refresh") || uri.equals("/auth/logout") || uri.equals("/auth/accept-invite") || uri.startsWith("/actuator/") || uri.startsWith("/v3/api-docs") || uri.startsWith("/swagger-ui") || uri.equals("/openapi.yaml") || uri.equals("/openapi.json")) {
@@ -98,6 +100,8 @@ public class AuthFilter extends OncePerRequestFilter implements org.springframew
                     }
                 }
 
+                populateScopeContext(request);
+
                 if (principal.scopes() != null && principal.scopes().contains("FORCE_CHANGE")
                         && !uri.equals("/auth/change-password")) {
                     response.sendError(HttpServletResponse.SC_FORBIDDEN, "Password change required");
@@ -123,6 +127,31 @@ public class AuthFilter extends OncePerRequestFilter implements org.springframew
             }
         } finally {
             TenantContextHolder.clear();
+            ScopeContextHolder.clear();
+        }
+    }
+
+    /**
+     * Populates {@link ScopeContextHolder} from any {@code X-Aperture-Scope-<Field>} headers
+     * present on the request — e.g. {@code X-Aperture-Scope-Project: <uuid>} sets the "project"
+     * scope value, matched at generation time against an entity's {@code scopedBy: project}.
+     * Available to any authenticated caller, unlike {@code X-Aperture-Tenant-Context} (SuperAdmin
+     * only): there is no principal-embedded scope claim to fall back to for a regular user, so
+     * this is the only way to supply it. See {@link ScopeContextHolder} for what this does and
+     * does not guarantee.
+     */
+    private void populateScopeContext(HttpServletRequest request) {
+        java.util.Enumeration<String> headerNames = request.getHeaderNames();
+        if (headerNames == null) return;
+        while (headerNames.hasMoreElements()) {
+            String headerName = headerNames.nextElement();
+            if (headerName.regionMatches(true, 0, "X-Aperture-Scope-", 0, "X-Aperture-Scope-".length())) {
+                String field = headerName.substring("X-Aperture-Scope-".length()).toLowerCase();
+                String value = request.getHeader(headerName);
+                if (!field.isEmpty() && value != null && !value.isBlank()) {
+                    ScopeContextHolder.set(field, value);
+                }
+            }
         }
     }
 

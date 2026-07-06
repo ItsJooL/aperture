@@ -134,4 +134,89 @@ class CodeGeneratorTest {
         assertThat(joined).contains("expression = \"SuperAdminCheck OR (CustomerV1TenantFilter AND (TenantAdminCheck OR (CustomerViewerCheck)))\"");
         assertThat(joined).doesNotContain("SuperAdmin OR TenantAdmin");
     }
+
+    @Test
+    void scopedByGeneratesFilterCheckFilteringOnRelationshipTarget() {
+        EntityDef task = new EntityDef("Task", "tasks", null, null, false, false, false,
+            Map.of("project", new FieldDef("ref", true, false, false, false, null, null, null, "ManyToOne", "Project", null, null)),
+            null, null, null, null, null, "project");
+
+        List<String> classes = new CodeGenerator().generateForEntity(task, TenancyMode.NONE, List.of("1"));
+        String joined = String.join("\n\n", classes);
+
+        assertThat(joined).contains("public class TaskV1ScopeFilter extends FilterExpressionCheck<TaskV1>");
+        assertThat(joined).contains("ScopeContextHolder.get(\"project\")");
+        assertThat(joined).contains("ForbiddenAccessException");
+        // Filters via the relationship (ProjectV1.id), not a raw "project_id" scalar attribute —
+        // scopedBy points at a ManyToOne field, so the predicate must traverse it.
+        assertThat(joined).contains("ClassType.of(ProjectV1.class)");
+    }
+
+    @Test
+    void scopedByWithCamelCaseFieldLowercasesScopeContextHolderLookupKey() {
+        // AuthFilter lowercases the X-Aperture-Scope-<Field> header suffix when populating
+        // ScopeContextHolder, so the generated lookup must canonicalize to the same lowercase
+        // key or a camelCase scopedBy field (e.g. parentProject) can never match, causing a
+        // permanent 403.
+        EntityDef task = new EntityDef("Task", "tasks", null, null, false, false, false,
+            Map.of("parentProject", new FieldDef("ref", true, false, false, false, null, null, null, "ManyToOne", "Project", null, null)),
+            null, null, null, null, null, "parentProject");
+
+        List<String> classes = new CodeGenerator().generateForEntity(task, TenancyMode.NONE, List.of("1"));
+        String joined = String.join("\n\n", classes);
+
+        assertThat(joined).contains("ScopeContextHolder.get(\"parentproject\")");
+        assertThat(joined).doesNotContain("ScopeContextHolder.get(\"parentProject\")");
+        // The join-path field name accessed via reflection must stay the actual Java field name.
+        assertThat(joined).contains("\"parentProject\"");
+    }
+
+    @Test
+    void scopedByGeneratesWritePathValidationHookNotInjection() {
+        // v1 policy is validate-not-inject: create/update must reject a scopedBy relationship
+        // that mismatches the current ScopeContextHolder value, but never auto-set it (unlike
+        // tenant scoping's auto-injection hook).
+        EntityDef task = new EntityDef("Task", "tasks", null, null, false, false, false,
+            Map.of("parentProject", new FieldDef("ref", true, false, false, false, null, null, null, "ManyToOne", "Project", null, null)),
+            null, null, null, null, null, "parentProject");
+
+        List<String> classes = new CodeGenerator().generateForEntity(task, TenancyMode.NONE, List.of("1"));
+        String joined = String.join("\n\n", classes);
+
+        assertThat(joined).contains("public class TaskV1ScopeValidationHook implements LifeCycleHook<TaskV1>");
+        // Looks up the scope using the same lowercased key as the read-path filter.
+        assertThat(joined).contains("ScopeContextHolder.get(\"parentproject\")");
+        // No scope in context → allow (return), never auto-assigns the relationship.
+        assertThat(joined).contains("if (scopeId == null) return");
+        assertThat(joined).doesNotContain("elideEntity.setParentProject");
+        // Mismatch → reject with a 400-mapped exception, not Forbidden (403 is for the read filter).
+        assertThat(joined).contains("BadRequestException");
+        assertThat(joined).contains("elideEntity.getParentProject().getId().toString()");
+        // Bound on CREATE and UPDATE (either can (re)point the relationship), not DELETE.
+        assertThat(joined).contains(
+            "@LifeCycleHookBinding(\n"
+                + "    operation = Operation.CREATE,\n"
+                + "    phase = TransactionPhase.PRESECURITY,\n"
+                + "    hook = TaskV1ScopeValidationHook.class\n"
+                + ")");
+        assertThat(joined).contains(
+            "@LifeCycleHookBinding(\n"
+                + "    operation = Operation.UPDATE,\n"
+                + "    phase = TransactionPhase.PRESECURITY,\n"
+                + "    hook = TaskV1ScopeValidationHook.class\n"
+                + ")");
+    }
+
+    @Test
+    void scopedByCombinesWithTenantFilterInPermissionExpression() {
+        EntityDef task = new EntityDef("Task", "tasks", null, null, false, false, true,
+            Map.of("project", new FieldDef("ref", true, false, false, false, null, null, null, "ManyToOne", "Project", null, null)),
+            Map.of("Viewer", List.of("read")), null, null, null, null, "project");
+
+        List<String> classes = new CodeGenerator().generateForEntity(task, TenancyMode.POOL, List.of("1"));
+        String joined = String.join("\n\n", classes);
+
+        assertThat(joined).contains(
+            "expression = \"SuperAdminCheck OR (TaskV1TenantFilter AND TaskV1ScopeFilter AND (TenantAdminCheck OR (TaskViewerCheck)))\"");
+    }
 }

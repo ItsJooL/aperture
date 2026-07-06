@@ -86,6 +86,16 @@ public class DiffEngine {
                 if (oldEntity.optimisticLocking() != newEntity.optimisticLocking()) {
                     classification = ChangeType.BREAKING;
                 }
+                // scopedBy filters are fail-closed: adding one to an already-published entity
+                // (or repointing it at a different field) 403s every existing client that
+                // doesn't yet send the X-Aperture-Scope-<Field> header, so both are breaking.
+                // Removing scopedBy only widens access and is safe.
+                if (oldEntity.scopedBy() == null && newEntity.scopedBy() != null) {
+                    classification = ChangeType.BREAKING;
+                } else if (oldEntity.scopedBy() != null && newEntity.scopedBy() != null
+                        && !oldEntity.scopedBy().equals(newEntity.scopedBy())) {
+                    classification = ChangeType.BREAKING;
+                }
 
                 if (!oldEntity.equals(newEntity)) modified.add(newEntity);
             }

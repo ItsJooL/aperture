@@ -1,0 +1,6 @@
+# Tenant-scoped projects. name is required and unique — Task's scopedBy partition key
+# is this entity's id, set via the X-Aperture-Scope-Project header (see resources/tasks.yaml
+# and demos/aperture-demo/cli-smoke-test.sh for the scoped-read walkthrough).
+projects:
+  - name: Apollo Migration
+  - name: Beacon Rollout

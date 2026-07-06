@@ -639,6 +639,61 @@ class ManifestParserTest {
 
         assertThat(model.frameworkConfig().mcp()).isNull();
     }
+
+    @Test
+    void frameworkConfigWithCli_parsesBinaryName() throws Exception {
+        Files.writeString(new File(tempDir, "roles.yaml").toPath(), """
+            apiVersion: aperture.itsjool.com/v1
+            kind: RoleDefinition
+            metadata:
+              name: roles
+            spec:
+              roles:
+                Admin: { description: Admin }
+            """);
+        Files.writeString(new File(tempDir, "framework.yaml").toPath(), """
+            apiVersion: aperture.itsjool.com/v1
+            kind: FrameworkConfig
+            metadata:
+              name: framework
+            spec:
+              defaultRoles: [Admin]
+              cli:
+                binaryName: myapp
+            """);
+
+        ManifestParser parser = new ManifestParser();
+        ResolvedDomainModel model = parser.parseDirectory(tempDir);
+
+        assertThat(model.frameworkConfig().cli().binaryName()).isEqualTo("myapp");
+    }
+
+    @Test
+    void frameworkConfigWithoutCli_defaultsBinaryNameToAperture() throws Exception {
+        Files.writeString(new File(tempDir, "roles.yaml").toPath(), """
+            apiVersion: aperture.itsjool.com/v1
+            kind: RoleDefinition
+            metadata:
+              name: roles
+            spec:
+              roles:
+                Admin: { description: Admin }
+            """);
+        Files.writeString(new File(tempDir, "framework.yaml").toPath(), """
+            apiVersion: aperture.itsjool.com/v1
+            kind: FrameworkConfig
+            metadata:
+              name: framework
+            spec:
+              defaultRoles: [Admin]
+            """);
+
+        ManifestParser parser = new ManifestParser();
+        ResolvedDomainModel model = parser.parseDirectory(tempDir);
+
+        assertThat(model.frameworkConfig().cli().binaryName()).isEqualTo("aperture");
+    }
+
     @Test
     void testParsePrincipalAttributeDefinition() throws Exception {
         ManifestParser parser = new ManifestParser();

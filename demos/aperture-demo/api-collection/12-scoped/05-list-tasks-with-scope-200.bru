@@ -1,0 +1,31 @@
+meta {
+  name: List Tasks WITH X-Aperture-Scope-Project → 200
+  type: http
+  seq: 5
+}
+
+get {
+  url: {{baseUrl}}/api/v1/tasks
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tenantAdminToken}}
+}
+
+headers {
+  Accept: application/vnd.api+json
+  X-Aperture-Scope-Project: {{scopeProjectAId}}
+}
+
+docs {
+  Same request as 04, plus X-Aperture-Scope-Project naming Project A: the
+  generated ScopeFilter admits rows whose project relationship matches, so the
+  Task created in 03 comes back.
+}
+
+assert {
+  res.status: eq 200
+  res.body.data: isDefined
+}

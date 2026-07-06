@@ -205,6 +205,20 @@ public class DomainModelValidator {
                 }
             }
 
+            if (entity.scopedBy() != null) {
+                FieldDef scopeField = entity.fields() != null ? entity.fields().get(entity.scopedBy()) : null;
+                if (scopeField == null) {
+                    throw new ManifestValidationException(
+                        "Unknown scopedBy field in " + loc + " (Entity " + entity.name()
+                        + "): '" + entity.scopedBy() + "' is not declared as a field on this entity");
+                }
+                if (!"ref".equals(scopeField.type()) || !"ManyToOne".equalsIgnoreCase(scopeField.relation())) {
+                    throw new ManifestValidationException(
+                        "Invalid scopedBy field in " + loc + " (Entity " + entity.name()
+                        + "): '" + entity.scopedBy() + "' must be a ManyToOne relationship field");
+                }
+            }
+
             if (entity.hooks() != null) {
                 for (Map.Entry<String, HookDef> hookEntry : entity.hooks().entrySet()) {
                     String hookName = hookEntry.getKey();

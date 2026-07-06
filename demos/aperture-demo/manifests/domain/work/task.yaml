@@ -1,0 +1,30 @@
+apiVersion: aperture.itsjool.com/v1
+kind: Entity
+metadata:
+  name: Task
+spec:
+  description: >-
+    A work item scoped to a single Project via scopedBy: reads are fail-closed on the
+    X-Aperture-Scope-Project header (403 without it). This is partitioning, not authorization —
+    any authenticated caller may name any project scope value; pair scopedBy with an ABAC policy
+    (see docs/guide/manifests.md) for real per-scope access control.
+  tenantScoped: true
+  scopedBy: project
+  fields:
+    title:
+      type: string
+      required: true
+      description: "Task title"
+    status:
+      type: string
+      enum: [TODO, IN_PROGRESS, DONE]
+      description: "Current status of the task"
+    project:
+      type: ref
+      target: Project
+      relation: ManyToOne
+      required: true
+      description: "Project this task belongs to — also the scopedBy field"
+  permissions:
+    Accountant: [create, read, update]
+    Viewer: [read]

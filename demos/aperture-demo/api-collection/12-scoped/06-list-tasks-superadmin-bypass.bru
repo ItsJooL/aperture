@@ -1,0 +1,33 @@
+meta {
+  name: List Tasks as SuperAdmin (no scope header) → 200 bypass
+  type: http
+  seq: 6
+}
+
+get {
+  url: {{baseUrl}}/api/v1/tasks
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{superadminToken}}
+}
+
+headers {
+  Accept: application/vnd.api+json
+  X-Aperture-Tenant-Context: {{tenantId}}
+}
+
+docs {
+  SuperAdmin bypasses the scope filter entirely — no X-Aperture-Scope-Project
+  header is sent, and the request still returns 200 with every Task in the
+  tenant. SuperAdmin still needs X-Aperture-Tenant-Context for generated APIs
+  (a separate, unrelated requirement — see AuthFilter), which is why it's here
+  and not on the tenant-admin requests above.
+}
+
+assert {
+  res.status: eq 200
+  res.body.data: isDefined
+}
