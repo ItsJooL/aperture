@@ -1,0 +1,17 @@
+apiVersion: aperture.itsjool.com/v1
+kind: Entity
+metadata:
+  name: Project
+spec:
+  optimisticLocking: true
+  softDelete: true
+  fields:
+    name:
+      type: string
+      required: true
+    description:
+      type: string
+  permissions:
+    Admin: [create, read, update, delete]
+    Assistant: [create, read, update]
+    ReadOnly: [read]

@@ -1,0 +1,24 @@
+meta {
+  name: Delete Task
+  type: http
+  seq: 1
+}
+
+delete {
+  url: {{baseUrl}}/api/v1/tasks/{{taskId}}
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{superadminToken}}
+}
+
+headers {
+  Accept: application/vnd.api+json
+  If-Match: {{taskEtag}}
+}
+
+assert {
+  res.status: eq 204
+}

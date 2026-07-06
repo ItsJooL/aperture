@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+#MISE description="Build the aperture-mcp-demo API server jar"
+
+cd "$MISE_PROJECT_ROOT"
+mvn -pl demos/aperture-mcp-demo -am package -DskipTests

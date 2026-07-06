@@ -1,0 +1,12 @@
+apiVersion: aperture.itsjool.com/v1
+kind: RoleDefinition
+metadata:
+  name: roles
+spec:
+  roles:
+    Admin:
+      description: "Full access to projects and tasks"
+    Assistant:
+      description: "Can create, read, and update projects and tasks"
+    ReadOnly:
+      description: "Read-only access to projects and tasks"

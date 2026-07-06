@@ -95,6 +95,7 @@ mindmap
       aperture-cli-auth-oidc
     demos
       aperture-demo
+      aperture-mcp-demo
       aperture-single-tenant-demo
       aperture-keycloak-demo
       aperture-keycloak-cli-demo

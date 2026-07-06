@@ -1,0 +1,29 @@
+meta {
+  name: Login Superadmin
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/auth/login
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "username": "{{superadminUsername}}",
+    "password": "{{superadminPassword}}"
+  }
+}
+
+script:post-response {
+  if (res.status === 200) {
+    bru.setVar("superadminToken", res.body.accessToken);
+  }
+}
+
+assert {
+  res.status: eq 200
+  res.body.accessToken: isDefined
+}

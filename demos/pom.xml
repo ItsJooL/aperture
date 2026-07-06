@@ -16,6 +16,7 @@
     <modules>
         <module>aperture-demo</module>
         <module>aperture-single-tenant-demo</module>
+        <module>aperture-mcp-demo</module>
         <module>aperture-keycloak-demo</module>
         <module>aperture-keycloak-cli-demo</module>
         <module>aperture-vault-demo</module>

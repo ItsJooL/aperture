@@ -195,6 +195,15 @@ export default defineConfig({
               ],
             },
             {
+              text: 'MCP Demo',
+              link: '/examples/mcp-demo',
+              items: [
+                { text: 'Running the demo',    link: '/examples/mcp-demo#running-the-demo' },
+                { text: 'List MCP tools',      link: '/examples/mcp-demo#list-mcp-tools' },
+                { text: 'Call an MCP tool',    link: '/examples/mcp-demo#call-an-mcp-tool' },
+              ],
+            },
+            {
               text: 'Keycloak Integration',
               link: '/examples/keycloak',
               items: [

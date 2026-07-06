@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+#MISE description="Build and start the aperture-mcp-demo stack via docker compose"
+
+cd "$(dirname "$0")/.."
+docker compose up -d --build

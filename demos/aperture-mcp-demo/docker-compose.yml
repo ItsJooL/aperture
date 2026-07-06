@@ -1,0 +1,41 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: aperture
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: aperture
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U aperture"]
+      interval: 10s
+      retries: 5
+
+  api-server:
+    build:
+      context: ../../
+      dockerfile: demos/aperture-mcp-demo/Dockerfile
+    environment:
+      DB_URL: jdbc:postgresql://postgres:5432/aperture
+      DB_USER: aperture
+      DB_PASS: password
+      APERTURE_BOOTSTRAP_ADMIN_PASSWORD: ${APERTURE_BOOTSTRAP_ADMIN_PASSWORD:-changeme-local-only}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "${APERTURE_MCP_DEMO_PORT:-8082}:8080"
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/actuator/health"]
+      interval: 10s
+      retries: 10
+      start_period: 60s
+
+  seeder:
+    build: ./seeder
+    restart: on-failure
+    environment:
+      API_URL: http://api-server:8080
+      SUPERADMIN_PASSWORD: ${APERTURE_BOOTSTRAP_ADMIN_PASSWORD:-changeme-local-only}
+    depends_on:
+      api-server:
+        condition: service_healthy

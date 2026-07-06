@@ -1,0 +1,14 @@
+apiVersion: aperture.itsjool.com/v1
+kind: FrameworkConfig
+metadata:
+  name: config
+spec:
+  tenancyMode: none
+  defaultRoles:
+    - Admin
+    - Assistant
+    - ReadOnly
+  mcp:
+    enabled: true
+    transport: stateless
+    tools: [list, get, create, update, delete]

@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+#MISE description="Tear down the aperture-mcp-demo docker compose stack and volumes"
+
+cd "$(dirname "$0")/.."
+docker compose down -v

@@ -1,0 +1,41 @@
+meta {
+  name: MCP List Tools
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{baseUrl}}/mcp
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{superadminToken}}
+}
+
+headers {
+  Content-Type: application/json
+  Accept: application/json, text/event-stream
+}
+
+body:json {
+  {
+    "jsonrpc": "2.0",
+    "id": 2,
+    "method": "tools/list",
+    "params": {}
+  }
+}
+
+script:post-response {
+  if (res.status === 200) {
+    var names = res.body.result.tools.map(function (t) { return t.name; });
+    console.log("MCP tools: " + names.join(", "));
+  }
+}
+
+assert {
+  res.status: eq 200
+  res.body.result.tools: isDefined
+}
