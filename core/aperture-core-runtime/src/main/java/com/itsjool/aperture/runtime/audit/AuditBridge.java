@@ -1,6 +1,5 @@
 package com.itsjool.aperture.runtime.audit;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.itsjool.aperture.spi.AuditEvent;
 import com.itsjool.aperture.spi.AuditWriter;
@@ -105,9 +104,14 @@ public class AuditBridge implements LifeCycleHook<Object> {
         details.put("after", changeSpec.getModified());
         try {
             return objectMapper.writeValueAsString(details);
-        } catch (JsonProcessingException e) {
+        } catch (Exception e) {
+            // Broad catch: relationship ChangeSpec values (lazy-loaded entity references/collections)
+            // can fail serialization in ways other than JsonProcessingException (e.g.
+            // LazyInitializationException). Degrade to the fallback rather than escaping the
+            // lifecycle hook, but keep the failure attributable to the field that caused it.
             log.warn("Failed to serialize audit change details; writing fallback details JSON", e);
-            return "{\"detailsSerializationFailed\":true}";
+            String fieldPath = changeSpec.getFieldName() != null ? changeSpec.getFieldName() : "";
+            return "{\"detailsSerializationFailed\":true,\"fieldPath\":\"" + fieldPath.replace("\"", "\\\"") + "\"}";
         }
     }
 

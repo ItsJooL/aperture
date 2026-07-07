@@ -154,10 +154,13 @@ public class WebhookAuditWriter implements AuditWriter {
     @PreDestroy
     public void shutdown() {
         running = false;
-        worker.shutdownNow();
+        // Graceful drain: shutdown() (not shutdownNow()) lets the worker finish flushing the queued
+        // batch instead of interrupting an in-flight POST. Wait longer than the per-request HTTP
+        // timeout (10s) so that a final batch already on the wire can complete before we give up.
+        worker.shutdown();
         try {
-            if (!worker.awaitTermination(5, TimeUnit.SECONDS)) {
-                log.warn("Webhook audit writer did not stop within timeout");
+            if (!worker.awaitTermination(15, TimeUnit.SECONDS)) {
+                log.warn("Webhook audit writer did not drain within timeout; some events may be unsent");
             }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();

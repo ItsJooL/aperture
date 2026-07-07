@@ -78,6 +78,34 @@ class CodeGeneratorTest {
     }
 
     @Test
+    void doesNotGenerateAuditHookOnRelationshipFields() {
+        // Per-field UPDATE audit hooks only make sense for scalar columns. On a relationship field
+        // ChangeSpec's before/after are entity references or lazy collections; feeding those to the
+        // AuditBridge serializer risks LazyInitializationException, unbounded/circular output, or
+        // leaking a whole related entity into the audit trail. Relationship fields must be skipped.
+        EntityDef entity = new EntityDef("Invoice", "Invoices", null, null, false, false, false, Map.of(
+            "amount", new FieldDef("decimal", true, false, false, false, null, null, null, null, null, null, null),
+            "customer", new FieldDef("ref", true, false, false, false, null, null, null, "ManyToOne", "Customer", null, null)
+        ), null, null, null, Map.of(), Map.of());
+
+        List<String> classes = new CodeGenerator().generateForEntity(entity, TenancyMode.NONE, List.of("1"));
+        String joined = String.join("\n\n", classes);
+
+        // The scalar field still carries its per-field audit hook...
+        assertThat(joined).containsSubsequence(
+            "operation = Operation.UPDATE",
+            "hook = AuditBridge.class",
+            "private BigDecimal amount;"
+        );
+        // ...but the relationship is generated (@ManyToOne present) with no audit hook. The entity
+        // always carries class-level CREATE/DELETE audit hooks; the per-field hook is the UPDATE
+        // binding, and exactly one field — the scalar amount — gets it, never the relation.
+        assertThat(joined).contains("@ManyToOne");
+        int perFieldUpdateHooks = joined.split("operation = Operation.UPDATE", -1).length - 1;
+        assertThat(perFieldUpdateHooks).isEqualTo(1);
+    }
+
+    @Test
     void since_fieldAbsentFromEarlierVersions_presentFromTargetVersion() {
         EntityDef entity = new EntityDef("Product", "products", null, null, false, false, false, Map.of(
             "name", new FieldDef("String", true, false, false, false, null, null, null, null, null, null, null),

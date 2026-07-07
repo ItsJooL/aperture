@@ -4,6 +4,8 @@ import com.itsjool.aperture.spi.AuditEvent;
 import com.itsjool.aperture.spi.AuditWriter;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.yahoo.elide.annotation.LifeCycleHookBinding.Operation;
 import com.yahoo.elide.annotation.LifeCycleHookBinding.TransactionPhase;
 import com.yahoo.elide.core.security.ChangeSpec;
@@ -14,6 +16,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
+import java.time.LocalDateTime;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 
@@ -106,6 +109,62 @@ class AuditBridgeTest {
         JsonNode details = OBJECT_MAPPER.readTree(captor.getValue().detailsJson());
         assertTrue(details.get("before").isNull());
         assertEquals("draft", details.get("after").asText());
+    }
+
+    @Test
+    void changeSpecDetailsSerializeJavaTimeValuesWhenObjectMapperHasJavaTimeModule() throws Exception {
+        // Generated entities map manifest "datetime" fields to java.time.LocalDateTime. A bare
+        // `new ObjectMapper()` (the AuditBridge(AuditWriter) 1-arg constructor's default) cannot
+        // serialize that type and silently falls back to {"detailsSerializationFailed":true},
+        // losing before/after values for every date/time field update. Production wiring must
+        // instead supply an ObjectMapper with JavaTimeModule registered (e.g. Spring's own
+        // ObjectMapper bean) via the 2-arg constructor. This test drives that exact scenario.
+        ObjectMapper javaTimeAwareMapper = new ObjectMapper()
+            .registerModule(new JavaTimeModule())
+            .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
+        AuditBridge bridge = new AuditBridge(auditWriter, javaTimeAwareMapper);
+
+        LocalDateTime before = LocalDateTime.of(2026, 1, 1, 9, 30, 0);
+        LocalDateTime after = LocalDateTime.of(2026, 7, 7, 14, 45, 0);
+        ChangeSpec changeSpec = new ChangeSpec(null, "occurredAt", before, after);
+
+        bridge.execute(Operation.UPDATE, TransactionPhase.POSTCOMMIT, new Item("audit-3"), null, Optional.of(changeSpec));
+
+        ArgumentCaptor<AuditEvent> captor = ArgumentCaptor.forClass(AuditEvent.class);
+        verify(auditWriter, timeout(500)).write(captor.capture());
+
+        String detailsJson = captor.getValue().detailsJson();
+        assertFalse(detailsJson.contains("detailsSerializationFailed"),
+            "LocalDateTime before/after values must not trigger the serialization-failure fallback");
+
+        JsonNode details = OBJECT_MAPPER.readTree(detailsJson);
+        assertEquals("occurredAt", details.get("fieldPath").asText());
+        // Compare by parsing back to LocalDateTime rather than string form: LocalDateTime.toString()
+        // elides zero seconds ("09:30") while Jackson's ISO serializer emits them ("09:30:00").
+        // Both are valid ISO_LOCAL_DATE_TIME, so round-tripping is the format-agnostic check.
+        assertEquals(before, LocalDateTime.parse(details.get("before").asText()));
+        assertEquals(after, LocalDateTime.parse(details.get("after").asText()));
+    }
+
+    @Test
+    void changeSpecDetailsFallBackWhenObjectMapperLacksJavaTimeModule() throws Exception {
+        // Documents the failure mode FIX 1 addresses: a vanilla ObjectMapper (no JavaTimeModule)
+        // cannot serialize LocalDateTime and must degrade to the fallback JSON rather than
+        // throwing out of the lifecycle hook. Production must avoid this path by injecting a
+        // JavaTimeModule-aware ObjectMapper (see the test above).
+        LocalDateTime before = LocalDateTime.of(2026, 1, 1, 9, 30, 0);
+        LocalDateTime after = LocalDateTime.of(2026, 7, 7, 14, 45, 0);
+        ChangeSpec changeSpec = new ChangeSpec(null, "occurredAt", before, after);
+
+        auditBridge.execute(Operation.UPDATE, TransactionPhase.POSTCOMMIT, new Item("audit-4"), null, Optional.of(changeSpec));
+
+        ArgumentCaptor<AuditEvent> captor = ArgumentCaptor.forClass(AuditEvent.class);
+        verify(auditWriter, timeout(500)).write(captor.capture());
+
+        String detailsJson = captor.getValue().detailsJson();
+        JsonNode details = OBJECT_MAPPER.readTree(detailsJson);
+        assertTrue(details.get("detailsSerializationFailed").asBoolean());
+        assertEquals("occurredAt", details.get("fieldPath").asText());
     }
 
     // Test entity classes for version suffix stripping
