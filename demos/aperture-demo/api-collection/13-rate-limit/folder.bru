@@ -5,6 +5,14 @@ meta {
 }
 
 docs {
-  Run this folder against a fresh demo start so the login request plus the first GET
-  consume the two-token IP bucket and the second GET returns 429 with rate-limit headers.
+  Run this folder with the tight-limit override to see the rate-limit demonstration.
+  By default, the demo uses a safe IP bucket (capacity=100), but this folder expects
+  capacity=2 so the login request plus the first GET consume the bucket and the second
+  GET returns 429 with rate-limit headers.
+
+  To run with the tight limit, use:
+    APERTURE_RATE_LIMIT_IP_CAPACITY=2 docker compose up -d --force-recreate api-server
+
+  Or run the automated test:
+    ./rate-limit-smoke.sh
 }

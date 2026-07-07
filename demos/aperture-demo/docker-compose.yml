@@ -1,6 +1,6 @@
 services:
   postgres:
-    image: postgres:15-alpine
+    image: postgres:17-alpine
     environment:
       POSTGRES_USER: aperture
       POSTGRES_PASSWORD: password
@@ -66,6 +66,9 @@ services:
       APERTURE_RATE_LIMIT_BACKEND: ${APERTURE_RATE_LIMIT_BACKEND:-valkey}
       APERTURE_RATE_LIMIT_VALKEY_HOST: ${APERTURE_RATE_LIMIT_VALKEY_HOST:-valkey}
       APERTURE_RATE_LIMIT_VALKEY_PORT: ${APERTURE_RATE_LIMIT_VALKEY_PORT:-6379}
+      APERTURE_RATE_LIMIT_IP_CAPACITY: ${APERTURE_RATE_LIMIT_IP_CAPACITY:-100}
+      APERTURE_RATE_LIMIT_IP_REFILL_TOKENS: ${APERTURE_RATE_LIMIT_IP_REFILL_TOKENS:-100}
+      APERTURE_RATE_LIMIT_IP_WINDOW_SECONDS: ${APERTURE_RATE_LIMIT_IP_WINDOW_SECONDS:-60}
       # --- Optional TLS (uncomment and mount a certs volume to enable) ---
       # SERVER_SSL_ENABLED: "true"
       # SERVER_SSL_CERTIFICATE: /certs/tls.crt

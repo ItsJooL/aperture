@@ -41,7 +41,7 @@ for example `mise run demos:aperture-demo:docker-deploy`.
 | hook-service| http://localhost:8081         | Webhook handler              |
 | jaeger      | http://localhost:16686        | Distributed trace UI         |
 | valkey      | localhost:6379                | Rate-limit backing store     |
-| postgres    | localhost:5432                | PostgreSQL 15                |
+| postgres    | localhost:5432                | PostgreSQL 17                |
 
 ## Demo Credentials
 
@@ -141,7 +141,7 @@ Open http://localhost:16686 and select `aperture-demo` service to see traces for
 
 Import `api-collection/` into [Bruno](https://usebruno.com) for a full set of ready-to-run requests: auth, tenant management, users, invites, service accounts, entity CRUD, atomic operations, MCP, optimistic locking, GraphQL, `scopedBy` filtering, and rate limiting, plus a cleanup folder. `api-collection/10-cli/README.md` maps each of those folders to the equivalent `mise run build-cli`-built CLI command for people who'd rather run commands than click through requests — see also `mise run test-cli` for the automated version of that walkthrough.
 
-The `13-rate-limit` folder is the interactive mirror of the rate-limit walk-through. It exercises the Valkey-backed provider and shows the `429 Too Many Requests` path with the `X-RateLimit-*` headers once the login request plus the first GET consume the configured IP bucket.
+The `13-rate-limit` folder is the interactive mirror of the rate-limit walk-through. It exercises the Valkey-backed provider and demonstrates the `429 Too Many Requests` path with rate-limit headers (`X-RateLimit-*`, `Retry-After`) when the IP bucket is exhausted. By default, the demo uses a safe IP bucket (capacity=100); to see the 429 response, override the limit with `APERTURE_RATE_LIMIT_IP_CAPACITY=2 docker compose up -d --force-recreate api-server`, or run the automated test with `./rate-limit-smoke.sh`.
 
 ## Tear Down
 
