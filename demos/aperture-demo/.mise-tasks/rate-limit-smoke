@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+#MISE description="Run the aperture-demo rate-limit smoke test against a live stack"
+set -euo pipefail
+
+TASK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+DEMO_DIR="$(cd "$TASK_DIR/.." && pwd)"
+
+cd "$DEMO_DIR"
+./rate-limit-smoke.sh
