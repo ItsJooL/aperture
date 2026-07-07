@@ -5,6 +5,8 @@ import com.itsjool.aperture.audit.webhook.WebhookAuditWriter;
 import com.itsjool.aperture.spi.AuditEvent;
 import com.itsjool.aperture.spi.AuditWriter;
 import jakarta.annotation.PreDestroy;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -30,6 +32,7 @@ class AuditDemoAuditConfiguration {
     }
 
     private static final class CompositeAuditWriter implements AuditWriter {
+        private static final Logger log = LoggerFactory.getLogger(CompositeAuditWriter.class);
         private final AuditWriter jdbcAuditWriter;
         private final WebhookAuditWriter webhookAuditWriter;
 
@@ -40,8 +43,19 @@ class AuditDemoAuditConfiguration {
 
         @Override
         public void write(AuditEvent event) {
-            jdbcAuditWriter.write(event);
-            webhookAuditWriter.write(event);
+            // Fan out to every sink independently: one sink failing (a webhook outage, a DB
+            // hiccup) must not starve the others of the event. Isolate each write so a throw is
+            // logged and the remaining sinks still receive the event.
+            try {
+                jdbcAuditWriter.write(event);
+            } catch (RuntimeException e) {
+                log.warn("JDBC audit sink failed to write event", e);
+            }
+            try {
+                webhookAuditWriter.write(event);
+            } catch (RuntimeException e) {
+                log.warn("Webhook audit sink failed to write event", e);
+            }
         }
 
         @PreDestroy
