@@ -70,6 +70,21 @@ class RateLimitFilterTest {
     }
 
     @Test
+    void failsOpenWhenProviderThrows() throws Exception {
+        ThrowingRateLimitProvider provider = new ThrowingRateLimitProvider();
+        RateLimitFilter filter = new RateLimitFilter(provider, rateLimitProperties(true), true);
+
+        MockHttpServletRequest request = requestWithPrincipal();
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        boolean[] chainCalled = {false};
+
+        filter.doFilter(request, response, chain((req, res) -> chainCalled[0] = true));
+
+        assertThat(chainCalled[0]).isTrue();
+        assertThat(response.getStatus()).isEqualTo(200);
+    }
+
+    @Test
     void disabledPropertiesSkipRateLimitingEntirely() throws Exception {
         RecordingRateLimitProvider provider = new RecordingRateLimitProvider();
         RateLimitFilter filter = new RateLimitFilter(provider, rateLimitProperties(false), true);
@@ -127,4 +142,11 @@ class RateLimitFilterTest {
     }
 
     private record Call(String type, String value, int capacity, int refillTokens, int windowSeconds) {}
+
+    private static final class ThrowingRateLimitProvider implements RateLimitProvider {
+        @Override
+        public RateLimitDecision evaluate(RateLimitKey key, RateLimitRule rule) {
+            throw new IllegalStateException("Valkey connection failed");
+        }
+    }
 }

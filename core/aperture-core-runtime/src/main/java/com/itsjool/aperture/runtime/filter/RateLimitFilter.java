@@ -10,6 +10,8 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
@@ -22,6 +24,8 @@ import org.springframework.core.annotation.Order;
 @Component
 @Order(Ordered.HIGHEST_PRECEDENCE + 20)
 public class RateLimitFilter extends OncePerRequestFilter {
+    private static final Logger log = LoggerFactory.getLogger(RateLimitFilter.class);
+
     private final RateLimitProvider rateLimitProvider;
     private final ApertureRateLimitProperties rateLimitProperties;
     private final boolean tenancyEnabled;
@@ -46,8 +50,8 @@ public class RateLimitFilter extends OncePerRequestFilter {
             rateLimitProperties.getIp().getRefillTokens(),
             rateLimitProperties.getIp().getWindowSeconds()
         );
-        RateLimitDecision ipDecision = rateLimitProvider.evaluate(new RateLimitKey("ip", ip), ipRule);
-        
+        RateLimitDecision ipDecision = evaluateOrFailOpen(new RateLimitKey("ip", ip), ipRule);
+
         if (!ipDecision.allowed()) {
             writeRateLimitHeaders(response, ipDecision, ipRule);
             response.sendError(429, "Too Many Requests");
@@ -62,7 +66,7 @@ public class RateLimitFilter extends OncePerRequestFilter {
                     rateLimitProperties.getUser().getRefillTokens(),
                     rateLimitProperties.getUser().getWindowSeconds()
                 );
-                RateLimitDecision userDecision = rateLimitProvider.evaluate(new RateLimitKey("user", principal.userId()), userRule);
+                RateLimitDecision userDecision = evaluateOrFailOpen(new RateLimitKey("user", principal.userId()), userRule);
                 if (!userDecision.allowed()) {
                     writeRateLimitHeaders(response, userDecision, userRule);
                     response.sendError(429, "Too Many Requests");
@@ -75,7 +79,7 @@ public class RateLimitFilter extends OncePerRequestFilter {
                         rateLimitProperties.getTenant().getRefillTokens(),
                         rateLimitProperties.getTenant().getWindowSeconds()
                     );
-                    RateLimitDecision tenantDecision = rateLimitProvider.evaluate(new RateLimitKey("tenant", principal.tenantId()), tenantRule);
+                    RateLimitDecision tenantDecision = evaluateOrFailOpen(new RateLimitKey("tenant", principal.tenantId()), tenantRule);
                     if (!tenantDecision.allowed()) {
                         writeRateLimitHeaders(response, tenantDecision, tenantRule);
                         response.sendError(429, "Too Many Requests");
@@ -87,6 +91,24 @@ public class RateLimitFilter extends OncePerRequestFilter {
         
         writeRateLimitHeaders(response, ipDecision, ipRule);
         filterChain.doFilter(request, response);
+    }
+
+    /**
+     * Deliberate fail-open policy: the configured {@link RateLimitProvider} (e.g. the Valkey-backed
+     * implementation) may throw on a transient backend fault such as a dropped connection. This filter
+     * runs at {@code HIGHEST_PRECEDENCE + 20}, ahead of every request in the API, so an unhandled
+     * exception here would turn a backend hiccup into a 500 for the entire application. Instead, we log
+     * a single WARN per failure and allow the request to proceed as if the limit were not exceeded. Real
+     * limit breaches (i.e. the provider returning normally with {@code allowed=false}) are unaffected and
+     * still result in a 429.
+     */
+    private RateLimitDecision evaluateOrFailOpen(RateLimitKey key, RateLimitRule rule) {
+        try {
+            return rateLimitProvider.evaluate(key, rule);
+        } catch (Exception e) {
+            log.warn("rate-limit backend unavailable, failing open: {}", e.getMessage());
+            return new RateLimitDecision(true, rule.capacity(), 0);
+        }
     }
 
     private void writeRateLimitHeaders(HttpServletResponse response, RateLimitDecision decision, RateLimitRule rule) {
