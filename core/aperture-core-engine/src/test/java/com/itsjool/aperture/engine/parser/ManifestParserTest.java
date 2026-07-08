@@ -121,6 +121,57 @@ class ManifestParserTest {
     }
 
     @Test
+    void semanticHookVocabularyParsesTypeAndOperations() throws Exception {
+        Files.writeString(new File(tempDir, "entity.yaml").toPath(), """
+            apiVersion: aperture.itsjool.com/v1
+            kind: Entity
+            metadata:
+              name: Invoice
+            spec:
+              fields:
+                amount:
+                  type: decimal
+              hooks:
+                ValidateInvoice:
+                  type: validate
+                  on: [create, update]
+                  url: http://hook
+            """);
+
+        ResolvedDomainModel model = new ManifestParser().parseDirectory(tempDir);
+
+        assertThat(model.entities()).singleElement().satisfies(entity -> {
+            assertThat(entity.hooks()).containsKey("ValidateInvoice");
+            assertThat(entity.hooks().get("ValidateInvoice").type()).isEqualTo("validate");
+            assertThat(entity.hooks().get("ValidateInvoice").on()).containsExactly("create", "update");
+        });
+    }
+
+    @Test
+    void semanticHookWithLegacyPhaseFailsSchemaValidation() throws Exception {
+        Files.writeString(new File(tempDir, "entity.yaml").toPath(), """
+            apiVersion: aperture.itsjool.com/v1
+            kind: Entity
+            metadata:
+              name: Invoice
+            spec:
+              fields:
+                amount:
+                  type: decimal
+              hooks:
+                ValidateInvoice:
+                  type: validate
+                  phase: PRECOMMIT
+                  url: http://hook
+            """);
+
+        assertThatThrownBy(() -> new ManifestParser().parseDirectory(tempDir))
+            .hasMessageContaining("entity.yaml")
+            .rootCause()
+            .hasMessageContaining("Schema validation failed");
+    }
+
+    @Test
     void rejectsDuplicateRoleNames() throws Exception {
         Files.writeString(new File(tempDir, "roles.yaml").toPath(), """
             apiVersion: aperture.itsjool.com/v1

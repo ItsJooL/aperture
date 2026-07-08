@@ -1,5 +1,7 @@
 package com.itsjool.aperture.engine.validator;
 
+import com.itsjool.aperture.engine.hook.HookSemanticException;
+import com.itsjool.aperture.engine.hook.HookSemanticsResolver;
 import com.itsjool.aperture.engine.model.ResolvedDomainModel;
 import com.itsjool.aperture.engine.model.EntityDef;
 import com.itsjool.aperture.engine.model.FieldDef;
@@ -20,6 +22,7 @@ public class DomainModelValidator {
     private static final Set<String> VALID_OPERATIONS = Set.of("read", "create", "update", "delete");
     private static final Set<String> VALID_ABAC_VARIABLES = Set.of("user", "record", "input");
     private static final Pattern SECURITY_ATTRIBUTE_PATTERN = Pattern.compile("#user\\.securityAttributes(?:\\[['\"]([^'\"]+)['\"]\\]|\\.([a-zA-Z0-9_]+))");
+    private final HookSemanticsResolver hookSemanticsResolver = new HookSemanticsResolver();
 
     public void validate(ResolvedDomainModel model, Map<Object, String> locationMap) {
         Set<String> knownEntityNames = new HashSet<>();
@@ -223,11 +226,10 @@ public class DomainModelValidator {
                 for (Map.Entry<String, HookDef> hookEntry : entity.hooks().entrySet()) {
                     String hookName = hookEntry.getKey();
                     HookDef hookDef = hookEntry.getValue();
-                    if ("PREENRICH".equalsIgnoreCase(hookDef.phase()) && hookDef.async()) {
-                        throw new ManifestValidationException(
-                            "Invalid hook configuration in " + loc + " (Entity " + entity.name()
-                            + " hook " + hookName + "): PREENRICH hooks must be synchronous (async: false) "
-                            + "because they modify entity attributes before persistence");
+                    try {
+                        hookSemanticsResolver.resolve(entity.name(), hookName, hookDef);
+                    } catch (HookSemanticException e) {
+                        throw new ManifestValidationException("In " + loc + ": " + e.getMessage());
                     }
                 }
             }

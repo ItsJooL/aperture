@@ -94,7 +94,7 @@ public class HookExecutor {
         }
     }
 
-    // Synchronous enrichment call — returns the response body for PREENRICH hooks to apply overrides.
+    // Synchronous enrichment call — returns the response body for mutate hooks to apply overrides.
     public String executeHookWithResponse(String hookName, String entity, String phase, String hookUrl, String payload, HttpServletRequest inboundRequest, String failBehavior) {
         final String resolvedUrl = rewriteUrl(hookUrl);
         log.debug("{} enrichment hook: {}", phase, resolvedUrl);

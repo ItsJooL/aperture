@@ -105,25 +105,25 @@ class DomainModelValidatorTest {
             .hasMessageContaining("ManyToOne");
     }
 
-    // ---------- hook phase validation ----------
+    // ---------- hook semantic validation ----------
 
     @Test
-    void preenrichAsyncHook_throws() {
+    void semanticHookWithInvalidFailureMode_throws() {
         EntityDef entity = new EntityDef("Order", "orders", null, null, false, false, false,
             Map.of(), null, null, null, Map.of(),
-            Map.of("Enrich", new HookDef("PREENRICH", true, "passthrough", "http://hook")));
+            Map.of("ValidateOrder", new HookDef("validate", List.of("create"), "passthrough", "http://hook")));
 
         assertThatThrownBy(() -> validator.validate(
             new ResolvedDomainModel(List.of(entity)), Map.of()))
             .isInstanceOf(ManifestValidationException.class)
-            .hasMessageContaining("PREENRICH hooks must be synchronous");
+            .hasMessageContaining("onFailure 'passthrough' is not allowed");
     }
 
     @Test
-    void preenrichSyncHook_passes() {
+    void semanticHookWithValidFailureMode_passes() {
         EntityDef entity = new EntityDef("Order", "orders", null, null, false, false, false,
             Map.of(), null, null, null, Map.of(),
-            Map.of("Enrich", new HookDef("PREENRICH", false, "passthrough", "http://hook")));
+            Map.of("Enrich", new HookDef("mutate", List.of("create"), "passthrough", "http://hook")));
 
         assertThatCode(() -> validator.validate(
             new ResolvedDomainModel(List.of(entity)), Map.of()))

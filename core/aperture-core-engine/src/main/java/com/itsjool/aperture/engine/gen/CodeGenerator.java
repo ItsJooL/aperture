@@ -1,6 +1,8 @@
 package com.itsjool.aperture.engine.gen;
 
 import com.itsjool.aperture.engine.config.TenancyMode;
+import com.itsjool.aperture.engine.hook.HookSemantics;
+import com.itsjool.aperture.engine.hook.HookSemanticsResolver;
 import com.itsjool.aperture.engine.model.EntityDef;
 import com.itsjool.aperture.engine.model.FieldDef;
 import com.itsjool.aperture.engine.model.HookDef;
@@ -16,10 +18,13 @@ import java.time.OffsetDateTime;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 
 public class CodeGenerator {
+
+    private final HookSemanticsResolver hookSemanticsResolver = new HookSemanticsResolver();
     
     public List<String> generateForEntity(EntityDef entityDef, TenancyMode tenancyMode, List<String> activeVersions) {
         return generateForEntity(entityDef, tenancyMode, activeVersions, Map.of());
@@ -227,14 +232,14 @@ public class CodeGenerator {
         if (entityDef.hooks() != null) {
             for (Map.Entry<String, HookDef> hookEntry : entityDef.hooks().entrySet()) {
                 String hookClassName = entityDef.name() + "V" + version + capitalize(hookEntry.getKey()) + "Hook";
-                String phase = hookEntry.getValue().phase() != null ? hookEntry.getValue().phase() : "POSTCOMMIT";
-                // PREENRICH maps to PRECOMMIT in Elide (same timing, but our hook applies overrides)
-                String phaseEnum = "PREENRICH".equals(phase) ? "PRECOMMIT" : phase;
-                typeBuilder.addAnnotation(com.palantir.javapoet.AnnotationSpec.builder(ClassName.get("com.yahoo.elide.annotation", "LifeCycleHookBinding"))
-                    .addMember("operation", "$T.CREATE", ClassName.get("com.yahoo.elide.annotation.LifeCycleHookBinding", "Operation"))
-                    .addMember("phase", "$T.$L", ClassName.get("com.yahoo.elide.annotation.LifeCycleHookBinding", "TransactionPhase"), phaseEnum)
-                    .addMember("hook", "$T.class", ClassName.get("com.itsjool.aperture.generated.hooks.v" + version, hookClassName))
-                    .build());
+                HookSemantics semantics = hookSemanticsResolver.resolve(entityDef.name(), hookEntry.getKey(), hookEntry.getValue());
+                for (String operation : semantics.operations()) {
+                    typeBuilder.addAnnotation(com.palantir.javapoet.AnnotationSpec.builder(ClassName.get("com.yahoo.elide.annotation", "LifeCycleHookBinding"))
+                        .addMember("operation", "$T.$L", ClassName.get("com.yahoo.elide.annotation.LifeCycleHookBinding", "Operation"), operation.toUpperCase(Locale.ROOT))
+                        .addMember("phase", "$T.$L", ClassName.get("com.yahoo.elide.annotation.LifeCycleHookBinding", "TransactionPhase"), semantics.phase())
+                        .addMember("hook", "$T.class", ClassName.get("com.itsjool.aperture.generated.hooks.v" + version, hookClassName))
+                        .build());
+                }
             }
         }
 
@@ -573,8 +578,7 @@ public class CodeGenerator {
 
     private String generateLifecycleHook(EntityDef entityDef, String hookName, HookDef hookDef, String version) {
         String className = entityDef.name() + "V" + version + capitalize(hookName) + "Hook";
-        String phase = hookDef.phase() != null ? hookDef.phase() : "POSTCOMMIT";
-        String onFailure = hookDef.onFailure() != null ? hookDef.onFailure() : "warn";
+        HookSemantics semantics = hookSemanticsResolver.resolve(entityDef.name(), hookName, hookDef);
 
         MethodSpec.Builder executeBuilder = MethodSpec.methodBuilder("execute")
             .addModifiers(Modifier.PUBLIC)
@@ -600,20 +604,24 @@ public class CodeGenerator {
             .addComment("Ignore payload serialization error")
             .endControlFlow();
 
-        if ("PREENRICH".equals(phase)) {
+        if (semantics.enrichment()) {
             // Sync enrichment: call hook, parse response, apply attribute overrides back to entity
             executeBuilder
-                .addStatement("String responseBody = hookExecutor.executeHookWithResponse($S, $S, $S, $S, payload, req, $S)", hookName, entityDef.name(), phase, hookDef.url(), onFailure)
+                .addStatement("String responseBody = hookExecutor.executeHookWithResponse($S, $S, $S, $S, payload, req, $S)", hookName, entityDef.name(), semantics.phase(), hookDef.url(), semantics.onFailure())
                 .beginControlFlow("if (responseBody != null && __om != null)")
                 .addStatement("$L.applyEnrichmentOverrides(elideEntity, responseBody, __om)", ApertureRuntimeClassNames.HOOK_PAYLOAD_BUILDER)
                 .endControlFlow();
         } else {
-            executeBuilder
-                .addStatement("java.util.concurrent.CompletableFuture<Boolean> future = hookExecutor.executeHook($S, $S, $S, $S, payload, req, $S, $L, $L)",
-                    hookName, entityDef.name(), phase, hookDef.url(), onFailure, 0, hookDef.async())
-                .beginControlFlow("if (!$L)", hookDef.async())
-                .addStatement("future.join()")
-                .endControlFlow();
+            if (semantics.async()) {
+                executeBuilder
+                    .addStatement("hookExecutor.executeHook($S, $S, $S, $S, payload, req, $S, $L, true)",
+                        hookName, entityDef.name(), semantics.phase(), hookDef.url(), semantics.onFailure(), 0);
+            } else {
+                executeBuilder
+                    .addStatement("java.util.concurrent.CompletableFuture<Boolean> future = hookExecutor.executeHook($S, $S, $S, $S, payload, req, $S, $L, false)",
+                        hookName, entityDef.name(), semantics.phase(), hookDef.url(), semantics.onFailure(), 0)
+                    .addStatement("future.join()");
+            }
         }
 
         executeBuilder.endControlFlow();

@@ -69,12 +69,27 @@
                 "additionalProperties": {
                   "type": "object",
                   "properties": {
-                    "phase": { "type": "string" },
-                    "async": { "type": "boolean" },
-                    "onFailure": { "type": "string" },
+                    "type": {
+                      "type": "string",
+                      "enum": ["guard", "validate", "mutate", "trigger"]
+                    },
+                    "on": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "enum": ["create", "update", "delete"]
+                      },
+                      "minItems": 1,
+                      "uniqueItems": true
+                    },
+                    "onFailure": {
+                      "type": "string",
+                      "enum": ["reject", "passthrough", "warn"]
+                    },
                     "url": { "type": "string" }
                   },
-                  "required": ["url"]
+                  "required": ["type", "url"],
+                  "additionalProperties": false
                 }
               }
             },

@@ -31,7 +31,7 @@ class CodeGeneratorTest {
         EntityDef entity = new EntityDef("Customer", "Customers", null, null, true, true, true, Map.of(
             "email", new FieldDef("String", true, true, false, false, "1", null, null, null, null, null, null),
             "ssn", new FieldDef("String", false, false, false, true, "1", null, null, null, null, null, null)
-        ), null, Map.of("ViewerRead", List.of("read")), null, null, Map.of("EnrichCustomer", new HookDef("PRECREATE", false, "passthrough", "http://hook")));
+        ), null, Map.of("ViewerRead", List.of("read")), null, null, Map.of("EnrichCustomer", new HookDef("mutate", List.of("create"), "passthrough", "http://hook")));
 
         CodeGenerator generator = new CodeGenerator();
         List<String> classes = generator.generateForEntity(entity, TenancyMode.POOL, List.of("1", "2"));
@@ -268,5 +268,40 @@ class CodeGeneratorTest {
 
         assertThat(joined).contains(
             "expression = \"SuperAdminCheck OR (TaskV1TenantFilter AND TaskV1ScopeFilter AND (TenantAdminCheck OR (TaskViewerCheck)))\"");
+    }
+
+    @Test
+    void semanticTriggerBindsConfiguredWriteOperationsAndUsesResolvedAsyncDefaults() {
+        EntityDef supplier = new EntityDef("Supplier", "suppliers", null, null, false, false, false,
+            Map.of(), Map.of(), Map.of(), List.of(), Map.of(),
+            Map.of("NotifySupplier", new HookDef("trigger", List.of("create", "update", "delete"),
+                null, "http://hook")));
+
+        List<String> classes = new CodeGenerator().generateForEntity(supplier, TenancyMode.NONE, List.of("1"));
+        String joined = String.join("\n\n", classes);
+
+        assertThat(joined)
+            .contains("operation = Operation.CREATE")
+            .contains("operation = Operation.UPDATE")
+            .contains("operation = Operation.DELETE")
+            .contains("phase = TransactionPhase.POSTCOMMIT")
+            .contains("executeHook(\"NotifySupplier\", \"Supplier\", \"POSTCOMMIT\", \"http://hook\", payload, req, \"warn\", 0, true)")
+            .doesNotContain("if (!true)");
+    }
+
+    @Test
+    void semanticMutateUsesPrecommitEnrichmentPath() {
+        EntityDef customer = new EntityDef("Customer", "customers", null, null, false, false, false,
+            Map.of(), Map.of(), Map.of(), List.of(), Map.of(),
+            Map.of("NormalizeCustomer", new HookDef("mutate", List.of("create"),
+                "passthrough", "http://hook")));
+
+        List<String> classes = new CodeGenerator().generateForEntity(customer, TenancyMode.NONE, List.of("1"));
+        String joined = String.join("\n\n", classes);
+
+        assertThat(joined)
+            .contains("phase = TransactionPhase.PRECOMMIT")
+            .contains("executeHookWithResponse(\"NormalizeCustomer\", \"Customer\", \"PRECOMMIT\", \"http://hook\", payload, req, \"passthrough\")")
+            .contains("HookPayloadBuilder.applyEnrichmentOverrides");
     }
 }
