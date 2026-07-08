@@ -1,0 +1,15 @@
+meta {
+  name: Prometheus Scrape Endpoint
+  type: http
+  seq: 4
+}
+
+get {
+  url: {{baseUrl}}/actuator/prometheus
+  body: none
+  auth: none
+}
+
+assert {
+  res.status: eq 200
+}

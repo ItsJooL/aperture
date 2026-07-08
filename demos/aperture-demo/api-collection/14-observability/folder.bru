@@ -1,0 +1,24 @@
+meta {
+  name: Observability
+  type: folder
+  seq: 14
+}
+
+docs {
+  Actuator endpoints exposed by the demo (see MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE
+  in docker-compose.yml: health, metrics, prometheus). These are excluded from AuthFilter
+  (see AuthFilter#shouldNotFilter — any /actuator/* path bypasses auth), so no bearer
+  token is needed to run this folder.
+
+  - GET /actuator/health          — liveness/readiness (probes enabled)
+  - GET /actuator/metrics         — list of all registered meter names
+  - GET /actuator/metrics/{name}  — a single meter's measurements/tags/availableTags
+  - GET /actuator/prometheus      — the same meters in Prometheus text-exposition format
+
+  See docs/guide/observability.md for the full list of Aperture-specific metrics
+  (aperture.hook, aperture.ratelimit.rejections, aperture.audit.*) and span/tag names.
+
+  The demo also sets management.tracing.sampling.probability=1.0 (docker-compose.yml)
+  so every request is traced end to end (aperture-demo -> hook-service) and visible in
+  Jaeger at http://localhost:16686 — see docker-smoke-test.sh for an automated check.
+}

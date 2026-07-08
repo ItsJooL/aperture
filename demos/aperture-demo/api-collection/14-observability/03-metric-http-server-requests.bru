@@ -1,0 +1,22 @@
+meta {
+  name: Metric Detail - http.server.requests
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{baseUrl}}/actuator/metrics/http.server.requests
+  body: none
+  auth: none
+}
+
+docs {
+  Run 01-Health (or any request) at least once first so this meter has been recorded —
+  actuator/metrics/{name} returns 404 for a meter with no observations yet.
+}
+
+assert {
+  res.status: eq 200
+  res.body.name: eq http.server.requests
+  res.body.measurements: isDefined
+}

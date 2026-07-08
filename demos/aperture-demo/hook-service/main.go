@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -10,7 +11,32 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
+	"go.opentelemetry.io/otel/propagation"
+	"go.opentelemetry.io/otel/sdk/resource"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	semconv "go.opentelemetry.io/otel/semconv/v1.21.0"
 )
+
+func initTracer() *sdktrace.TracerProvider {
+	ctx := context.Background()
+	exp, err := otlptracehttp.New(ctx, otlptracehttp.WithInsecure(), otlptracehttp.WithEndpoint("jaeger:4318"))
+	if err != nil {
+		slog.Error("failed to create trace exporter", "err", err)
+		return nil
+	}
+	res, _ := resource.New(ctx, resource.WithAttributes(semconv.ServiceNameKey.String("aperture-demo-hook-service")))
+	tp := sdktrace.NewTracerProvider(
+		sdktrace.WithBatcher(exp),
+		sdktrace.WithResource(res),
+	)
+	otel.SetTracerProvider(tp)
+	otel.SetTextMapPropagator(propagation.TraceContext{})
+	return tp
+}
 
 // Hook payload is the flat Jackson serialization of the Elide entity — all
 // entity fields appear at the top level (not wrapped in data.attributes).
@@ -214,6 +240,11 @@ func passthrough(w http.ResponseWriter, r *http.Request) {
 func main() {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 
+	tp := initTracer()
+	if tp != nil {
+		defer func() { _ = tp.Shutdown(context.Background()) }()
+	}
+
 	mux := http.NewServeMux()
 	mux.HandleFunc("/health", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -231,7 +262,8 @@ func main() {
 	mux.HandleFunc("/hooks/audit-country", withLogging(logger, passthrough))
 
 	logger.Info("hook service starting", "port", 8080)
-	if err := http.ListenAndServe(":8080", mux); err != nil {
+	handler := otelhttp.NewHandler(mux, "hook-service")
+	if err := http.ListenAndServe(":8080", handler); err != nil {
 		logger.Error("server failed", "err", err)
 	}
 }

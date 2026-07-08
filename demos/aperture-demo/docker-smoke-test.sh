@@ -98,6 +98,51 @@ main() {
         && pass "Resource CRUD round-trip" \
         || { fail "Resource CRUD: status=$status id='$CUSTOMER_ID'"; echo "$body"; }
 
+    # Jaeger trace verification
+    # ------------------------------------------------------------------
+    # The demo sets management.tracing.sampling.probability=1.0 in
+    # docker-compose.yml (instead of Spring Boot's ~10% default), so every
+    # request produces a trace rather than only 1 in 10 — without that,
+    # this check would be flaky almost by design. Even so, the OTLP batch
+    # exporters on both sides (Java api-server and the Go hook-service)
+    # only flush periodically, so a freshly-created trace can take a few
+    # seconds to actually land in Jaeger. To make the check itself robust
+    # on top of the sampling fix we:
+    #   1. issue several hook-triggering requests (not just the single
+    #      customer created above) so there are multiple chances for a
+    #      trace to be exported and queryable, and
+    #   2. poll Jaeger with generous retries instead of asserting on the
+    #      first query.
+    echo "Testing: Jaeger trace verification"
+    echo "Issuing a few extra requests to generate hook-triggering traces ..."
+    for i in 1 2 3; do
+        curl -s -o /dev/null -X POST "$BASE_URL/api/v1/customers" \
+            -H "Content-Type: application/vnd.api+json" \
+            -H "Authorization: Bearer $TENANT_TOKEN" \
+            -d "{\"data\":{\"type\":\"customers\",\"attributes\":{\"name\":\"Trace Corp $i\",\"email\":\"trace$i@test.com\"}}}" \
+            || true
+    done
+
+    JAEGER_URL="http://localhost:16686/api/traces?service=aperture-demo&limit=20"
+    JAEGER_TRACE_FOUND=0
+    JAEGER_MAX_ATTEMPTS=30
+    JAEGER_POLL_INTERVAL_SECONDS=2
+    for i in $(seq 1 "$JAEGER_MAX_ATTEMPTS"); do
+        response=$(curl -s "$JAEGER_URL" || echo "")
+        # The ?service=aperture-demo query param already scopes results to traces
+        # rooted at aperture-demo; here we additionally require at least one span
+        # from aperture-demo-hook-service so the trace demonstrably spans both.
+        trace_id=$(echo "$response" | jq -r '.data[] | select(.processes[].serviceName == "aperture-demo-hook-service") | .traceID' 2>/dev/null | head -n 1 || true)
+        if [ -n "$trace_id" ]; then
+            JAEGER_TRACE_FOUND=1
+            break
+        fi
+        sleep "$JAEGER_POLL_INTERVAL_SECONDS"
+    done
+    [ "$JAEGER_TRACE_FOUND" = "1" ] \
+        && pass "Jaeger trace verification: API and hook-service in same trace (trace $trace_id)" \
+        || { fail "Jaeger trace verification: no trace found spanning API to hook-service after $((JAEGER_MAX_ATTEMPTS * JAEGER_POLL_INTERVAL_SECONDS))s"; }
+
     echo ""
     echo "=== Smoke Test Summary ==="
     if [ $FAILURES -eq 0 ]; then

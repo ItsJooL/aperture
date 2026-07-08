@@ -137,6 +137,35 @@ curl -X POST http://localhost:8080/api/v3/invoices \
 
 Open http://localhost:16686 and select `aperture-demo` service to see traces for the above requests.
 
+The demo is configured to capture **100% of traces** for observability testing (production uses 10% by default). Jaeger shows:
+
+- **API request spans**: Each `/api/v*` call produces a root span with `aperture.entity`, `aperture.operation`, `aperture.api.version`, and `aperture.tenant.id` tags.
+- **Hook dispatch spans**: When a webhook is invoked (e.g., `ValidateInvoice`), the outbound HTTP call is wrapped in an `aperture.hook` span that propagates the trace context (`traceparent` header) to the hook service. This allows a single trace to span your API → hook-service → and back, showing the complete flow.
+- **Audit write spans**: Asynchronous audit log writes are linked to the original request span via span links (not parent-child, since writes occur post-commit).
+
+Try the invoice creation flow (step 3 or 4 above) and look at the Jaeger trace — you'll see the API request → hook dispatch → hook-service validation all in one trace.
+
+### 7. Observability and Metrics
+
+Aperture exposes metrics at `/actuator/metrics` and Prometheus scrape endpoint at `/actuator/prometheus`. Bruno includes folders for both:
+
+```bash
+# Health check
+curl http://localhost:8080/actuator/health
+
+# Metrics (structured)
+curl http://localhost:8080/actuator/metrics
+
+# Prometheus scrape (pull your backend's scraper here)
+curl http://localhost:8080/actuator/prometheus | grep aperture
+```
+
+Key metrics during the walkthrough:
+
+- `aperture.hook.duration` — how long hook dispatch took
+- `aperture.audit.queue.size` — how many events are pending write
+- `http.server.requests` — request count, latency, status by endpoint and tenant
+
 ## Bruno API Collection
 
 Import `api-collection/` into [Bruno](https://usebruno.com) for a full set of ready-to-run requests: auth, tenant management, users, invites, service accounts, entity CRUD, atomic operations, MCP, optimistic locking, GraphQL, `scopedBy` filtering, and rate limiting, plus a cleanup folder. `api-collection/10-cli/README.md` maps each of those folders to the equivalent `mise run build-cli`-built CLI command for people who'd rather run commands than click through requests — see also `mise run test-cli` for the automated version of that walkthrough.

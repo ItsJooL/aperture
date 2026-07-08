@@ -1,0 +1,16 @@
+meta {
+  name: List Metrics
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/actuator/metrics
+  body: none
+  auth: none
+}
+
+assert {
+  res.status: eq 200
+  res.body.names: isDefined
+}
