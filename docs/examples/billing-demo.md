@@ -5,7 +5,7 @@ description: A full-featured multi-tenant billing API — POOL mode, all Apertur
 
 # Billing Demo
 
-The billing demo is the reference Aperture deployment. It exercises every major feature: POOL multi-tenancy, JWT auth with two domain roles, RBAC and two ABAC policies, four hook types across five hook instances, field encryption, optimistic locking on customers, an async trigger for audit events, and the MCP server.
+The billing demo is the reference Aperture deployment. It exercises every major feature: POOL multi-tenancy, JWT auth with two domain roles, RBAC and two ABAC policies, all four hook types, field encryption, optimistic locking on customers, asynchronous trigger callbacks, and the MCP server.
 
 ## Running the demo
 
@@ -29,19 +29,19 @@ Eight entities in two domain areas:
 
 | Entity | Tenant-scoped | Key features |
 |---|---|---|
-| `Invoice` | Yes | PRECOMMIT validation hook, two ABAC policies |
-| `LineItem` | Yes | PRESECURITY guard hook |
-| `Payment` | Yes | PRECOMMIT validation hook |
+| `Invoice` | Yes | `validate` hook, two ABAC policies |
+| `LineItem` | Yes | `guard` hook for bulk-order review |
+| `Payment` | Yes | `validate` hook |
 | `Product` | No | Shared reference data |
-| `Country` | No | Shared reference data |
-| `Currency` | No | Shared reference data |
+| `Country` | No | Shared reference data, `guard` hook for country code hygiene |
+| `Currency` | No | Shared reference data, `trigger` hook for reference-data sync |
 
 ### Identity domain
 
 | Entity | Tenant-scoped | Key features |
 |---|---|---|
-| `Customer` | Yes | `encrypted: true` on email, optimistic locking, PREENRICH hook |
-| `Supplier` | Yes | POSTCOMMIT async trigger |
+| `Customer` | Yes | `encrypted: true` on email, optimistic locking, `mutate` hook |
+| `Supplier` | Yes | `trigger` hook for downstream notification |
 
 ## Seeded data
 
@@ -110,11 +110,14 @@ The `Accountant` role grants access to invoices, but the `FinanceTeamOnly` polic
 
 The seeded `accountant@acme.com` has `department=finance` — they can read invoices. A user with `Accountant` role but `department=marketing` would be denied by the policy even though the role grants access.
 
-### 4. The ValidateInvoice hook
+### 4. Validate hook — reject an invalid invoice
 
-Creating an invoice fires the PRECOMMIT `ValidateInvoice` hook synchronously. The hook service is a small HTTP service bundled in the demo:
+Creating an invoice fires the `ValidateInvoice` validation hook synchronously before the record is committed. Valid invoices continue:
 
 ```bash
+CUSTOMER_ID="$(curl -s http://localhost:8080/api/v1/customers \
+  -H "Authorization: Bearer $TOKEN" | jq -r '.data[0].id')"
+
 curl -s -X POST http://localhost:8080/api/v1/invoices \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/vnd.api+json" \
@@ -123,7 +126,7 @@ curl -s -X POST http://localhost:8080/api/v1/invoices \
       "type": "invoice",
       "attributes": { "amount": 750.00, "status": "DRAFT" },
       "relationships": {
-        "customer": { "data": { "type": "customer", "id": "1" } }
+        "customer": { "data": { "type": "customer", "id": "'"$CUSTOMER_ID"'" } }
       }
     }
   }' | jq .
@@ -135,18 +138,90 @@ The hook service logs the request and returns 200, so the invoice is created. To
 docker compose logs hook-service --tail=10
 ```
 
-### 5. PRESECURITY guard (LineItem)
-
-`LineItem` has a `CheckLineItem` hook with `phase: PRESECURITY`. This runs before auth checks — it can block the request before Aperture even evaluates permissions:
+Invalid invoices are rejected by the hook service before commit:
 
 ```bash
-curl -s http://localhost:8080/api/v1/lineItems \
-  -H "Authorization: Bearer $TOKEN" | jq .
+curl -s -X POST http://localhost:8080/api/v1/invoices \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/vnd.api+json" \
+  -d '{
+    "data": {
+      "type": "invoices",
+      "attributes": { "amount": -1.00, "status": "DRAFT" },
+      "relationships": {
+        "customer": { "data": { "type": "customers", "id": "'"$CUSTOMER_ID"'" } }
+      }
+    }
+  }' | jq '.errors'
 ```
 
-The hook service allows the request in the demo. Change the hook service response to a non-2xx to see a 403 before the JWT is checked.
+The callback includes `X-Hook-Secret`; the demo hook service rejects callbacks that do not carry the configured secret.
 
-### 6. Optimistic locking (Customer)
+### 5. Guard hook — reject a bulk line item
+
+`LineItem` has a `CheckLineItem` hook with `type: guard`. This runs before auth checks — it can block the request before Aperture even evaluates permissions:
+
+```bash
+curl -s -X POST http://localhost:8080/api/v1/operations \
+  -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/vnd.api+json;ext="https://jsonapi.org/ext/atomic"' \
+  -H 'Accept: application/vnd.api+json;ext="https://jsonapi.org/ext/atomic"' \
+  -d '{
+    "atomic:operations": [
+      {
+        "op": "add",
+        "href": "/invoices",
+        "data": {
+          "type": "invoices",
+          "lid": "guard-demo-invoice",
+          "attributes": { "amount": 2500, "status": "DRAFT" },
+          "relationships": {
+            "customer": { "data": { "type": "customers", "id": "'"$CUSTOMER_ID"'" } }
+          }
+        }
+      },
+      {
+        "op": "add",
+        "href": "/lineitems",
+        "data": {
+          "type": "lineitems",
+          "lid": "guard-demo-line-item",
+          "attributes": { "quantity": 250, "unit_price": 10.00 },
+          "relationships": {
+            "invoice": { "data": { "type": "invoices", "lid": "guard-demo-invoice" } }
+          }
+        }
+      }
+    ]
+  }' | jq '.'
+```
+
+The hook service treats unusually large quantities as requiring manual review and rejects the line item. Because this is an atomic operation, the invoice in the same request is rolled back too.
+
+### 6. Mutate hook — normalize a customer before persistence
+
+Create a v3 customer with extra whitespace in the name:
+
+```bash
+curl -s -X POST http://localhost:8080/api/v3/customers \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/vnd.api+json" \
+  -d '{"data":{"type":"customers","attributes":{"name":"  Acme Corp  ","email":"acme-enriched@example.com"}}}' | jq '.data.attributes.name'
+```
+
+The `EnrichCustomer` mutate hook returns `data.attributes.name` with the trimmed value. Aperture applies that response body before the customer is persisted.
+
+### 7. Trigger hooks — asynchronous side effects
+
+`Supplier.NotifySupplier`, `Product.ProductChanged`, `Currency.SyncCurrency`, and `Customer.TenantProvisioned` are trigger hooks. They fire after commit and do not hold open the API response.
+
+```bash
+docker compose logs hook-service --tail=20
+```
+
+Look for log messages such as `supplier notification dispatched`, `product change event`, and `currency reference sync queued`.
+
+### 8. Optimistic locking (Customer)
 
 `Customer` has `optimisticLocking: true`. Every response includes an `ETag`:
 
@@ -176,7 +251,7 @@ curl -s -X PATCH http://localhost:8080/api/v1/customers/1 \
   -d '{"data":{"type":"customer","id":"1","attributes":{"name":"Updated"}}}' | jq .
 ```
 
-### 7. Field encryption (Customer email)
+### 9. Field encryption (Customer email)
 
 The `email` field on `Customer` is `encrypted: true`. The API returns the plaintext value to authorised callers — decryption happens in the JVM. But if you query the database directly:
 
@@ -186,7 +261,7 @@ docker compose exec postgres psql -U aperture -c "SELECT email FROM aperture_cus
 
 You'll see the ciphertext (Base64-encoded AES-256-GCM), not the email address.
 
-### 8. MCP server
+### 10. MCP server
 
 With the MCP server enabled, AI assistants can access all entities through the Model Context Protocol:
 
@@ -201,7 +276,7 @@ curl -s http://localhost:8080/mcp \
 
 The MCP tools respect the same auth, tenancy, and RBAC rules as the REST API.
 
-### 9. Distributed tracing
+### 11. Distributed tracing
 
 The demo ships with Jaeger. Browse to `http://localhost:16686` to see traces for all requests, including hook calls.
 
@@ -213,7 +288,8 @@ Currency (global)         │
                           │
 Product (global) ←─── LineItem ───→ Invoice ←─── Payment
                                         │
-                                    ValidateInvoice (PRECOMMIT hook)
+                                    ValidateInvoice (validate hook)
+                                    CheckLineItem (guard hook)
                                     FinanceTeamOnly (ABAC policy)
                                     EuRegionOnly (ABAC policy)
 ```

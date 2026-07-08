@@ -207,7 +207,7 @@ All Aperture configuration is environment-variable-driven. Required at runtime:
 | `DB_PASS` | Database password |
 | `APERTURE_JWT_SECRET` | HMAC signing key — minimum 32 bytes |
 | `APERTURE_ENCRYPTION_KEY` | AES-256 encryption key — 32-byte Base64 (`openssl rand -base64 32`) |
-| `APERTURE_HOOK_SECRET` | Shared secret for hook request signing |
+| `APERTURE_HOOKS_SECRET` | Shared secret for hook request signing |
 
 `APERTURE_BOOTSTRAP_ADMIN_PASSWORD` (seen in the demo compose files) is **not** a general
 framework variable — see [Bootstrap admin](/reference/configuration#bootstrap-admin) for what
@@ -248,7 +248,7 @@ services:
       DB_PASS: ${DB_PASS}
       APERTURE_JWT_SECRET: ${APERTURE_JWT_SECRET}
       APERTURE_ENCRYPTION_KEY: ${APERTURE_ENCRYPTION_KEY}
-      APERTURE_HOOK_SECRET: ${APERTURE_HOOK_SECRET}
+      APERTURE_HOOKS_SECRET: ${APERTURE_HOOKS_SECRET}
     depends_on:
       postgres:
         condition: service_healthy

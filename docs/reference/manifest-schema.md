@@ -95,14 +95,22 @@ AND semantics: all policies listed for an operation must pass. Combined with RBA
 
 ### `spec.hooks`
 
-Hook name → hook definition. Multiple hooks per phase are supported.
+Hook name → hook definition. Hooks use semantic intent; Aperture maps that intent to the generated lifecycle phase and execution mode.
 
 | Property | Type | Values | Description |
 |---|---|---|---|
-| `phase` | string | `PRESECURITY`, `PREENRICH`, `PRECOMMIT`, `POSTCOMMIT` | When the hook fires |
-| `async` | boolean | — | `true` = fire-and-forget; `false` = await response |
-| `onFailure` | string | `reject`, `warn`, `passthrough` | Behaviour on non-2xx or error |
+| `type` | string | `guard`, `validate`, `mutate`, `trigger` | Semantic hook category |
+| `on` | array | `create`, `update`, `delete` | Optional write operations. Defaults depend on `type` |
+| `onFailure` | string | `reject`, `warn`, `passthrough` | Optional behaviour on non-2xx or error. Valid values depend on `type` |
 | `url` | string | HTTP/HTTPS URL | Endpoint Aperture calls |
+
+```yaml
+hooks:
+  ValidateInvoice:
+    type: validate
+    on: [create, update]
+    url: http://hook-service:8080/hooks/validate-invoice
+```
 
 ### `spec.mcp` (entity-level override)
 

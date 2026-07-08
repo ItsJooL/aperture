@@ -1,50 +1,47 @@
 ---
 title: Hooks & Lifecycle
-description: Guard, validate, mutate, and react asynchronously — the four kinds of hook and what each one helps you build.
+description: Guard, validate, mutate, and react asynchronously — the four hook types and what each one helps you build.
 ---
 
 # Hooks & Lifecycle
 
-Hooks are HTTP callbacks you register on an entity. You build a small web service; Aperture calls it at the right moment and handles signing, retries, and timeouts. Nothing in the framework to modify — just declare a URL in the manifest.
+Hooks are HTTP callbacks you register on an entity. You build a small web service; Aperture calls it at the right moment and handles signing, retries, and timeouts. Nothing in the framework to modify — declare intent in the manifest and Aperture generates the Elide lifecycle wiring.
 
-There are four kinds of hook, each serving a different purpose:
+There are four hook types:
 
-| Kind | When it runs | Can modify data | Blocks the response |
+| Type | When it runs | Can modify data | Blocks the response |
 |---|---|---|---|
-| [Guard](#guard-hooks)      | Before auth is checked | No  | Yes |
-| [Validate](#validation-hooks) | After auth, before write | No  | Yes |
-| [Mutate](#mutation-hooks)  | After auth, before write | **Yes** | Yes |
-| [Trigger](#trigger-hooks)  | After the write commits  | No  | No  |
+| [Guard](#guard-hooks) | Before auth is checked | No | Yes |
+| [Validate](#validation-hooks) | After auth, before write | No | Yes |
+| [Mutate](#mutation-hooks) | After auth, before write | Yes | Yes |
+| [Trigger](#trigger-hooks) | After the write commits | No | No |
 
----
+Hook operations are write lifecycle operations only: `create`, `update`, and `delete`. Reads are handled by permissions, policies, and filters rather than lifecycle hooks.
 
-## Guard hooks
+## Guard Hooks
 
-Think of a guard hook as a bouncer at the door. Aperture calls your endpoint **before it even checks whether the request carries a valid token**. If you return anything other than a 2xx, the request is rejected immediately — the caller never reaches auth or permission checks.
+Guard hooks run before auth and permission checks. If the endpoint returns anything other than a 2xx response, Aperture rejects the request immediately.
 
-Guard hooks are for decisions that apply across the board, not to individual users or records:
+Use guard hooks for request-level gates:
 
 - Is this IP address on an allowlist?
 - Has this API consumer exceeded a quota or burst limit?
 - Is the system in a maintenance window?
-- Is this request coming from an expected geographic region?
+- Is this request coming from an expected region?
 
 ```yaml
 hooks:
   IPAllowList:
-    phase: PRESECURITY
-    async: false
-    onFailure: reject
+    type: guard
+    on: [create, update, delete]
     url: http://guard-service:8080/hooks/ip-allowlist
 ```
 
-Because guard hooks run before auth, they receive the raw HTTP request but do not receive authenticated entity data. The request body Aperture sends is the same format as all other hooks (the entity fields), but auth claims are not yet populated.
+Guard hooks always reject on failure. They are synchronous and run before the write can proceed.
 
----
+## Validation Hooks
 
-## Validation hooks
-
-Validation hooks run **after authentication and permission checks have passed, but before anything is written to the database**. They can see the full entity being created or modified, but they cannot change it — they can only allow or reject.
+Validation hooks run after authentication and permission checks have passed, but before anything is written to the database. They can inspect the entity being created or updated, but they cannot change it.
 
 Use validation hooks for business rules:
 
@@ -52,41 +49,38 @@ Use validation hooks for business rules:
 - Is this customer's account in a state that allows new orders?
 - Is the end date after the start date?
 - Does this discount code exist and has it not been used?
-- Is this booking slot still available?
 
 ```yaml
 hooks:
   ValidateInvoice:
-    phase: PRECOMMIT
-    async: false
-    onFailure: reject
+    type: validate
+    on: [create, update]
     url: http://rules-service:8080/hooks/validate-invoice
 ```
 
-If your endpoint returns a non-2xx, Aperture rejects the operation and returns a 400 to the caller. Nothing is written. Your endpoint can return a message body to explain the rejection — Aperture forwards it in the error response.
+If the endpoint returns a non-2xx response, Aperture rejects the operation and returns an error to the caller. Nothing is written.
 
----
+## Mutation Hooks
 
-## Mutation hooks
+Mutation hooks run after auth, before the write, and can return data that Aperture merges into the entity before persistence.
 
-Mutation hooks run at the same point as validation hooks — **after auth, before the write** — but with one key difference: your endpoint can return data and Aperture will merge it back into the entity before writing.
+Use mutation hooks for enrichment and transformation:
 
-Aperture sends the entity to your endpoint. Whatever you return in `data.attributes` is applied on top of the entity fields before the database write. Use mutation hooks for enrichment and transformation:
-
-- Look up a customer's internal ID from your CRM and stamp it on the record
-- Normalise a phone number to E.164 format
-- Geocode an address and store the coordinates alongside it
-- Compute a derived field (tax amount, discounted price, reading level)
-- Set metadata that the client shouldn't control (audit code, internal classification)
+- Look up a customer's internal ID from a CRM
+- Normalize a phone number
+- Compute a derived field
+- Set metadata the client should not control
 
 ```yaml
 hooks:
   EnrichCustomer:
-    phase: PREENRICH
-    async: false
-    onFailure: reject
+    type: mutate
+    on: [create]
+    onFailure: passthrough
     url: http://enrichment-service:8080/hooks/enrich-customer
 ```
+
+Mutation hooks default to `onFailure: reject`. Use `passthrough` when enrichment is useful but should not block the write.
 
 Your endpoint returns a partial entity:
 
@@ -101,70 +95,71 @@ Your endpoint returns a partial entity:
 }
 ```
 
-Only the fields you return are changed. Fields you omit keep their original values. Protected fields (`id`, `apertureTenantId`, `version`, `deletedAt`) are ignored even if you return them.
+Only returned fields are changed. Fields you omit keep their original values. Protected fields (`id`, `apertureTenantId`, `version`, `deletedAt`) are ignored.
 
-If you return an empty body or `null`, the entity is unchanged — you can use a mutation hook purely for validation and leave modification as optional.
+## Trigger Hooks
 
----
+Trigger hooks fire after the database transaction has committed. Aperture sends the request asynchronously and does not hold the user-facing response open.
 
-## Trigger hooks
+Use trigger hooks for side effects that do not belong in the critical path:
 
-Trigger hooks fire **after the database transaction has successfully committed**. Aperture sends the request and moves on — it does not wait for your endpoint to respond, and the user already has their success response.
-
-Use trigger hooks for side effects that don't belong in the critical path:
-
-- Send a welcome email when a new customer is created
-- Publish an event to a message queue or event bus
-- Notify a downstream service of a state change
-- Write a record to a data warehouse or analytics platform
-- Kick off a background workflow (document generation, provisioning, etc.)
+- Send a welcome email
+- Publish an event
+- Notify a downstream service
+- Write analytics records
+- Start background provisioning
 
 ```yaml
 hooks:
   CustomerCreated:
-    phase: POSTCOMMIT
-    async: true
-    onFailure: warn
+    type: trigger
+    on: [create]
     url: http://events-service:8080/hooks/customer-created
 ```
 
-Because trigger hooks are fire-and-forget, the `onFailure` setting only controls whether a failure is logged as a warning (`warn`) or silently ignored (`passthrough`). Failures never affect the user-facing response.
+Trigger hooks always use `onFailure: warn`. Failures are logged and never affect the already-committed user response.
 
----
+## Declaring Hooks
 
-## Declaring hooks in the manifest
-
-All hooks share the same YAML shape under `spec.hooks`:
+All hooks live under `spec.hooks`:
 
 ```yaml
 hooks:
   HookName:
-    phase: PRECOMMIT        # PRESECURITY | PREENRICH | PRECOMMIT | POSTCOMMIT
-    async: false            # true = fire-and-forget after commit
-    onFailure: reject       # reject | warn | passthrough
+    type: validate
+    on: [create, update]
     url: http://my-service:8080/hooks/my-hook
 ```
 
-Hook names must be unique per entity. Multiple hooks can share the same phase — they are called in declaration order.
+Hook names must be unique per entity. Multiple hooks can share the same type and operation set; they are called in declaration order.
 
 | Field | Values | Description |
 |---|---|---|
-| `phase` | `PRESECURITY`, `PREENRICH`, `PRECOMMIT`, `POSTCOMMIT` | Maps to: guard, mutate, validate, trigger |
-| `async` | `true` / `false` | `true` means fire-and-forget (only meaningful on `POSTCOMMIT`) |
-| `onFailure` | `reject`, `warn`, `passthrough` | What to do when the endpoint is unreachable or returns non-2xx |
-| `url` | HTTP/HTTPS URL | Where Aperture sends the `POST` request |
+| `type` | `guard`, `validate`, `mutate`, `trigger` | The semantic hook category |
+| `on` | `create`, `update`, `delete` | Optional operation list. Each hook type has sensible defaults |
+| `onFailure` | `reject`, `passthrough`, `warn` | Optional. Only valid where the hook type allows it |
+| `url` | HTTP/HTTPS URL | Endpoint Aperture calls |
 
----
+Defaults:
 
-## Request shape
+| Type | Default operations | Failure behavior |
+|---|---|---|
+| `guard` | `create`, `update`, `delete` | `reject` |
+| `validate` | `create`, `update` | `reject` |
+| `mutate` | `create`, `update` | `reject` or `passthrough` |
+| `trigger` | `create`, `update`, `delete` | `warn` |
+
+## Request Shape
 
 Every hook receives a `POST` request containing the entity's current field values:
 
-```
+```http
 POST http://my-service:8080/hooks/my-hook
 Content-Type: application/json
 X-Hook-Secret: <configured-secret>
+```
 
+```json
 {
   "id": "3a8bc...",
   "apertureTenantId": "7f1d...",
@@ -174,19 +169,19 @@ X-Hook-Secret: <configured-secret>
 }
 ```
 
-`ManyToOne` relationships are sent as `{fieldName}_id` (the FK value). `OneToMany` and `ManyToMany` relationships are excluded.
+`ManyToOne` relationships are sent as `{fieldName}_id`. `OneToMany` and `ManyToMany` relationships are excluded.
 
-## Hook signing — `X-Hook-Secret`
+## Hook Signing
 
-Every request includes an `X-Hook-Secret` header with the value from `aperture.hooks.secret`. Verify this header in your endpoint before processing — it ensures requests genuinely come from Aperture and not an outside caller.
+Every request includes an `X-Hook-Secret` header with the value from `aperture.hooks.secret`. Verify this header in your endpoint before processing.
 
 ```yaml
 aperture:
   hooks:
-    secret: ${APERTURE_HOOK_SECRET}
+    secret: ${APERTURE_HOOKS_SECRET}
 ```
 
-## Retries and timeouts
+## Retries And Timeouts
 
 Aperture retries failed hook calls with exponential backoff:
 
@@ -196,18 +191,20 @@ Aperture retries failed hook calls with exponential backoff:
 | 2nd retry | 1 000 ms |
 | 3rd retry | 2 000 ms |
 
-Timeouts are configurable per hook category:
+Timeouts are configured by runtime category:
 
 ```yaml
 aperture:
   hooks:
     timeout:
-      commit: 5s     # validate hooks (PRECOMMIT)
-      async: 10s     # guard (PRESECURITY), mutate (PREENRICH), and trigger (POSTCOMMIT) hooks
-      connect: 2s    # TCP connect timeout
+      commit: 5s
+      async: 10s
+      connect: 2s
 ```
 
-## Hook base URL override
+`commit` applies to synchronous guard, validate, and mutate calls. `async` applies to trigger calls.
+
+## Hook Base URL Override
 
 For local development or Docker environments where internal service hostnames differ from what's in the manifest:
 

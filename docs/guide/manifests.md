@@ -291,13 +291,22 @@ Two build-time rules worth knowing before you write policies:
 ```yaml
 hooks:
   ValidateInvoice:
-    phase: PRECOMMIT
-    async: false
+    type: validate
+    on: [create, update]
     onFailure: reject
     url: http://hook-service:8080/hooks/validate-invoice
 ```
 
-Four phases — `PRESECURITY` (guard), `PREENRICH` (mutate), `PRECOMMIT` (validate), `POSTCOMMIT` (trigger) — each with different capabilities and blocking behavior. One rule enforced at build time: a `PREENRICH` hook must be synchronous (`async: false`), because it modifies the entity before the write and there's nothing to merge back from a fire-and-forget call. See [Hooks & Lifecycle](/guide/hooks) for what each phase is for, the request/response shape, signing, and retries.
+A hook's `type` declares what it does; the framework maps each type to the lifecycle phase and blocking behavior that fits:
+
+| Type       | Runs                        | Blocking                        | Default `on`           |
+|------------|-----------------------------|---------------------------------|------------------------|
+| `guard`    | before security & persistence | sync, rejects the request      | create, update, delete |
+| `validate` | before commit               | sync, rejects the request       | create, update         |
+| `mutate`   | before commit (enrichment)  | sync, may rewrite the entity    | create, update         |
+| `trigger`  | after commit                | async, fire-and-forget          | create, update, delete |
+
+`on` is optional and defaults per type. See [Hooks & Lifecycle](/guide/hooks) for what each type is for, the request/response shape, signing, retries, and the legacy phase/async compatibility mapping.
 
 ## MCP exposure
 

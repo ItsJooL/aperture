@@ -37,9 +37,8 @@ spec:
     Viewer:     [read]
   hooks:
     ValidateInvoice:
-      phase: PRECOMMIT
-      async: false
-      onFailure: reject
+      type: validate
+      on: [create, update]
       url: http://rules-service:8080/hooks/validate-invoice
 ```
 

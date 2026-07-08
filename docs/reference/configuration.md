@@ -134,14 +134,14 @@ aperture:
 |---|---|---|---|
 | `aperture.hooks.secret` | string | `default-secret` | Shared secret sent in `X-Hook-Secret` header |
 | `aperture.hooks.base-url` | string | (empty) | Override the host portion of all hook URLs |
-| `aperture.hooks.timeout.commit` | duration string | `5s` | Timeout for PRECOMMIT/POSTCOMMIT hooks |
-| `aperture.hooks.timeout.async` | duration string | `5s` | Timeout for async hooks and PREENRICH |
+| `aperture.hooks.timeout.commit` | duration string | `5s` | Timeout for synchronous guard, validate, and mutate hooks |
+| `aperture.hooks.timeout.async` | duration string | `5s` | Timeout for asynchronous trigger hooks |
 | `aperture.hooks.timeout.connect` | duration string | `2s` | TCP connect timeout |
 
 ```yaml
 aperture:
   hooks:
-    secret: ${APERTURE_HOOK_SECRET}
+    secret: ${APERTURE_HOOKS_SECRET}
     timeout:
       commit: 10s
       async: 10s
@@ -244,7 +244,7 @@ aperture:
     local:
       key: ${APERTURE_ENCRYPTION_KEY}
   hooks:
-    secret: ${APERTURE_HOOK_SECRET}
+    secret: ${APERTURE_HOOKS_SECRET}
 ```
 
 `APERTURE_BOOTSTRAP_ADMIN_PASSWORD` is not read by this configuration — see
