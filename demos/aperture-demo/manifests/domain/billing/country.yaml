@@ -20,7 +20,6 @@ spec:
     Viewer: [read]
   hooks:
     AuditCountry:
-      phase: PRESECURITY
-      async: false
-      onFailure: passthrough
+      type: guard
+      on: [create]
       url: http://hook-service:8080/hooks/audit-country

@@ -25,7 +25,7 @@ async function logout(page: import('@playwright/test').Page) {
 }
 
 test('superadmin can sign in and see admin panel with tenant list', async ({ page }) => {
-  await login(page, 'superadmin@system.local', 'changeme-local-only')
+  await login(page, 'superadmin@framework.local', 'changeme-local-only')
 
   // Should land on /dashboard (or somewhere other than /login)
   await expect(page).toHaveURL(/\/dashboard/, { timeout: 10000 })

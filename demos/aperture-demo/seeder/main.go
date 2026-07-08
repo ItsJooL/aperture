@@ -284,12 +284,12 @@ func (s *seeder) seedTenant(t TenantSeed, superToken string) error {
 			}
 		}
 
-		// Set attributes
+		// Set ABAC security attributes used by manifest policies such as ActiveUserOnly.
 		if len(u.Attributes) > 0 {
 			attrStatus, err := s.patch(
 				fmt.Sprintf("/manage/tenants/%s/users/%s", tenantID, userID),
 				superToken,
-				map[string]interface{}{"attributes": u.Attributes},
+				map[string]interface{}{"securityAttributes": u.Attributes},
 			)
 			if err != nil || (attrStatus != 200 && attrStatus != 204) {
 				s.logger.Warn("set attributes failed", "user", u.Username, "status", attrStatus)

@@ -24,6 +24,7 @@ body:json {
     "atomic:operations": [
       {
         "op": "add",
+        "href": "/suppliers",
         "data": {
           "type": "suppliers",
           "lid": "valid-supplier",
@@ -32,6 +33,7 @@ body:json {
       },
       {
         "op": "add",
+        "href": "/suppliers",
         "data": {
           "type": "suppliers",
           "lid": "invalid-supplier",
@@ -49,7 +51,14 @@ docs {
   Nothing is persisted. The response is 4xx with error details.
 }
 
+script:post-response {
+  if (res.status === 400) {
+    if (!res.body.errors || !res.body.errors.length) {
+      throw new Error("Expected JSON:API validation errors");
+    }
+  }
+}
+
 assert {
   res.status: eq 400
-  res.body.errors: isDefined
 }

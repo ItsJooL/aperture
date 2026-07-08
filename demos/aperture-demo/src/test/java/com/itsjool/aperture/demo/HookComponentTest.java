@@ -97,13 +97,13 @@ public class HookComponentTest extends DemoApplicationTestSupport {
 
         // Poll for the async hook callback (fires after HTTP response returns)
         okhttp3.mockwebserver.RecordedRequest hookRequest = pollForHookRequest("/hooks/notify-supplier", 5);
-        assertThat(hookRequest).as("async POSTCOMMIT hook must fire a real HTTP callback to MockWebServer").isNotNull();
+        assertThat(hookRequest).as("trigger hook must fire a real HTTP callback to MockWebServer").isNotNull();
         assertThat(hookRequest.getHeader("Authorization")).as("async hook must not forward user credentials").isNull();
     }
 
     @Test
-    void preenrichmentHookModifiesEntityAttribute() throws Exception {
-        // PREENRICH hook returns attribute overrides — entity should be persisted with enriched values
+    void mutateHookModifiesEntityAttribute() throws Exception {
+        // Mutate hook returns attribute overrides — entity should be persisted with enriched values
         String enrichBody = "{\"data\":{\"attributes\":{\"name\":\"ENRICHED NAME\"}}}";
         overrideHookResponseWithBody("/hooks/enrich-customer", 200, enrichBody);
 
@@ -121,7 +121,33 @@ public class HookComponentTest extends DemoApplicationTestSupport {
         Integer count = jdbcTemplate.queryForObject(
                 "SELECT count(*) FROM aperture_customers WHERE name = ?",
                 Integer.class, "ENRICHED NAME");
-        assertThat(count).as("PREENRICH hook must have overridden the name attribute").isEqualTo(1);
+        assertThat(count).as("mutate hook must have overridden the name attribute").isEqualTo(1);
+    }
+
+    @Test
+    void guardHookRejectsBeforePersistence() throws Exception {
+        // CheckLineItem is a guard hook (PRESECURITY, on: [create]) on LineItem — a rejection
+        // must happen before the row is ever written, unlike validate/mutate which run PRECOMMIT.
+        // The line item is created without an invoice relationship: the guard fires on the new
+        // entity in the PRESECURITY phase, before any relationship read or DB write, so this
+        // isolates the guard behavior itself (invoice is optional on LineItem).
+        overrideHookResponse("/hooks/check-line-item", 403);
+
+        Integer countBefore = jdbcTemplate.queryForObject("SELECT count(*) FROM aperture_lineitems", Integer.class);
+
+        performElideRequest(post("/api/v1/lineitems")
+                .header("Authorization", getAcmeAccountantToken())
+                .contentType(VNDAPI)
+                .content("{\"data\": {\"type\": \"lineitems\", \"attributes\": {\"quantity\": 5, \"unit_price\": 10.00}}}"))
+                .andExpect(status().is4xxClientError());
+
+        Integer countAfter = jdbcTemplate.queryForObject("SELECT count(*) FROM aperture_lineitems", Integer.class);
+        assertThat(countAfter).as("guard rejection must leave the line item count unchanged").isEqualTo(countBefore);
+
+        okhttp3.mockwebserver.RecordedRequest hookRequest = mockWebServer.takeRequest(3, TimeUnit.SECONDS);
+        assertThat(hookRequest).as("MockWebServer must have received the check-line-item guard callback").isNotNull();
+        assertThat(hookRequest.getPath()).isEqualTo("/hooks/check-line-item");
+        assertThat(hookRequest.getHeader("Authorization")).as("guard hook must never receive user credentials").isNull();
     }
 
     @Test

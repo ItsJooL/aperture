@@ -16,7 +16,7 @@ auth:bearer {
 
 headers {
   Content-Type: application/json
-  Accept: application/json
+  Accept: application/json, text/event-stream
 }
 
 body:json {
@@ -35,8 +35,13 @@ body:json {
   }
 }
 
+script:post-response {
+  if (res.status === 200 && res.body.jsonrpc !== "2.0") {
+    throw new Error("Expected JSON-RPC version 2.0");
+  }
+}
+
 assert {
   res.status: eq 200
-  res.body.jsonrpc: eq 2.0
   res.body.result: isDefined
 }

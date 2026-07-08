@@ -16,7 +16,6 @@ spec:
     Viewer: [read]
   hooks:
     SyncCurrency:
-      phase: POSTCOMMIT
-      async: true
-      onFailure: warn
+      type: trigger
+      on: [create, update]
       url: http://hook-service:8080/hooks/sync-currency

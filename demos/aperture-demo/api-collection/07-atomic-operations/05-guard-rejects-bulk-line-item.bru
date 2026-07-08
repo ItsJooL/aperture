@@ -1,0 +1,73 @@
+meta {
+  name: Guard Hook — Reject Bulk Line Item
+  type: http
+  seq: 5
+}
+
+post {
+  url: {{baseUrl}}/api/v1/operations
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tenantAdminToken}}
+}
+
+headers {
+  Content-Type: application/vnd.api+json;ext="https://jsonapi.org/ext/atomic"
+  Accept: application/vnd.api+json;ext="https://jsonapi.org/ext/atomic"
+}
+
+body:json {
+  {
+    "atomic:operations": [
+      {
+        "op": "add",
+        "href": "/invoices",
+        "data": {
+          "type": "invoices",
+          "lid": "guard-demo-invoice",
+          "attributes": { "amount": 2500, "status": "DRAFT" },
+          "relationships": {
+            "customer": { "data": { "type": "customers", "id": "{{customerId}}" } }
+          }
+        }
+      },
+      {
+        "op": "add",
+        "href": "/lineitems",
+        "data": {
+          "type": "lineitems",
+          "lid": "guard-demo-line-item",
+          "attributes": { "quantity": 250, "unit_price": 10.00 },
+          "relationships": {
+            "invoice": { "data": { "type": "invoices", "lid": "guard-demo-invoice" } }
+          }
+        }
+      }
+    ]
+  }
+}
+
+docs {
+  Demonstrates a guard hook rejecting a write before the atomic operation
+  commits. CheckLineItem calls /hooks/check-line-item and rejects unusually
+  large quantities that require manual review. The invoice in the first
+  operation is rolled back with the rejected line item.
+
+  Run 01-create-customer first to populate {{customerId}}.
+}
+
+script:post-response {
+  if (res.status === 400) {
+    var body = JSON.stringify(res.body);
+    if (!body.includes("Hook rejected the request")) {
+      throw new Error("Expected guard hook rejection");
+    }
+  }
+}
+
+assert {
+  res.status: eq 400
+}

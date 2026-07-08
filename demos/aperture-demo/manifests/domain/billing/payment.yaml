@@ -19,7 +19,6 @@ spec:
     Viewer: [read]
   hooks:
     ValidatePayment:
-      phase: PRECOMMIT
-      async: false
-      onFailure: reject
+      type: validate
+      on: [create]
       url: http://hook-service:8080/hooks/validate-payment

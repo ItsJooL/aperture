@@ -1,0 +1,69 @@
+meta {
+  name: Atomic — Create Multiple Suppliers
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{baseUrl}}/api/v1/operations
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tenantAdminToken}}
+}
+
+headers {
+  Content-Type: application/vnd.api+json;ext="https://jsonapi.org/ext/atomic"
+  Accept: application/vnd.api+json;ext="https://jsonapi.org/ext/atomic"
+}
+
+body:json {
+  {
+    "atomic:operations": [
+      {
+        "op": "add",
+        "href": "/suppliers",
+        "data": {
+          "type": "suppliers",
+          "lid": "atomic-supplier-1",
+          "attributes": { "company_name": "Atomic Supplies One" }
+        }
+      },
+      {
+        "op": "add",
+        "href": "/suppliers",
+        "data": {
+          "type": "suppliers",
+          "lid": "atomic-supplier-2",
+          "attributes": { "company_name": "Atomic Supplies Two" }
+        }
+      }
+    ]
+  }
+}
+
+docs {
+  Creates two suppliers in a single atomic transaction. Both changes
+  commit together or both roll back. The response contains one result
+  entry per operation.
+
+  This also demonstrates the trigger hook contract: Supplier.NotifySupplier
+  is declared as type: trigger on create/update, so each committed supplier
+  create queues a signed /hooks/notify-supplier callback after commit. Check
+  the hook-service logs for "supplier notification dispatched (simulated)".
+}
+
+script:post-response {
+  if (res.status === 200) {
+    var results = res.body["atomic:results"];
+    if (!Array.isArray(results) || results.length !== 2) {
+      throw new Error("Expected two atomic supplier results");
+    }
+  }
+}
+
+assert {
+  res.status: eq 200
+}

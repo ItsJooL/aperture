@@ -33,12 +33,11 @@ spec:
     Viewer: [read]
   hooks:
     TenantProvisioned:
-      phase: POSTCOMMIT
-      async: true
-      onFailure: warn
+      type: trigger
+      on: [create]
       url: http://hook-service:8080/hooks/tenant-provisioned
     EnrichCustomer:
-      phase: PREENRICH
-      async: false
+      type: mutate
+      on: [create]
       onFailure: passthrough
       url: http://hook-service:8080/hooks/enrich-customer

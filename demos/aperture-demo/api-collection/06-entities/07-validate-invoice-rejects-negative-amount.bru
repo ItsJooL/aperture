@@ -1,0 +1,49 @@
+meta {
+  name: Validate Hook — Reject Negative Invoice
+  type: http
+  seq: 7
+}
+
+post {
+  url: {{baseUrl}}/api/v1/invoices
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tenantAdminToken}}
+}
+
+headers {
+  Content-Type: application/vnd.api+json
+  Accept: application/vnd.api+json
+}
+
+body:json {
+  {
+    "data": {
+      "type": "invoices",
+      "attributes": {
+        "amount": -1,
+        "status": "DRAFT"
+      },
+      "relationships": {
+        "customer": { "data": { "type": "customers", "id": "{{customerId}}" } }
+      }
+    }
+  }
+}
+
+docs {
+  Demonstrates a validate hook rejecting a write before commit.
+  ValidateInvoice calls /hooks/validate-invoice synchronously. The hook service
+  rejects non-positive invoice amounts and returns a JSON error body.
+
+  Run 01-create-customer first to populate {{customerId}}. Check hook-service
+  logs to see the signed callback with X-Hook-Secret.
+}
+
+assert {
+  res.status: eq 400
+  res.body.errors: isDefined
+}

@@ -70,6 +70,9 @@ docs {
 script:post-response {
   if (res.status === 200) {
     var results = res.body["atomic:results"];
+    if (!Array.isArray(results) || results.length !== 3) {
+      throw new Error("Expected three atomic results");
+    }
     if (results && results[0] && results[0].data) {
       bru.setVar("atomicInvoiceId", results[0].data.id);
     }
@@ -78,6 +81,4 @@ script:post-response {
 
 assert {
   res.status: eq 200
-  res.body["atomic:results"]: isDefined
-  res.body["atomic:results"].length: eq 3
 }

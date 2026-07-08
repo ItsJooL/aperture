@@ -1,5 +1,5 @@
 meta {
-  name: Create Customer (v3 — PREENRICH enrichment hook)
+  name: Create Customer (v3 — mutate enrichment hook)
   type: http
   seq: 6
 }
@@ -32,7 +32,7 @@ body:json {
 }
 
 docs {
-  The v3 Customer endpoint has a PREENRICH lifecycle hook bound at PRECOMMIT.
+  The v3 Customer endpoint has a mutate hook.
   Before persisting, the framework calls the hook service at /hooks/enrich-customer
   with a shallow JSON payload (scalar fields + FKs as _id), then applies the
   hook's returned {"data":{"attributes":{...}}} overrides back onto the entity.
@@ -40,6 +40,18 @@ docs {
   In this demo the hook trims whitespace from the name, so "  Acme Corp  "
   is persisted as "Acme Corp". The hook never receives the caller's Authorization
   header — only X-Hook-Secret is forwarded.
+
+  This request also refreshes {{customerId}} because the earlier CRUD demo
+  deletes the first customer before the hook and atomic-operation examples run.
+}
+
+script:post-response {
+  if (res.status === 201) {
+    bru.setVar("customerId", res.body.data.id);
+    bru.setVar("customerV3Id", res.body.data.id);
+    var version = res.body.data.attributes.version;
+    bru.setVar("customerEtag", '"' + version + '"');
+  }
 }
 
 assert {

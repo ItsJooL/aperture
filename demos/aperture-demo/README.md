@@ -106,13 +106,13 @@ curl -X POST http://localhost:8080/api/v3/operations \
     "atomic:operations": [
       {
         "op": "add",
-        "href": "/api/v3/invoices",
+        "href": "/invoices",
         "data": {"type":"invoices","lid":"inv-1","attributes":{"amount":999,"status":"DRAFT"},
                  "relationships":{"customer":{"data":{"type":"customers","id":"'"$CUSTOMER_ID"'"}}}}
       },
       {
         "op": "add",
-        "href": "/api/v3/lineitems",
+        "href": "/lineitems",
         "data": {"type":"lineitems","attributes":{"quantity":1,"unit_price":999},
                  "relationships":{"invoice":{"data":{"type":"invoices","lid":"inv-1"}}}}
       }
@@ -120,7 +120,7 @@ curl -X POST http://localhost:8080/api/v3/operations \
   }'
 ```
 
-### 5. Trigger a hook failure
+### 5. Trigger a validate hook failure
 
 ```bash
 # The hook-service rejects invoices with amount <= 0
@@ -133,7 +133,34 @@ curl -X POST http://localhost:8080/api/v3/invoices \
 # → 400 with hook rejection message
 ```
 
-### 6. View distributed traces
+### 6. Trigger a guard hook failure
+
+```bash
+# The hook-service rejects bulk line items that require manual review
+curl -X POST http://localhost:8080/api/v3/operations \
+  -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/vnd.api+json;ext="https://jsonapi.org/ext/atomic"' \
+  -H 'Accept: application/vnd.api+json;ext="https://jsonapi.org/ext/atomic"' \
+  -d '{
+    "atomic:operations": [
+      {
+        "op": "add",
+        "href": "/api/v3/invoices",
+        "data": {"type":"invoices","lid":"inv-guard","attributes":{"amount":2500,"status":"DRAFT"},
+                 "relationships":{"customer":{"data":{"type":"customers","id":"'"$CUSTOMER_ID"'"}}}}
+      },
+      {
+        "op": "add",
+        "href": "/api/v3/lineitems",
+        "data": {"type":"lineitems","lid":"li-guard","attributes":{"quantity":250,"unit_price":10},
+                 "relationships":{"invoice":{"data":{"type":"invoices","lid":"inv-guard"}}}}
+      }
+    ]
+  }'
+# → 400 and the invoice is rolled back with the rejected line item
+```
+
+### 7. View distributed traces
 
 Open http://localhost:16686 and select `aperture-demo` service to see traces for the above requests.
 
