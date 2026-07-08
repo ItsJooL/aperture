@@ -12,6 +12,9 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import io.micrometer.observation.Observation;
+import io.micrometer.observation.ObservationRegistry;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.web.filter.OncePerRequestFilter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -36,15 +39,33 @@ public class AuthFilter extends OncePerRequestFilter implements org.springframew
     private final CredentialValidator credentialValidator;
     private final PrincipalMapper principalMapper;
     private final ApertureRuntimeMetadata metadata;
+    private final ObservationRegistry observationRegistry;
 
-    public AuthFilter(CredentialValidator credentialValidator, PrincipalMapper principalMapper, ApertureRuntimeMetadata metadata) {
+    // ObjectProvider (not a bare ObservationRegistry) so this filter still constructs cleanly in
+    // application-context slices that don't include Spring Boot's ObservationAutoConfiguration
+    // (e.g. @WebMvcTest slice tests) — it degrades to ObservationRegistry.NOOP instead of failing
+    // bean creation with an UnsatisfiedDependencyException.
+    public AuthFilter(CredentialValidator credentialValidator, PrincipalMapper principalMapper, ApertureRuntimeMetadata metadata, ObjectProvider<ObservationRegistry> observationRegistryProvider) {
         this.credentialValidator = credentialValidator;
         this.principalMapper = principalMapper;
         this.metadata = metadata;
+        this.observationRegistry = observationRegistryProvider != null
+            ? observationRegistryProvider.getIfAvailable(() -> ObservationRegistry.NOOP)
+            : ObservationRegistry.NOOP;
     }
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain) throws ServletException, IOException {
+        // Spring's ServerHttpObservationFilter (HIGHEST_PRECEDENCE + 1) opens an Observation.Scope
+        // around the whole filter chain, so this filter (order +10) runs inside it. Elide invokes
+        // generated lifecycle hooks off the scoped request path (possibly a different thread), where
+        // getCurrentObservation() returns null — stash the current observation as a request attribute
+        // now, while it is still reliably available, so HookExecutor can parent onto it later.
+        Observation currentObservation = observationRegistry.getCurrentObservation();
+        if (currentObservation != null && currentObservation != Observation.NOOP) {
+            request.setAttribute(ApertureRequestAttributes.PARENT_OBSERVATION, currentObservation);
+        }
+
         TenantContextHolder.clear();
         ScopeContextHolder.clear();
         try {
@@ -87,6 +108,7 @@ public class AuthFilter extends OncePerRequestFilter implements org.springframew
                                 }
                             }
                             TenantContextHolder.setTenantId(explicitContext);
+                            request.setAttribute(ApertureRequestAttributes.TENANT_ID, explicitContext);
                         } else if (requiresTenantContext(uri)) {
                             response.sendError(HttpServletResponse.SC_BAD_REQUEST, "SuperAdmins must provide X-Aperture-Tenant-Context for generated APIs");
                             return;
@@ -97,6 +119,7 @@ public class AuthFilter extends OncePerRequestFilter implements org.springframew
                             return;
                         }
                         TenantContextHolder.setTenantId(principal.tenantId());
+                        request.setAttribute(ApertureRequestAttributes.TENANT_ID, principal.tenantId());
                     }
                 }
 

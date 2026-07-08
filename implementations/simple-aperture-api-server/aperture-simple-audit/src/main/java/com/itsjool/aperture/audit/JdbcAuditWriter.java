@@ -14,45 +14,90 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Gauge;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.observation.Observation;
+import io.micrometer.observation.ObservationRegistry;
+
 public class JdbcAuditWriter implements AuditWriter {
+    private record QueuedEvent(AuditEvent event, Observation parentObservation) {}
     private final JdbcTemplate jdbcTemplate;
-    private final BlockingQueue<AuditEvent> queue = new LinkedBlockingQueue<>(10000);
+    private final BlockingQueue<QueuedEvent> queue = new LinkedBlockingQueue<>(10000);
     private final ExecutorService worker = Executors.newSingleThreadExecutor();
     private volatile boolean running = true;
+    private final ObservationRegistry observationRegistry;
+    private final Counter droppedCounter;
 
-    public JdbcAuditWriter(JdbcTemplate jdbcTemplate) {
+    public JdbcAuditWriter(JdbcTemplate jdbcTemplate, MeterRegistry meterRegistry, ObservationRegistry observationRegistry) {
         this.jdbcTemplate = jdbcTemplate;
+        this.observationRegistry = observationRegistry != null ? observationRegistry : ObservationRegistry.NOOP;
+        if (meterRegistry != null) {
+            Gauge.builder("aperture.audit.queue.size", queue, BlockingQueue::size)
+                .description("Number of audit events pending database write")
+                .register(meterRegistry);
+            this.droppedCounter = meterRegistry.counter("aperture.audit.dropped");
+        } else {
+            this.droppedCounter = null;
+        }
         this.worker.submit(this::processQueue);
     }
 
     @Override
     public void write(AuditEvent event) {
-        queue.offer(event);
+        if (!queue.offer(new QueuedEvent(event, observationRegistry.getCurrentObservation()))) {
+            if (droppedCounter != null) droppedCounter.increment();
+        }
     }
     
     private void processQueue() {
         while (running || !queue.isEmpty()) {
             try {
-                List<AuditEvent> batch = new ArrayList<>();
-                AuditEvent first = queue.poll(1, TimeUnit.SECONDS);
+                List<QueuedEvent> batch = new ArrayList<>();
+                QueuedEvent first = queue.poll(1, TimeUnit.SECONDS);
                 if (first != null) {
                     batch.add(first);
                     queue.drainTo(batch, 99);
                     
-                    jdbcTemplate.batchUpdate(
-                        "INSERT INTO aperture_audit_log (id, user_id, tenant_id, entity, entity_id, operation, timestamp, details) VALUES (?, ?, ?, ?, ?, ?, NOW(), ?::jsonb)",
-                        batch,
-                        batch.size(),
-                        (ps, event) -> {
-                            ps.setString(1, UUID.randomUUID().toString());
-                            ps.setString(2, event.userId());
-                            ps.setString(3, event.tenantId());
-                            ps.setString(4, event.entity());
-                            ps.setString(5, event.entityId());
-                            ps.setString(6, event.operation());
-                            ps.setString(7, event.detailsJson());
+                    List<Observation> observations = new ArrayList<>();
+                    for (QueuedEvent qe : batch) {
+                        Observation obs = Observation.createNotStarted("aperture.audit.write", observationRegistry)
+                            .lowCardinalityKeyValue("entity", qe.event().entity())
+                            .lowCardinalityKeyValue("operation", qe.event().operation());
+                        if (qe.parentObservation() != null) {
+                            obs.parentObservation(qe.parentObservation());
                         }
-                    );
+                        obs.start();
+                        observations.add(obs);
+                    }
+
+                    try {
+                        jdbcTemplate.batchUpdate(
+                            "INSERT INTO aperture_audit_log (id, user_id, tenant_id, entity, entity_id, operation, timestamp, details) VALUES (?, ?, ?, ?, ?, ?, NOW(), ?::jsonb)",
+                            batch,
+                            batch.size(),
+                            (ps, qe) -> {
+                                ps.setString(1, UUID.randomUUID().toString());
+                                ps.setString(2, qe.event().userId());
+                                ps.setString(3, qe.event().tenantId());
+                                ps.setString(4, qe.event().entity());
+                                ps.setString(5, qe.event().entityId());
+                                ps.setString(6, qe.event().operation());
+                                ps.setString(7, qe.event().detailsJson());
+                            }
+                        );
+                        for (Observation obs : observations) {
+                            obs.lowCardinalityKeyValue("outcome", "ok");
+                            obs.stop();
+                        }
+                    } catch (Exception e) {
+                        for (Observation obs : observations) {
+                            obs.error(e);
+                            obs.lowCardinalityKeyValue("outcome", "error");
+                            obs.stop();
+                        }
+                        throw e;
+                    }
                 }
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();

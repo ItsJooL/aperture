@@ -13,10 +13,15 @@ import java.time.Duration;
 import java.util.concurrent.TimeUnit;
 
 public class InMemoryRateLimitProvider implements RateLimitProvider {
+    private final io.micrometer.core.instrument.MeterRegistry meterRegistry;
     private final Cache<RateLimitKey, Bucket> buckets = Caffeine.newBuilder()
             .expireAfterWrite(1, TimeUnit.HOURS)
             .maximumSize(100_000)
             .build();
+
+    public InMemoryRateLimitProvider(io.micrometer.core.instrument.MeterRegistry meterRegistry) {
+        this.meterRegistry = meterRegistry;
+    }
 
     @Override
     public RateLimitDecision evaluate(RateLimitKey key, RateLimitRule rule) {
@@ -25,6 +30,11 @@ public class InMemoryRateLimitProvider implements RateLimitProvider {
                 .build());
 
         ConsumptionProbe probe = bucket.tryConsumeAndReturnRemaining(1);
+        if (!probe.isConsumed()) {
+            if (meterRegistry != null) {
+                meterRegistry.counter("aperture.ratelimit.rejections", "type", key.type()).increment();
+            }
+        }
         return new RateLimitDecision(
                 probe.isConsumed(),
                 (int) probe.getRemainingTokens(),

@@ -97,12 +97,14 @@ public class ApertureSimpleAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean(RateLimitProvider.class)
-    public RateLimitProvider rateLimitProvider(ObjectProvider<ApertureRateLimitProperties> rateLimitPropertiesProvider) {
+    public RateLimitProvider rateLimitProvider(
+            ObjectProvider<ApertureRateLimitProperties> rateLimitPropertiesProvider,
+            ObjectProvider<io.micrometer.core.instrument.MeterRegistry> meterRegistryProvider) {
         ApertureRateLimitProperties rateLimitProperties = rateLimitPropertiesProvider.getIfAvailable();
         if (rateLimitProperties != null && "valkey".equalsIgnoreCase(rateLimitProperties.getBackend())) {
             return new ValkeyRateLimitProvider(rateLimitProperties.getValkey());
         }
-        return new InMemoryRateLimitProvider();
+        return new InMemoryRateLimitProvider(meterRegistryProvider.getIfAvailable());
     }
 
     @Bean
@@ -162,12 +164,13 @@ public class ApertureSimpleAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     public com.itsjool.aperture.runtime.hook.HookExecutor hookExecutor(
-            @Value("${aperture.hooks.secret:default-secret}") String hookSecret,
-            @Value("${aperture.hooks.base-url:}") String hookBaseUrl,
-            @Value("${aperture.hooks.timeout.commit:5s}") Duration commitTimeout,
-            @Value("${aperture.hooks.timeout.async:5s}") Duration asyncTimeout,
-            @Value("${aperture.hooks.timeout.connect:2s}") Duration connectTimeout) {
-        return new com.itsjool.aperture.runtime.hook.HookExecutor(hookSecret, hookBaseUrl, commitTimeout, asyncTimeout, connectTimeout);
+        @Value("${aperture.hooks.secret:default-hook-secret}") String hookSecret,
+        @Value("${aperture.hooks.base-url:}") String hookBaseUrl,
+        @Value("${aperture.hooks.timeout.commit:PT5S}") Duration commitTimeout,
+        @Value("${aperture.hooks.timeout.async:PT30S}") Duration asyncTimeout,
+        @Value("${aperture.hooks.timeout.connect:PT2S}") Duration connectTimeout,
+        org.springframework.beans.factory.ObjectProvider<io.micrometer.observation.ObservationRegistry> observationRegistryProvider) {
+        return new com.itsjool.aperture.runtime.hook.HookExecutor(hookSecret, hookBaseUrl, commitTimeout, asyncTimeout, connectTimeout, observationRegistryProvider.getIfAvailable());
     }
 
     @Bean
@@ -177,8 +180,17 @@ public class ApertureSimpleAutoConfiguration {
     }
 
     @Bean
-    public JdbcAuditWriter auditWriter(JdbcTemplate jdbcTemplate) {
-        return new JdbcAuditWriter(jdbcTemplate);
+    @ConditionalOnMissingBean
+    public com.itsjool.aperture.audit.JdbcAuditWriter auditWriter(
+        JdbcTemplate jdbcTemplate,
+        org.springframework.beans.factory.ObjectProvider<io.micrometer.core.instrument.MeterRegistry> meterRegistryProvider,
+        org.springframework.beans.factory.ObjectProvider<io.micrometer.observation.ObservationRegistry> observationRegistryProvider) {
+        return new com.itsjool.aperture.audit.JdbcAuditWriter(jdbcTemplate, meterRegistryProvider.getIfAvailable(), observationRegistryProvider.getIfAvailable());
+    }
+
+    @Bean
+    public ApertureObservationFilter apertureObservationFilter() {
+        return new ApertureObservationFilter();
     }
 
     @Bean

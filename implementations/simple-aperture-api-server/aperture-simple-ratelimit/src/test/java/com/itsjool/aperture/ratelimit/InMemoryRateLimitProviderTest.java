@@ -7,6 +7,7 @@ import com.itsjool.aperture.spi.RateLimitRule;
 import io.github.bucket4j.Bandwidth;
 import io.github.bucket4j.Bucket;
 import io.github.bucket4j.local.LocalBucket;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Field;
@@ -15,8 +16,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class InMemoryRateLimitProviderTest {
     @Test
-    void testTokenBucketAllowAndDeny() {
-        InMemoryRateLimitProvider provider = new InMemoryRateLimitProvider();
+    void testRateLimiter() {
+        InMemoryRateLimitProvider provider = new InMemoryRateLimitProvider(new io.micrometer.core.instrument.simple.SimpleMeterRegistry());
         RateLimitKey key = new RateLimitKey("ip", "127.0.0.1");
         RateLimitRule rule = new RateLimitRule(2, 60, 60); // Assuming 3 ints from record: capacity, burst, windowSeconds
 
@@ -44,7 +45,7 @@ class InMemoryRateLimitProviderTest {
      */
     @Test
     void refillUsesConfiguredRefillTokensNotCapacity() throws Exception {
-        InMemoryRateLimitProvider provider = new InMemoryRateLimitProvider();
+        InMemoryRateLimitProvider provider = new InMemoryRateLimitProvider(new io.micrometer.core.instrument.simple.SimpleMeterRegistry());
         RateLimitKey key = new RateLimitKey("ip", "203.0.113.5");
         RateLimitRule rule = new RateLimitRule(100, 10, 60); // capacity != burst (refillTokens)
 
@@ -55,6 +56,46 @@ class InMemoryRateLimitProviderTest {
         assertThat(bandwidth.getCapacity()).isEqualTo(rule.capacity());
         assertThat(bandwidth.getRefillTokens()).isEqualTo(rule.burst());
         assertThat(bandwidth.getRefillTokens()).isNotEqualTo(bandwidth.getCapacity());
+    }
+
+    /**
+     * Regression test for the rejection-metric emission: when a request is denied by the bucket,
+     * {@link InMemoryRateLimitProvider#evaluate} must increment the
+     * {@code aperture.ratelimit.rejections} counter tagged with the key's {@code type}, so
+     * rate-limit rejections are observable without scraping application logs.
+     */
+    @Test
+    void rejectedRequestIncrementsRejectionCounterTaggedByKeyType() {
+        SimpleMeterRegistry meterRegistry = new SimpleMeterRegistry();
+        InMemoryRateLimitProvider provider = new InMemoryRateLimitProvider(meterRegistry);
+        RateLimitKey key = new RateLimitKey("ip", "198.51.100.7");
+        RateLimitRule rule = new RateLimitRule(1, 1, 60); // capacity 1 so the second request is rejected
+
+        RateLimitDecision first = provider.evaluate(key, rule);
+        assertThat(first.allowed()).isTrue();
+
+        RateLimitDecision second = provider.evaluate(key, rule);
+        assertThat(second.allowed()).isFalse();
+
+        assertThat(meterRegistry.get("aperture.ratelimit.rejections").tags("type", "ip").counter().count())
+            .isEqualTo(1.0);
+    }
+
+    /**
+     * A request that is allowed must not increment the rejection counter at all — the meter should
+     * not even be registered yet.
+     */
+    @Test
+    void allowedRequestDoesNotRegisterRejectionCounter() {
+        SimpleMeterRegistry meterRegistry = new SimpleMeterRegistry();
+        InMemoryRateLimitProvider provider = new InMemoryRateLimitProvider(meterRegistry);
+        RateLimitKey key = new RateLimitKey("ip", "198.51.100.8");
+        RateLimitRule rule = new RateLimitRule(5, 5, 60);
+
+        RateLimitDecision decision = provider.evaluate(key, rule);
+        assertThat(decision.allowed()).isTrue();
+
+        assertThat(meterRegistry.find("aperture.ratelimit.rejections").counter()).isNull();
     }
 
     @SuppressWarnings("unchecked")

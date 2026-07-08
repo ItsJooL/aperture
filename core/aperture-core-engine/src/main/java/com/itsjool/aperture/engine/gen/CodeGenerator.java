@@ -603,14 +603,14 @@ public class CodeGenerator {
         if ("PREENRICH".equals(phase)) {
             // Sync enrichment: call hook, parse response, apply attribute overrides back to entity
             executeBuilder
-                .addStatement("String responseBody = hookExecutor.executeHookWithResponse($S, $S, payload, req, $S)", phase, hookDef.url(), onFailure)
+                .addStatement("String responseBody = hookExecutor.executeHookWithResponse($S, $S, $S, $S, payload, req, $S)", hookName, entityDef.name(), phase, hookDef.url(), onFailure)
                 .beginControlFlow("if (responseBody != null && __om != null)")
                 .addStatement("$L.applyEnrichmentOverrides(elideEntity, responseBody, __om)", ApertureRuntimeClassNames.HOOK_PAYLOAD_BUILDER)
                 .endControlFlow();
         } else {
             executeBuilder
-                .addStatement("java.util.concurrent.CompletableFuture<Boolean> future = hookExecutor.executeHook($S, $S, payload, req, $S, $L, $L)",
-                    phase, hookDef.url(), onFailure, 0, hookDef.async())
+                .addStatement("java.util.concurrent.CompletableFuture<Boolean> future = hookExecutor.executeHook($S, $S, $S, $S, payload, req, $S, $L, $L)",
+                    hookName, entityDef.name(), phase, hookDef.url(), onFailure, 0, hookDef.async())
                 .beginControlFlow("if (!$L)", hookDef.async())
                 .addStatement("future.join()")
                 .endControlFlow();

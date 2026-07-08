@@ -12,6 +12,8 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import io.micrometer.observation.ObservationRegistry;
+import org.springframework.beans.factory.ObjectProvider;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockHttpServletRequest;
@@ -42,11 +44,27 @@ class AuthFilterTest {
         RequestContextHolder.resetRequestAttributes();
     }
 
+    /** Wraps a fixed {@link ObservationRegistry} as the {@link ObjectProvider} AuthFilter's
+     * constructor now expects (see AuthFilter's javadoc comment on that constructor for why). */
+    private static ObjectProvider<ObservationRegistry> provider(ObservationRegistry registry) {
+        return new ObjectProvider<>() {
+            @Override
+            public ObservationRegistry getObject() {
+                return registry;
+            }
+
+            @Override
+            public ObservationRegistry getIfAvailable() {
+                return registry;
+            }
+        };
+    }
+
     @Test
     void testAuthenticatedSuccess() throws Exception {
         CredentialValidator validator = req -> ValidationResult.success("user-1");
         PrincipalMapper mapper = res -> new AperturePrincipal("user-1", "tenant-A", Collections.emptySet(), com.itsjool.aperture.spi.PrincipalKind.USER, java.util.Map.of(), Collections.emptyMap());
-        authFilter = new AuthFilter(validator, mapper, POOL_METADATA);
+        authFilter = new AuthFilter(validator, mapper, POOL_METADATA, provider(ObservationRegistry.NOOP));
 
         MockHttpServletRequest request = new MockHttpServletRequest();
         request.setRequestURI("/api/resource");
@@ -71,7 +89,7 @@ class AuthFilterTest {
     void testSuperAdminWithExplicitContext() throws Exception {
         CredentialValidator validator = req -> ValidationResult.success("admin-1");
         PrincipalMapper mapper = res -> new AperturePrincipal("admin-1", null, Collections.emptySet(), com.itsjool.aperture.spi.PrincipalKind.USER, Collections.emptyMap(), Collections.emptyMap(), java.util.Set.of(), true, false);
-        AuthFilter filter = new AuthFilter(validator, mapper, POOL_METADATA);
+        AuthFilter filter = new AuthFilter(validator, mapper, POOL_METADATA, provider(ObservationRegistry.NOOP));
 
         org.springframework.mock.web.MockHttpServletRequest request = new org.springframework.mock.web.MockHttpServletRequest();
         request.setRequestURI("/api/resource");
@@ -93,7 +111,7 @@ class AuthFilterTest {
     void testSuperAdminWithoutExplicitContextOnApiIsRejected() throws Exception {
         CredentialValidator validator = req -> ValidationResult.success("admin-1");
         PrincipalMapper mapper = res -> new AperturePrincipal("admin-1", null, Collections.emptySet(), com.itsjool.aperture.spi.PrincipalKind.USER, Collections.emptyMap(), Collections.emptyMap(), java.util.Set.of(), true, false);
-        AuthFilter filter = new AuthFilter(validator, mapper, POOL_METADATA);
+        AuthFilter filter = new AuthFilter(validator, mapper, POOL_METADATA, provider(ObservationRegistry.NOOP));
 
         org.springframework.mock.web.MockHttpServletRequest request = new org.springframework.mock.web.MockHttpServletRequest();
         request.setRequestURI("/api/resource");
@@ -112,7 +130,7 @@ class AuthFilterTest {
     void superAdminWithoutExplicitContextOnTenantScopedGeneratedApiIsRejected() throws Exception {
         CredentialValidator validator = req -> ValidationResult.success("admin-1");
         PrincipalMapper mapper = res -> new AperturePrincipal("admin-1", null, Collections.emptySet(), com.itsjool.aperture.spi.PrincipalKind.USER, Collections.emptyMap(), Collections.emptyMap(), java.util.Set.of(), true, false);
-        AuthFilter filter = new AuthFilter(validator, mapper, SCOPED_METADATA);
+        AuthFilter filter = new AuthFilter(validator, mapper, SCOPED_METADATA, provider(ObservationRegistry.NOOP));
 
         MockHttpServletRequest request = new MockHttpServletRequest();
         request.setRequestURI("/api/v1/customers");
@@ -130,7 +148,7 @@ class AuthFilterTest {
     void superAdminWithoutExplicitContextOnGlobalGeneratedApiIsAllowed() throws Exception {
         CredentialValidator validator = req -> ValidationResult.success("admin-1");
         PrincipalMapper mapper = res -> new AperturePrincipal("admin-1", null, Collections.emptySet(), com.itsjool.aperture.spi.PrincipalKind.USER, Collections.emptyMap(), Collections.emptyMap(), java.util.Set.of(), true, false);
-        AuthFilter filter = new AuthFilter(validator, mapper, SCOPED_METADATA);
+        AuthFilter filter = new AuthFilter(validator, mapper, SCOPED_METADATA, provider(ObservationRegistry.NOOP));
 
         MockHttpServletRequest request = new MockHttpServletRequest();
         request.setRequestURI("/api/v1/system-settings");
@@ -150,7 +168,7 @@ class AuthFilterTest {
     void testNonSuperAdminWithExplicitContextIsRejected() throws Exception {
         CredentialValidator validator = req -> ValidationResult.success("user-1");
         PrincipalMapper mapper = res -> new AperturePrincipal("user-1", "tenant-A", Collections.emptySet(), com.itsjool.aperture.spi.PrincipalKind.USER, Collections.emptyMap(), Collections.emptyMap());
-        AuthFilter filter = new AuthFilter(validator, mapper, POOL_METADATA);
+        AuthFilter filter = new AuthFilter(validator, mapper, POOL_METADATA, provider(ObservationRegistry.NOOP));
 
         org.springframework.mock.web.MockHttpServletRequest request = new org.springframework.mock.web.MockHttpServletRequest();
         request.setRequestURI("/api/resource");
@@ -174,7 +192,7 @@ class AuthFilterTest {
         // scopedBy field can never match.
         CredentialValidator validator = req -> ValidationResult.success("user-1");
         PrincipalMapper mapper = res -> new AperturePrincipal("user-1", "tenant-A", Collections.emptySet(), com.itsjool.aperture.spi.PrincipalKind.USER, java.util.Map.of(), Collections.emptyMap());
-        authFilter = new AuthFilter(validator, mapper, POOL_METADATA);
+        authFilter = new AuthFilter(validator, mapper, POOL_METADATA, provider(ObservationRegistry.NOOP));
 
         MockHttpServletRequest request = new MockHttpServletRequest();
         request.setRequestURI("/api/resource");
@@ -200,7 +218,7 @@ class AuthFilterTest {
     void testDownstreamExceptionClearsContext() throws Exception {
         CredentialValidator validator = req -> ValidationResult.success("user-1");
         PrincipalMapper mapper = res -> new AperturePrincipal("user-1", "tenant-A", Collections.emptySet(), com.itsjool.aperture.spi.PrincipalKind.USER, java.util.Map.of(), Collections.emptyMap());
-        authFilter = new AuthFilter(validator, mapper, POOL_METADATA);
+        authFilter = new AuthFilter(validator, mapper, POOL_METADATA, provider(ObservationRegistry.NOOP));
 
         MockHttpServletRequest request = new MockHttpServletRequest();
         request.setRequestURI("/api/resource");
@@ -220,7 +238,7 @@ class AuthFilterTest {
     void testInvalidCredential() throws Exception {
         CredentialValidator validator = req -> ValidationResult.failure("Invalid");
         PrincipalMapper mapper = res -> null;
-        authFilter = new AuthFilter(validator, mapper, POOL_METADATA);
+        authFilter = new AuthFilter(validator, mapper, POOL_METADATA, provider(ObservationRegistry.NOOP));
 
         MockHttpServletRequest request = new MockHttpServletRequest();
         request.setRequestURI("/api/resource");
@@ -241,7 +259,7 @@ class AuthFilterTest {
     void testPublicEndpoint() throws Exception {
         CredentialValidator validator = req -> null; // fallthrough
         PrincipalMapper mapper = res -> null;
-        authFilter = new AuthFilter(validator, mapper, POOL_METADATA);
+        authFilter = new AuthFilter(validator, mapper, POOL_METADATA, provider(ObservationRegistry.NOOP));
 
         MockHttpServletRequest request = new MockHttpServletRequest();
         request.setRequestURI("/auth/login");
@@ -264,7 +282,7 @@ class AuthFilterTest {
     void testSequentialRequestsOnReusedThread() throws Exception {
         CredentialValidator validator = req -> "pass".equals(req.getHeader("Auth")) ? ValidationResult.success("user-1") : null;
         PrincipalMapper mapper = res -> new AperturePrincipal("user-1", "tenant-A", Collections.emptySet(), com.itsjool.aperture.spi.PrincipalKind.USER, java.util.Map.of(), Collections.emptyMap());
-        authFilter = new AuthFilter(validator, mapper, POOL_METADATA);
+        authFilter = new AuthFilter(validator, mapper, POOL_METADATA, provider(ObservationRegistry.NOOP));
 
         // First request: Authenticated
         MockHttpServletRequest request1 = new MockHttpServletRequest();
@@ -294,7 +312,7 @@ class AuthFilterTest {
         CredentialValidator validator = req -> ValidationResult.success("user-1");
         PrincipalMapper mapper = res -> new AperturePrincipal(
                 "user-1", "tenant-A", Collections.emptySet(), com.itsjool.aperture.spi.PrincipalKind.USER, Collections.emptyMap(), java.util.Map.of());
-        authFilter = new AuthFilter(validator, mapper, POOL_METADATA);
+        authFilter = new AuthFilter(validator, mapper, POOL_METADATA, provider(ObservationRegistry.NOOP));
 
         MockHttpServletRequest request = new MockHttpServletRequest();
         request.setRequestURI("/api/resource");
@@ -307,12 +325,90 @@ class AuthFilterTest {
     }
 
     @Test
+    void stashesTenantIdAsRequestAttributeSoItSurvivesTheFinallyClear() throws Exception {
+        // ApertureObservationFilter reads the tenant id from a request attribute (not
+        // TenantContextHolder) because it runs when the observation stops, which is after this
+        // filter's finally-block TenantContextHolder.clear(). The attribute must still be
+        // readable from the request at that point.
+        CredentialValidator validator = req -> ValidationResult.success("user-1");
+        PrincipalMapper mapper = res -> new AperturePrincipal("user-1", "tenant-A", Collections.emptySet(), com.itsjool.aperture.spi.PrincipalKind.USER, java.util.Map.of(), Collections.emptyMap());
+        authFilter = new AuthFilter(validator, mapper, POOL_METADATA, provider(ObservationRegistry.NOOP));
+
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        request.setRequestURI("/api/resource");
+        RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(request));
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        authFilter.doFilter(request, response, (req, res) -> { });
+
+        assertEquals("tenant-A", request.getAttribute(ApertureRequestAttributes.TENANT_ID));
+        assertNull(TenantContextHolder.getTenantId()); // ThreadLocal still cleared as before
+    }
+
+    @Test
+    void stashesExplicitSuperAdminTenantContextAsRequestAttribute() throws Exception {
+        CredentialValidator validator = req -> ValidationResult.success("admin-1");
+        PrincipalMapper mapper = res -> new AperturePrincipal("admin-1", null, Collections.emptySet(), com.itsjool.aperture.spi.PrincipalKind.USER, Collections.emptyMap(), Collections.emptyMap(), java.util.Set.of(), true, false);
+        AuthFilter filter = new AuthFilter(validator, mapper, POOL_METADATA, provider(ObservationRegistry.NOOP));
+
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        request.setRequestURI("/api/resource");
+        request.addHeader("X-Aperture-Tenant-Context", "explicit-tenant-B");
+        RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(request));
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        filter.doFilter(request, response, (req, res) -> { });
+
+        assertEquals("explicit-tenant-B", request.getAttribute(ApertureRequestAttributes.TENANT_ID));
+    }
+
+    @Test
+    void stashesCurrentObservationAsRequestAttributeWhenPresent() throws Exception {
+        io.micrometer.observation.tck.TestObservationRegistry observationRegistry =
+                io.micrometer.observation.tck.TestObservationRegistry.create();
+        CredentialValidator validator = req -> ValidationResult.success("user-1");
+        PrincipalMapper mapper = res -> new AperturePrincipal("user-1", "tenant-A", Collections.emptySet(), com.itsjool.aperture.spi.PrincipalKind.USER, java.util.Map.of(), Collections.emptyMap());
+        AuthFilter filter = new AuthFilter(validator, mapper, POOL_METADATA, provider(observationRegistry));
+
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        request.setRequestURI("/api/resource");
+        RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(request));
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        io.micrometer.observation.Observation parent =
+                io.micrometer.observation.Observation.start("http.server.requests", observationRegistry);
+        try (io.micrometer.observation.Observation.Scope scope = parent.openScope()) {
+            filter.doFilter(request, response, (req, res) -> { });
+        } finally {
+            parent.stop();
+        }
+
+        assertEquals(parent, request.getAttribute(ApertureRequestAttributes.PARENT_OBSERVATION));
+    }
+
+    @Test
+    void doesNotStashObservationAttributeWhenNoneIsCurrent() throws Exception {
+        CredentialValidator validator = req -> ValidationResult.success("user-1");
+        PrincipalMapper mapper = res -> new AperturePrincipal("user-1", "tenant-A", Collections.emptySet(), com.itsjool.aperture.spi.PrincipalKind.USER, java.util.Map.of(), Collections.emptyMap());
+        authFilter = new AuthFilter(validator, mapper, POOL_METADATA, provider(ObservationRegistry.NOOP));
+
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        request.setRequestURI("/api/resource");
+        RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(request));
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        authFilter.doFilter(request, response, (req, res) -> { });
+
+        assertNull(request.getAttribute(ApertureRequestAttributes.PARENT_OBSERVATION));
+    }
+
+    @Test
     void noneModeDoesNotSetTenantContext() throws Exception {
         ApertureRuntimeMetadata noneMetadata = new ApertureRuntimeMetadata(
                 List.of("1"), List.of("TenantAdmin"), List.of("TenantAdmin"), null, TenancyMode.NONE, null, null);
         CredentialValidator validator = req -> ValidationResult.success("user-1");
         PrincipalMapper mapper = res -> new AperturePrincipal("user-1", "tenant-A", Collections.emptySet(), com.itsjool.aperture.spi.PrincipalKind.USER, java.util.Map.of(), Collections.emptyMap());
-        authFilter = new AuthFilter(validator, mapper, noneMetadata);
+        authFilter = new AuthFilter(validator, mapper, noneMetadata, provider(ObservationRegistry.NOOP));
 
         MockHttpServletRequest request = new MockHttpServletRequest();
         request.setRequestURI("/api/resource");

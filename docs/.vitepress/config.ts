@@ -98,6 +98,15 @@ export default defineConfig({
               ],
             },
             {
+              text: 'Observability',
+              link: '/guide/observability',
+              items: [
+                { text: 'Metrics',              link: '/guide/observability#metrics' },
+                { text: 'Distributed Tracing',  link: '/guide/observability#distributed-tracing-opentelemetry' },
+                { text: 'Configuration',        link: '/guide/observability#configuration' },
+              ],
+            },
+            {
               text: 'Build & Deploy',
               link: '/guide/build-deploy',
               items: [

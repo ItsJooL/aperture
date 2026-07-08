@@ -32,6 +32,9 @@ public class McpToolGenerator {
     private static final ClassName HASH_MAP = ClassName.get("java.util", "HashMap");
     private static final ClassName MAP      = ClassName.get("java.util", "Map");
 
+    private static final ClassName OBS_REGISTRY = ClassName.get("io.micrometer.observation", "ObservationRegistry");
+    private static final ClassName OBSERVATION  = ClassName.get("io.micrometer.observation", "Observation");
+
     public String generateForEntity(EntityDef entity, McpConfig globalConfig,
                                     McpEntityConfig entityConfig, String version) {
         List<String> tools = effectiveTools(globalConfig, entityConfig);
@@ -47,10 +50,13 @@ public class McpToolGenerator {
                 .addMember("value", "$S", "aperture.mcp.enabled")
                 .build())
             .addField(FieldSpec.builder(ADAPTER, "adapter", Modifier.PRIVATE, Modifier.FINAL).build())
+            .addField(FieldSpec.builder(OBS_REGISTRY, "observationRegistry", Modifier.PRIVATE, Modifier.FINAL).build())
             .addMethod(MethodSpec.constructorBuilder()
                 .addModifiers(Modifier.PUBLIC)
                 .addParameter(ADAPTER, "adapter")
+                .addParameter(OBS_REGISTRY, "observationRegistry")
                 .addStatement("this.adapter = adapter")
+                .addStatement("this.observationRegistry = observationRegistry")
                 .build());
 
         if (tools.contains("list"))   cls.addMethod(listMethod(entity, pluralName, apiPath));
@@ -70,7 +76,8 @@ public class McpToolGenerator {
             .addParameter(toolParam(STRING, "filter", "RSQL filter expression, e.g. name=='Acme*'"))
             .addParameter(toolParam(INTEGER, "page", "Zero-based page number (default: 0)"))
             .addParameter(toolParam(INTEGER, "pageSize", "Number of results per page (default: 20, max: 100)"))
-            .addStatement("return adapter.get($S, filter, page, pageSize)", apiPath)
+            .addStatement("return $T.createNotStarted($S, observationRegistry).lowCardinalityKeyValue($S, $S).lowCardinalityKeyValue($S, $S).observe(() -> adapter.get($S, filter, page, pageSize))",
+                OBSERVATION, "aperture.mcp.tool_call", "tool.name", "list_" + pluralName.toLowerCase(), "server.name", "aperture-mcp", apiPath)
             .build();
     }
 
@@ -80,7 +87,8 @@ public class McpToolGenerator {
             .returns(STRING)
             .addAnnotation(toolAnnotation("get_" + entity.name().toLowerCase(), toolDescription("get", entity)))
             .addParameter(toolParam(STRING, "id", "UUID of the " + entity.name().toLowerCase() + " to retrieve"))
-            .addStatement("return adapter.get($S + id)", apiPath + "/")
+            .addStatement("return $T.createNotStarted($S, observationRegistry).lowCardinalityKeyValue($S, $S).lowCardinalityKeyValue($S, $S).observe(() -> adapter.get($S + id))",
+                OBSERVATION, "aperture.mcp.tool_call", "tool.name", "get_" + entity.name().toLowerCase(), "server.name", "aperture-mcp", apiPath + "/")
             .build();
     }
 
@@ -102,8 +110,8 @@ public class McpToolGenerator {
         for (ParamMapping mapping : mappings) {
             m.addStatement("attrs.put($S, $L)", mapping.fieldName(), mapping.paramName());
         }
-        m.addStatement("return adapter.post($S, adapter.buildBody($S, null, attrs))",
-            apiPath, pluralName.toLowerCase());
+        m.addStatement("return $T.createNotStarted($S, observationRegistry).lowCardinalityKeyValue($S, $S).lowCardinalityKeyValue($S, $S).observe(() -> adapter.post($S, adapter.buildBody($S, null, attrs)))",
+            OBSERVATION, "aperture.mcp.tool_call", "tool.name", "create_" + entity.name().toLowerCase(), "server.name", "aperture-mcp", apiPath, pluralName.toLowerCase());
         return m.build();
     }
 
@@ -129,8 +137,8 @@ public class McpToolGenerator {
                 .addStatement("attrs.put($S, $L)", mapping.fieldName(), mapping.paramName())
                 .endControlFlow();
         }
-        m.addStatement("return adapter.patch($S + id, adapter.buildBody($S, id, attrs))",
-            apiPath + "/", pluralName.toLowerCase());
+        m.addStatement("return $T.createNotStarted($S, observationRegistry).lowCardinalityKeyValue($S, $S).lowCardinalityKeyValue($S, $S).observe(() -> adapter.patch($S + id, adapter.buildBody($S, id, attrs)))",
+            OBSERVATION, "aperture.mcp.tool_call", "tool.name", "update_" + entity.name().toLowerCase(), "server.name", "aperture-mcp", apiPath + "/", pluralName.toLowerCase());
         return m.build();
     }
 
@@ -142,7 +150,8 @@ public class McpToolGenerator {
             .returns(STRING)
             .addAnnotation(toolAnnotation("delete_" + entity.name().toLowerCase(), toolDescription("delete", entity)))
             .addParameter(toolParam(STRING, "id", "UUID of the " + entity.name().toLowerCase() + " to delete"))
-            .addStatement("return adapter.delete($S + id)", apiPath + "/")
+            .addStatement("return $T.createNotStarted($S, observationRegistry).lowCardinalityKeyValue($S, $S).lowCardinalityKeyValue($S, $S).observe(() -> adapter.delete($S + id))",
+                OBSERVATION, "aperture.mcp.tool_call", "tool.name", "delete_" + entity.name().toLowerCase(), "server.name", "aperture-mcp", apiPath + "/")
             .build();
     }
 
