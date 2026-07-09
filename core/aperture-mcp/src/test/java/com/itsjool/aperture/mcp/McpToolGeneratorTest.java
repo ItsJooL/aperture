@@ -21,7 +21,7 @@ class McpToolGeneratorTest {
             Map.of(
                 "name", new FieldDef("String", true, false, false, false, null, null, null, null, null, null, null)
             ),
-            null, null, null, null, null
+            Map.of("Viewer", List.of("read")), null, null, null, null
         );
         McpConfig globalConfig = new McpConfig(true, "stateless", List.of("list", "get"));
 
@@ -40,7 +40,7 @@ class McpToolGeneratorTest {
             Map.of(
                 "name", new FieldDef("String", true, false, false, false, null, null, null, null, null, null, null)
             ),
-            null, null, null, null, null
+            Map.of("Viewer", List.of("read")), null, null, null, null
         );
         McpConfig globalConfig = new McpConfig(true, "stateless", List.of("list"));
 
@@ -60,7 +60,7 @@ class McpToolGeneratorTest {
                 "customer", new FieldDef("UUID", false, false, false, false, null, null, null, "ManyToOne", "Customer", null, null),
                 "attachments", new FieldDef("List", false, false, false, false, null, null, null, "OneToMany", null, "invoice", null)
             ),
-            null, null, null, null, null
+            Map.of("Admin", List.of("create")), null, null, null, null
         );
         McpConfig globalConfig = new McpConfig(true, "stateless", List.of("create"));
 
@@ -80,7 +80,7 @@ class McpToolGeneratorTest {
                 "name", new FieldDef("String", true, false, false, false, null, null, null, null, null, null, "Legal name"),
                 "email", new FieldDef("String", false, false, false, false, null, null, null, null, null, null, "Contact email")
             ),
-            null, null, null, null, null
+            Map.of("Admin", List.of("create")), null, null, null, null
         );
         McpConfig globalConfig = new McpConfig(true, "stateless", List.of("create"));
 
@@ -93,13 +93,15 @@ class McpToolGeneratorTest {
 
     @Test
     void entityConfigRestrictsTools_onlyListAndGet() {
+        // narrowing: derived and ceiling both permit all five tools, but the entity's own
+        // mcp.tools list narrows the effective set down to list/get.
         EntityDef entity = new EntityDef(
             "Customer", "Customers", null, null,
             false, false, false,
             Map.of(
                 "name", new FieldDef("String", true, false, false, false, null, null, null, null, null, null, null)
             ),
-            null, null, null, null, null
+            TestEntities.FULL_CRUD_PERMISSIONS, null, null, null, null
         );
         McpConfig globalConfig = new McpConfig(true, "stateless", List.of("list", "get", "create", "update", "delete"));
         McpEntityConfig entityConfig = new McpEntityConfig(true, List.of("list", "get"));
@@ -109,6 +111,101 @@ class McpToolGeneratorTest {
         assertThat(source)
             .contains("list_customers")
             .contains("get_customer")
+            .doesNotContain("create_customer")
+            .doesNotContain("update_customer")
+            .doesNotContain("delete_customer");
+    }
+
+    @Test
+    void ceilingBlocksAnOperationTheEntityItselfPermits() {
+        // The framework ceiling is now a hard upper bound, not a default: an entity that permits
+        // full CRUD via its own permissions still can't exceed a narrower framework ceiling.
+        EntityDef entity = new EntityDef(
+            "Customer", "Customers", null, null,
+            false, false, false,
+            Map.of(
+                "name", new FieldDef("String", true, false, false, false, null, null, null, null, null, null, null)
+            ),
+            TestEntities.FULL_CRUD_PERMISSIONS, null, null, null, null
+        );
+        McpConfig globalConfig = new McpConfig(true, "stateless", List.of("list", "get"));
+
+        String source = new McpToolGenerator().generateForEntity(entity, globalConfig, null, "1");
+
+        assertThat(source)
+            .contains("list_customers")
+            .contains("get_customer")
+            .doesNotContain("create_customer")
+            .doesNotContain("update_customer")
+            .doesNotContain("delete_customer");
+    }
+
+    @Test
+    void derivedRestrictsBeyondAnUnrestrictedCeilingAndNarrowing() {
+        // No ceiling (global null), no narrowing (entityConfig null): the only restriction left
+        // is derived(entity), from an entity that only grants read and create.
+        EntityDef entity = new EntityDef(
+            "Customer", "Customers", null, null,
+            false, false, false,
+            Map.of(
+                "name", new FieldDef("String", true, false, false, false, null, null, null, null, null, null, null)
+            ),
+            Map.of("Assistant", List.of("read", "create")), null, null, null, null
+        );
+
+        String source = new McpToolGenerator().generateForEntity(entity, null, null, "1");
+
+        assertThat(source)
+            .contains("list_customers")
+            .contains("get_customer")
+            .contains("create_customer")
+            .doesNotContain("update_customer")
+            .doesNotContain("delete_customer");
+    }
+
+    @Test
+    void entityToolsCannotWidenPastWhatDerivedPermits_evenWhenListedExplicitly() {
+        // The one precision that matters: an entity's own mcp.tools list is a narrowing, never a
+        // grant. Listing "delete" here must not produce a delete tool when nothing in permissions/
+        // policies/publicOperations reaches the delete operation. (DomainModelValidator separately
+        // rejects this manifest shape outright; this test pins the generator's math regardless.)
+        EntityDef entity = new EntityDef(
+            "Customer", "Customers", null, null,
+            false, false, false,
+            Map.of(
+                "name", new FieldDef("String", true, false, false, false, null, null, null, null, null, null, null)
+            ),
+            Map.of("Viewer", List.of("read")), null, null, null, null
+        );
+        McpEntityConfig entityConfig = new McpEntityConfig(true, List.of("list", "get", "delete"));
+
+        String source = new McpToolGenerator().generateForEntity(entity, null, entityConfig, "1");
+
+        assertThat(source)
+            .contains("list_customers")
+            .contains("get_customer")
+            .doesNotContain("delete_customer");
+    }
+
+    @Test
+    void entityWithNoAccessRulesAtAll_derivesNoTools() {
+        // The framework is default-deny: an entity with no permissions, policies, or
+        // publicOperations at all derives zero MCP tools, matching the fact that CodeGenerator
+        // would emit Prefab.Role.None for every operation on it.
+        EntityDef entity = new EntityDef(
+            "Customer", "Customers", null, null,
+            false, false, false,
+            Map.of(
+                "name", new FieldDef("String", true, false, false, false, null, null, null, null, null, null, null)
+            ),
+            null, null, null, null, null
+        );
+
+        String source = new McpToolGenerator().generateForEntity(entity, null, null, "1");
+
+        assertThat(source)
+            .doesNotContain("list_customers")
+            .doesNotContain("get_customer")
             .doesNotContain("create_customer")
             .doesNotContain("update_customer")
             .doesNotContain("delete_customer");
@@ -143,7 +240,7 @@ class McpToolGeneratorTest {
             "Widget", null, null, null,
             false, false, false,
             Map.of("name", new FieldDef("String", true, false, false, false, null, null, null, null, null, null, null)),
-            null, null, null, null, null
+            Map.of("Viewer", List.of("read")), null, null, null, null
         );
         McpConfig globalConfig = new McpConfig(true, "stateless", List.of("list"));
 
@@ -160,7 +257,7 @@ class McpToolGeneratorTest {
             "Invoice", "invoices", "An invoice", null,
             false, false, false,
             Map.of("amount", new FieldDef("decimal", true, false, false, false, null, null, null, null, null, null, null)),
-            null, null, null, null, null
+            TestEntities.FULL_CRUD_PERMISSIONS, null, null, null, null
         );
 
         String source = new McpToolGenerator().generateForEntity(entity, null, null, "3");
@@ -185,7 +282,7 @@ class McpToolGeneratorTest {
             "Customer", "customers", null, null,
             false, false, false,
             Map.of("name", new FieldDef("String", true, false, false, false, null, null, null, null, null, null, "Full name")),
-            null, null, null, null, null
+            TestEntities.FULL_CRUD_PERMISSIONS, null, null, null, null
         );
 
         String source = new McpToolGenerator().generateForEntity(entity, null, null, "1");
@@ -247,7 +344,7 @@ class McpToolGeneratorTest {
             Map.of(
                 "customer", TestEntities.manyToOneField("Customer")
             ),
-            null, null, null, null, null
+            Map.of("Admin", List.of("create")), null, null, null, null
         );
         McpConfig globalConfig = new McpConfig(true, "stateless", List.of("create"));
 
@@ -272,5 +369,29 @@ class McpToolGeneratorTest {
         assertThat(source).contains("aperture.mcp.enabled");
         assertThat(source).contains("public class OrderV1McpTools");
         assertThat(source).contains("package com.itsjool.aperture.generated.mcp");
+    }
+
+    /**
+     * Manifest validation accepts any casing for tool names, so the ceiling and narrowing bounds
+     * must be compared case-insensitively. Comparing the raw manifest strings against the
+     * lower-cased vocabulary silently yields an empty tool set instead.
+     */
+    @Test
+    void toolNamesAreCaseInsensitiveInBothTheCeilingAndTheNarrowing() {
+        EntityDef entity = new EntityDef(
+            "Widget", "Widgets", null, null,
+            false, false, false,
+            Map.of("name", new FieldDef("String", true, false, false, false, null, null, null, null, null, null, null)),
+            Map.of("Admin", List.of("create", "read", "update", "delete")),
+            null, null, null, null
+        );
+        McpConfig mixedCaseCeiling = new McpConfig(true, "stateless", List.of("List", "GET", "create"));
+        McpEntityConfig mixedCaseNarrowing = new McpEntityConfig(null, List.of("LIST", "Get"));
+
+        assertThat(new McpToolGenerator().effectiveTools(mixedCaseCeiling, entity, mixedCaseNarrowing))
+            .containsExactly("list", "get");
+
+        assertThat(new McpToolGenerator().effectiveTools(mixedCaseCeiling, entity, null))
+            .containsExactly("list", "get", "create");
     }
 }

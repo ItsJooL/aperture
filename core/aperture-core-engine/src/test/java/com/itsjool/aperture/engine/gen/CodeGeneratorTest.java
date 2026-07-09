@@ -290,6 +290,22 @@ class CodeGeneratorTest {
     }
 
     @Test
+    void unreachableOperation_stillEmitsPrefabRoleNone() {
+        // Pins CodeGenerator's delegation to EntityOperations.reachableOperations (plan 016): an
+        // entity that declares a role for "read" only must still collapse "delete" to
+        // Prefab.Role.None, exactly as before the refactor that introduced the shared predicate.
+        EntityDef entity = new EntityDef("Widget", "widgets", null, null, false, false, false,
+            Map.of(), Map.of("Viewer", List.of("read")), Map.of(), List.of(), Map.of(), Map.of());
+
+        List<String> classes = new CodeGenerator().generateForEntity(entity, TenancyMode.NONE, List.of("1"));
+        String joined = String.join("\n\n", classes);
+
+        // SuperAdminCheck is always OR'd in separately, on top of the per-op expression; the
+        // op-level expression itself — what EntityOperations decides — is Prefab.Role.None.
+        assertThat(joined).contains("expression = \"SuperAdminCheck OR Prefab.Role.None\"");
+    }
+
+    @Test
     void semanticMutateUsesPrecommitEnrichmentPath() {
         EntityDef customer = new EntityDef("Customer", "customers", null, null, false, false, false,
             Map.of(), Map.of(), Map.of(), List.of(), Map.of(),

@@ -1,6 +1,7 @@
 package com.itsjool.aperture.mcp;
 
 import com.itsjool.aperture.engine.model.EntityDef;
+import com.itsjool.aperture.engine.model.EntityOperations;
 import com.itsjool.aperture.engine.model.FieldDef;
 import com.itsjool.aperture.engine.model.McpConfig;
 import com.itsjool.aperture.engine.model.McpEntityConfig;
@@ -20,7 +21,7 @@ import java.util.Map;
 public class McpToolGenerator {
 
     private static final String PKG = "com.itsjool.aperture.generated.mcp";
-    private static final List<String> ALL_OPS = List.of("list", "get", "create", "update", "delete");
+    private static final List<String> ALL_OPS = EntityOperations.MCP_TOOLS;
 
     private static final ClassName ADAPTER  = ClassName.get("com.itsjool.aperture.mcp", "McpRequestAdapter");
     private static final ClassName TOOL     = ClassName.get("org.springframework.ai.tool.annotation", "Tool");
@@ -55,7 +56,7 @@ public class McpToolGenerator {
     public String generateForEntity(EntityDef entity, McpConfig globalConfig,
                                     McpEntityConfig entityConfig, String version,
                                     Map<String, String> resourceTypesByEntity) {
-        List<String> tools = effectiveTools(globalConfig, entityConfig);
+        List<String> tools = effectiveTools(globalConfig, entity, entityConfig);
         String entityName  = entity.name();
         String pluralName  = resourceTypeOf(entityName, entity.plural());
         String className   = entityName + "V" + version + "McpTools";
@@ -268,10 +269,40 @@ public class McpToolGenerator {
         return "ManyToOne".equals(field.relation()) ? fieldName + "_id" : fieldName;
     }
 
-    private List<String> effectiveTools(McpConfig global, McpEntityConfig entity) {
-        if (entity != null && entity.tools() != null) return entity.tools();
-        if (global != null && global.tools() != null && !global.tools().isEmpty()) return global.tools();
-        return ALL_OPS;
+    /**
+     * The effective MCP tool set for {@code entity}: {@code derived(entity) ∩ ceiling ∩ narrowing}
+     * (plan 016).
+     *
+     * <ul>
+     *   <li>{@code derived(entity)} — the tools {@link EntityOperations#derivedMcpTools(EntityDef)}
+     *       says the entity's own roles, policies, and {@code publicOperations} already permit.
+     *       This is never widened by configuration; every knob below only restricts it further.
+     *   <li>{@code ceiling} — {@code global.tools()}, if present and non-empty; otherwise no
+     *       ceiling (all five tools). This used to be a <em>default</em> that an entity's {@code
+     *       tools} replaced wholesale; it is now a hard upper bound nothing can widen past.
+     *   <li>{@code narrowing} — {@code entity.tools()}, if present; otherwise no narrowing (all
+     *       five tools).
+     * </ul>
+     *
+     * <p>The result is ordered per {@link EntityOperations#MCP_TOOLS} regardless of the input
+     * lists' order, so generation is deterministic.
+     */
+    public List<String> effectiveTools(McpConfig global, EntityDef entity, McpEntityConfig entityConfig) {
+        java.util.Set<String> derived = EntityOperations.derivedMcpTools(entity);
+        // Manifest tool names are case-insensitive, so both bounds must be normalized before
+        // comparison against the lower-cased MCP_TOOLS vocabulary.
+        java.util.Set<String> ceiling = (global != null && global.tools() != null && !global.tools().isEmpty())
+            ? EntityOperations.normalizedOps(global.tools()) : java.util.Set.copyOf(ALL_OPS);
+        java.util.Set<String> narrowing = (entityConfig != null && entityConfig.tools() != null)
+            ? EntityOperations.normalizedOps(entityConfig.tools()) : java.util.Set.copyOf(ALL_OPS);
+
+        List<String> effective = new ArrayList<>();
+        for (String tool : ALL_OPS) {
+            if (derived.contains(tool) && ceiling.contains(tool) && narrowing.contains(tool)) {
+                effective.add(tool);
+            }
+        }
+        return effective;
     }
 
     private static String cap(String s) {
