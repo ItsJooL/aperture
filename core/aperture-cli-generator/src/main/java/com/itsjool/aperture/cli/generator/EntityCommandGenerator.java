@@ -403,6 +403,11 @@ class EntityCommandGenerator {
                                     FileOps.FieldSpec fs = spec.fields().get(key);
                                     if (fs == null) { continue; }
                                     if (fs.isRel()) {
+                                        if (fs.oneOf()) {
+                                            java.util.Map<String, Object> rd = FileOps.oneOfRelationshipData(val, false);
+                                            rels.put(key, java.util.Map.of("data", rd));
+                                            continue;
+                                        }
                                         if (!fs.manyToOne()) continue;
                                         String relId = FileOps.resolveRelId(val.toString(), fs.targetPath(), fs.naturalKey(), relCache, versionPrefix, client);
                                         if (relId == null) {
@@ -532,6 +537,11 @@ class EntityCommandGenerator {
                                     FileOps.FieldSpec fs = spec.fields().get(key);
                                     if (fs == null) { continue; }
                                     if (fs.isRel()) {
+                                        if (fs.oneOf()) {
+                                            java.util.Map<String, Object> rd = FileOps.oneOfRelationshipData(val, false);
+                                            rels.put(key, java.util.Map.of("data", rd));
+                                            continue;
+                                        }
                                         if (!fs.manyToOne()) continue;
                                         String relId = FileOps.resolveRelId(val.toString(), fs.targetPath(), fs.naturalKey(), relCache, versionPrefix, client);
                                         if (relId == null) {
@@ -713,7 +723,7 @@ class EntityCommandGenerator {
         for (Map.Entry<String, FieldDef> entry : entity.fields().entrySet()) {
             String name = entry.getKey();
             FieldDef field = entry.getValue();
-            if ("ref".equals(field.type())) continue;
+            if ("ref".equals(field.type()) || isOneOf(field)) continue;
             m.beginControlFlow("if ($L != null)", camel(name));
             m.addStatement("attrs.put($S, $L)", name, camel(name));
             m.endControlFlow();
@@ -725,6 +735,16 @@ class EntityCommandGenerator {
         for (Map.Entry<String, FieldDef> entry : entity.fields().entrySet()) {
             String name = entry.getKey();
             FieldDef field = entry.getValue();
+            if (isOneOf(field)) {
+                String camelName = camel(name);
+                m.beginControlFlow("if ($L != null && $L != null)", camelName + "Type", camelName + "Id");
+                m.addStatement("$T<$T, $T> relData = new $T<>()", Map.class, String.class, Object.class, LINKED_MAP);
+                m.addStatement("relData.put($S, $L)", "type", camelName + "Type");
+                m.addStatement("relData.put($S, $L)", "id", camelName + "Id");
+                m.addStatement("rels.put($S, $T.of($S, relData))", name, Map.class, "data");
+                m.endControlFlow();
+                continue;
+            }
             if (!"ref".equals(field.type())) continue;
             if (field.mappedBy() != null && !field.mappedBy().isBlank()) continue;
             String rel = field.relation() != null ? field.relation() : "";
@@ -761,7 +781,7 @@ class EntityCommandGenerator {
         for (Map.Entry<String, FieldDef> entry : entity.fields().entrySet()) {
             String name = entry.getKey();
             FieldDef field = entry.getValue();
-            if ("ref".equals(field.type())) continue;
+            if ("ref".equals(field.type()) || isOneOf(field)) continue;
             cmd.addField(FieldSpec.builder(javaType(field.type()), camel(name))
                     .addAnnotation(AnnotationSpec.builder(OPTION_ANN)
                             .addMember("names", "{$S}", "--" + kebab(name))
@@ -772,6 +792,22 @@ class EntityCommandGenerator {
         for (Map.Entry<String, FieldDef> entry : entity.fields().entrySet()) {
             String name = entry.getKey();
             FieldDef field = entry.getValue();
+            if (isOneOf(field)) {
+                String camelName = camel(name);
+                cmd.addField(FieldSpec.builder(String.class, camelName + "Type")
+                        .addAnnotation(AnnotationSpec.builder(OPTION_ANN)
+                                .addMember("names", "{$S}", "--" + kebab(name) + "-type")
+                                .addMember("description", "$S", "JSON:API resource type for " + name)
+                                .build())
+                        .build());
+                cmd.addField(FieldSpec.builder(String.class, camelName + "Id")
+                        .addAnnotation(AnnotationSpec.builder(OPTION_ANN)
+                                .addMember("names", "{$S}", "--" + kebab(name) + "-id")
+                                .addMember("description", "$S", "ID of related " + name)
+                                .build())
+                        .build());
+                continue;
+            }
             if (!"ref".equals(field.type())) continue;
             if (field.mappedBy() != null && !field.mappedBy().isBlank()) continue;
             String rel = field.relation() != null ? field.relation() : "";
@@ -800,7 +836,17 @@ class EntityCommandGenerator {
             String name = entry.getKey();
             FieldDef field = entry.getValue();
             if (!field.required()) continue;
-            if ("ref".equals(field.type())) {
+            if (isOneOf(field)) {
+                String camelName = camel(name);
+                m.beginControlFlow("if ($L == null)", camelName + "Type");
+                m.addStatement("$T.err.println($S)", System.class, "Missing required option: --" + kebab(name) + "-type");
+                m.addStatement("$T.exit(2)", System.class);
+                m.endControlFlow();
+                m.beginControlFlow("if ($L == null)", camelName + "Id");
+                m.addStatement("$T.err.println($S)", System.class, "Missing required option: --" + kebab(name) + "-id");
+                m.addStatement("$T.exit(2)", System.class);
+                m.endControlFlow();
+            } else if ("ref".equals(field.type())) {
                 if (field.mappedBy() != null && !field.mappedBy().isBlank()) continue;
                 String rel = field.relation() != null ? field.relation() : "";
                 if (rel.equalsIgnoreCase("ManyToOne") || rel.equalsIgnoreCase("ManyToManyOwner")) {
@@ -817,6 +863,10 @@ class EntityCommandGenerator {
                 m.endControlFlow();
             }
         }
+    }
+
+    private boolean isOneOf(FieldDef field) {
+        return "oneof".equals(field.type());
     }
 
     // ── Tiny builders ─────────────────────────────────────────────────────────

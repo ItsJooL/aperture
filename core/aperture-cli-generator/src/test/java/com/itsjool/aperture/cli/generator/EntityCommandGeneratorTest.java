@@ -118,6 +118,36 @@ class EntityCommandGeneratorTest {
     }
 
     @Test
+    void oneOfFieldUsesExplicitTypeAndIdOptions() {
+        EntityDef entity = entity("LineItem", "lineitems", false, Map.of(
+            "billable", new FieldDef("oneof", true, false, false, false, null, null, null, null, "Billable", null, null)
+        ));
+        String source = new EntityCommandGenerator(List.of(entity), Map.of()).generateCreateCommand();
+
+        assertThat(source)
+            .contains("String billableType")
+            .contains("String billableId")
+            .contains("Missing required option: --billable-type")
+            .contains("Missing required option: --billable-id")
+            .contains("relData.put(\"type\", billableType)")
+            .contains("relData.put(\"id\", billableId)")
+            .doesNotContain("String billable;");
+    }
+
+    @Test
+    void fileOpsRegistryMarksOneOfFieldsAsTypeAndIdRelationships() {
+        EntityDef entity = entity("LineItem", "lineitems", false, Map.of(
+            "billable", new FieldDef("oneof", false, false, false, false, null, null, null, null, "Billable", null, null)
+        ));
+        String source = CliTemplates.fileOps(List.of(entity));
+
+        assertThat(source)
+            .contains("new FieldSpec(true, true, true, null, \"billable\", null)")
+            .contains("oneOfRelationshipData")
+            .doesNotContain("\"billables\"");
+    }
+
+    @Test
     void datetimeFieldMapsToString() {
         EntityDef entity = entity("Widget", "widgets", false, Map.of(
             "createdAt", field("datetime", false)

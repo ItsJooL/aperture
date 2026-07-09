@@ -1349,6 +1349,7 @@ final class CliTemplates {
             .addStaticBlock(buildEntityRegistryBlock(entities))
             .addMethod(resolveFilesMethod())
             .addMethod(isUuidMethod())
+            .addMethod(oneOfRelationshipDataMethod())
             .addMethod(resolveRelIdMethod())
             .addMethod(lookupIdMethod())
             .addMethod(lookupIdAndEtagMethod())
@@ -1423,6 +1424,7 @@ final class CliTemplates {
             .recordConstructor(MethodSpec.constructorBuilder()
                 .addParameter(boolean.class, "isRel")
                 .addParameter(boolean.class, "manyToOne")
+                .addParameter(boolean.class, "oneOf")
                 .addParameter(String.class, "targetPath")
                 .addParameter(String.class, "yamlKey")
                 .addParameter(String.class, "naturalKey")
@@ -1497,10 +1499,13 @@ final class CliTemplates {
                         String targetClass = fd.targetClass() != null ? fd.targetClass().toLowerCase() : fname;
                         String targetPath = classToPath.getOrDefault(targetClass, targetClass + "s");
                         String targetNaturalKey = classToNaturalKey.getOrDefault(targetClass, "name");
-                        cb.addStatement("$L.put($S, new FieldSpec(true, $L, $S, $S, $S))",
+                        cb.addStatement("$L.put($S, new FieldSpec(true, $L, false, $S, $S, $S))",
                             fVar, fname, manyToOne, targetPath, fname, targetNaturalKey);
+                    } else if ("oneof".equals(fd.type())) {
+                        cb.addStatement("$L.put($S, new FieldSpec(true, true, true, null, $S, null))",
+                            fVar, fname, fname);
                     } else {
-                        cb.addStatement("$L.put($S, new FieldSpec(false, false, null, $S, null))",
+                        cb.addStatement("$L.put($S, new FieldSpec(false, false, false, null, $S, null))",
                             fVar, fname, fname);
                     }
                 }
@@ -1639,6 +1644,11 @@ final class CliTemplates {
                                 FileOps.FieldSpec fs = spec.fields().get(key);
                                 if (fs == null) continue;
                                 if (fs.isRel()) {
+                                    if (fs.oneOf()) {
+                                        Map<String, Object> relData = FileOps.oneOfRelationshipData(val, true);
+                                        rels.put(key, Map.of("data", relData));
+                                        continue;
+                                    }
                                     if (!fs.manyToOne()) continue;
                                     String strVal = val.toString();
                                     Map<String, Object> relData = new LinkedHashMap<>();
@@ -1814,6 +1824,34 @@ final class CliTemplates {
             .build();
     }
 
+    private static MethodSpec oneOfRelationshipDataMethod() {
+        return MethodSpec.methodBuilder("oneOfRelationshipData")
+            .addModifiers(Modifier.PUBLIC, Modifier.STATIC)
+            .returns(ParameterizedTypeName.get(ClassName.get(Map.class), ClassName.get(String.class), ClassName.get(Object.class)))
+            .addParameter(Object.class, "value")
+            .addParameter(boolean.class, "allowLid")
+            .addCode("""
+                if (!(value instanceof Map<?, ?> raw)) {
+                    throw new IllegalArgumentException("oneof relationship value must be a map with type and id");
+                }
+                Object type = raw.get("type");
+                Object id = raw.get("id");
+                Object lid = raw.get("lid");
+                if (type == null || (id == null && (!allowLid || lid == null))) {
+                    throw new IllegalArgumentException("oneof relationship value must include type and id");
+                }
+                Map<String, Object> data = new LinkedHashMap<>();
+                data.put("type", type.toString());
+                if (id != null) {
+                    data.put("id", id.toString());
+                } else {
+                    data.put("lid", lid.toString());
+                }
+                return data;
+                """)
+            .build();
+    }
+
     private static MethodSpec lookupIdMethod() {
         return MethodSpec.methodBuilder("lookupId")
             .addJavadoc("Search the API for a resource matching naturalKeyField=value, return its id or null.\n")
@@ -1961,6 +1999,11 @@ final class CliTemplates {
                                             FileOps.FieldSpec fs = spec.fields().get(key);
                                             if (fs == null) { /* extra fields ignored */ continue; }
                                             if (fs.isRel()) {
+                                                if (fs.oneOf()) {
+                                                    Map<String, Object> rd = FileOps.oneOfRelationshipData(val, false);
+                                                    rels.put(key, Map.of("data", rd));
+                                                    continue;
+                                                }
                                                 if (!fs.manyToOne()) continue; // OneToMany: skip, set via child
                                                 String relId = FileOps.resolveRelId(val.toString(), fs.targetPath(), fs.naturalKey(), created, versionPrefix, client);
                                                 if (relId == null) {

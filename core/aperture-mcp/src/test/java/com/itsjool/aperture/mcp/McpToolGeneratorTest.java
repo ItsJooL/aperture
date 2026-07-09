@@ -259,6 +259,28 @@ class McpToolGeneratorTest {
     }
 
     @Test
+    void oneOfField_createAndUpdateMethodsUseExplicitTypeAndIdParams() {
+        EntityDef entity = new EntityDef(
+            "LineItem", "lineitems", null, null,
+            false, false, false,
+            Map.of(
+                "billable", new FieldDef("oneof", false, false, false, false, null, null, null, null, "Billable", null, null)
+            ),
+            null, null, null, null, null
+        );
+        McpConfig globalConfig = new McpConfig(true, "stateless", List.of("create", "update"));
+
+        String source = new McpToolGenerator().generateForEntity(entity, globalConfig, null, "1");
+
+        assertThat(source)
+            .contains("String billable_type")
+            .contains("String billable_id")
+            .contains("rels.put(\"billable\", adapter.relationshipRef(billable_type, billable_id))")
+            .contains("if (billable_type != null && billable_id != null)")
+            .doesNotContain("adapter.relationshipRef(\"billables\"");
+    }
+
+    @Test
     void componentAndConditionalAnnotations_alwaysPresent() {
         EntityDef entity = new EntityDef(
             "Order", "orders", null, null,

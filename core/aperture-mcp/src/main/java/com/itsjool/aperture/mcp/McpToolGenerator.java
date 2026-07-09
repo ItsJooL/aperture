@@ -131,11 +131,19 @@ public class McpToolGenerator {
         List<ParamMapping> mappings = new ArrayList<>();
         List<RelationshipMapping> relationships = new ArrayList<>();
         for (var e : entity.fields().entrySet()) {
+            if (isOneOf(e.getValue())) {
+                String typeParam = e.getKey() + "_type";
+                String idParam = e.getKey() + "_id";
+                m.addParameter(toolParam(STRING, typeParam, "JSON:API resource type for " + e.getKey()));
+                m.addParameter(toolParam(STRING, idParam, "UUID of the related " + e.getKey()));
+                relationships.add(RelationshipMapping.oneOf(typeParam, idParam, e.getKey()));
+                continue;
+            }
             if (!isParameter(e.getValue())) continue;
             String pName = paramName(e.getKey(), e.getValue());
             m.addParameter(toolParam(STRING, pName, fieldDescription(e.getKey(), e.getValue())));
             if (isRelationship(e.getValue())) {
-                relationships.add(new RelationshipMapping(pName, e.getKey(),
+                relationships.add(RelationshipMapping.fixed(pName, e.getKey(),
                     targetResourceType(e.getValue(), resourceTypesByEntity)));
             } else {
                 mappings.add(new ParamMapping(pName, e.getKey()));
@@ -148,8 +156,13 @@ public class McpToolGenerator {
         }
         m.addStatement("$T<$T, $T> rels = new $T<>()", MAP, STRING, ClassName.get(Object.class), HASH_MAP);
         for (RelationshipMapping rel : relationships) {
-            m.addStatement("rels.put($S, adapter.relationshipRef($S, $L))",
-                rel.fieldName(), rel.targetResourceType(), rel.paramName());
+            if (rel.oneOf()) {
+                m.addStatement("rels.put($S, adapter.relationshipRef($L, $L))",
+                    rel.fieldName(), rel.typeParamName(), rel.idParamName());
+            } else {
+                m.addStatement("rels.put($S, adapter.relationshipRef($S, $L))",
+                    rel.fieldName(), rel.targetResourceType(), rel.idParamName());
+            }
         }
         m.addStatement("return $T.createNotStarted($S, observationRegistry).lowCardinalityKeyValue($S, $S).lowCardinalityKeyValue($S, $S).observe(() -> adapter.post($S, adapter.buildBody($S, null, attrs, rels)))",
             OBSERVATION, "aperture.mcp.tool_call", "tool.name", "create_" + entity.name().toLowerCase(), "server.name", "aperture-mcp", apiPath, pluralName);
@@ -167,12 +180,20 @@ public class McpToolGenerator {
         List<ParamMapping> mappings = new ArrayList<>();
         List<RelationshipMapping> relationships = new ArrayList<>();
         for (var e : entity.fields().entrySet()) {
+            if (isOneOf(e.getValue())) {
+                String typeParam = e.getKey() + "_type";
+                String idParam = e.getKey() + "_id";
+                m.addParameter(toolParam(STRING, typeParam, "JSON:API resource type for " + e.getKey()));
+                m.addParameter(toolParam(STRING, idParam, "UUID of the related " + e.getKey()));
+                relationships.add(RelationshipMapping.oneOf(typeParam, idParam, e.getKey()));
+                continue;
+            }
             if (!isParameter(e.getValue())) continue;
             String pName = paramName(e.getKey(), e.getValue());
             String desc = fieldDescription(e.getKey(), e.getValue()).replace(" (required)", "");
             m.addParameter(toolParam(STRING, pName, desc));
             if (isRelationship(e.getValue())) {
-                relationships.add(new RelationshipMapping(pName, e.getKey(),
+                relationships.add(RelationshipMapping.fixed(pName, e.getKey(),
                     targetResourceType(e.getValue(), resourceTypesByEntity)));
             } else {
                 mappings.add(new ParamMapping(pName, e.getKey()));
@@ -189,10 +210,17 @@ public class McpToolGenerator {
         for (RelationshipMapping rel : relationships) {
             // A null id means the caller omitted this relationship param on a partial update —
             // skip it entirely so buildBody doesn't touch the existing linked record.
-            m.beginControlFlow("if ($L != null)", rel.paramName())
-                .addStatement("rels.put($S, adapter.relationshipRef($S, $L))",
-                    rel.fieldName(), rel.targetResourceType(), rel.paramName())
-                .endControlFlow();
+            if (rel.oneOf()) {
+                m.beginControlFlow("if ($L != null && $L != null)", rel.typeParamName(), rel.idParamName())
+                    .addStatement("rels.put($S, adapter.relationshipRef($L, $L))",
+                        rel.fieldName(), rel.typeParamName(), rel.idParamName())
+                    .endControlFlow();
+            } else {
+                m.beginControlFlow("if ($L != null)", rel.idParamName())
+                    .addStatement("rels.put($S, adapter.relationshipRef($S, $L))",
+                        rel.fieldName(), rel.targetResourceType(), rel.idParamName())
+                    .endControlFlow();
+            }
         }
         m.addStatement("return $T.createNotStarted($S, observationRegistry).lowCardinalityKeyValue($S, $S).lowCardinalityKeyValue($S, $S).observe(() -> adapter.patch($S + id, adapter.buildBody($S, id, attrs, rels)))",
             OBSERVATION, "aperture.mcp.tool_call", "tool.name", "update_" + entity.name().toLowerCase(), "server.name", "aperture-mcp", apiPath + "/", pluralName);
@@ -203,6 +231,10 @@ public class McpToolGenerator {
         return "ManyToOne".equals(field.relation());
     }
 
+    private boolean isOneOf(FieldDef field) {
+        return "oneof".equals(field.type());
+    }
+
     private String targetResourceType(FieldDef field, Map<String, String> resourceTypesByEntity) {
         String targetEntity = field.targetClass();
         String resolved = resourceTypesByEntity != null ? resourceTypesByEntity.get(targetEntity) : null;
@@ -211,7 +243,16 @@ public class McpToolGenerator {
 
     private record ParamMapping(String paramName, String fieldName) {}
 
-    private record RelationshipMapping(String paramName, String fieldName, String targetResourceType) {}
+    private record RelationshipMapping(String typeParamName, String idParamName, String fieldName,
+                                       String targetResourceType, boolean oneOf) {
+        static RelationshipMapping fixed(String idParamName, String fieldName, String targetResourceType) {
+            return new RelationshipMapping(null, idParamName, fieldName, targetResourceType, false);
+        }
+
+        static RelationshipMapping oneOf(String typeParamName, String idParamName, String fieldName) {
+            return new RelationshipMapping(typeParamName, idParamName, fieldName, null, true);
+        }
+    }
 
     private MethodSpec deleteMethod(EntityDef entity, String apiPath) {
         return MethodSpec.methodBuilder("delete" + entity.name())
