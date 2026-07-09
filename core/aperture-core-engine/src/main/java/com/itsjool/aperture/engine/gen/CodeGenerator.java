@@ -6,6 +6,7 @@ import com.itsjool.aperture.engine.hook.HookSemanticsResolver;
 import com.itsjool.aperture.engine.model.EntityDef;
 import com.itsjool.aperture.engine.model.FieldDef;
 import com.itsjool.aperture.engine.model.HookDef;
+import com.itsjool.aperture.engine.model.OneOfDef;
 import com.palantir.javapoet.ClassName;
 import com.palantir.javapoet.FieldSpec;
 import com.palantir.javapoet.JavaFile;
@@ -32,6 +33,11 @@ public class CodeGenerator {
 
     public List<String> generateForEntity(EntityDef entityDef, TenancyMode tenancyMode, List<String> activeVersions,
                                           Map<String, EntityDef> allEntities) {
+        return generateForEntity(entityDef, tenancyMode, activeVersions, allEntities, List.of());
+    }
+
+    public List<String> generateForEntity(EntityDef entityDef, TenancyMode tenancyMode, List<String> activeVersions,
+                                          Map<String, EntityDef> allEntities, List<OneOfDef> oneOfs) {
         List<String> generated = new ArrayList<>();
         
         if (entityDef.fields() != null) {
@@ -44,7 +50,7 @@ public class CodeGenerator {
         
         for (String version : activeVersions) {
             generated.add(generatePackageInfo(version));
-            generated.add(generateEntityForVersion(entityDef, tenancyMode, version, allEntities));
+            generated.add(generateEntityForVersion(entityDef, tenancyMode, version, allEntities, oneOfs));
             if (tenancyMode == com.itsjool.aperture.engine.config.TenancyMode.POOL && entityDef.tenantScoped()) {
                 generated.add(generateFilterCheck(entityDef, "TenantFilter", "apertureTenantId", true, version));
                 generated.add(generateTenantIdSetterHook(entityDef, version));
@@ -73,13 +79,51 @@ public class CodeGenerator {
         return generated;
     }
 
+    public List<String> generateOneOfInterfaces(List<OneOfDef> oneOfs, List<String> activeVersions) {
+        List<String> generated = new ArrayList<>();
+        if (oneOfs == null) {
+            return generated;
+        }
+        for (String version : activeVersions) {
+            for (OneOfDef oneOf : oneOfs) {
+                TypeSpec oneOfInterface = TypeSpec.interfaceBuilder(oneOf.name() + "V" + version)
+                    .addModifiers(Modifier.PUBLIC)
+                    .build();
+                generated.add(JavaFile.builder("com.itsjool.aperture.generated.v" + version, oneOfInterface)
+                    .build()
+                    .toString());
+            }
+        }
+        return generated;
+    }
+
     private String generatePackageInfo(String version) {
         String pkg = "com.itsjool.aperture.generated.v" + version;
         return "/* package-info */\n@com.yahoo.elide.annotation.ApiVersion(version = \"" + version + "\")\npackage " + pkg + ";\n";
     }
 
+    private List<OneOfDef> containingOneOfs(EntityDef entityDef, List<OneOfDef> oneOfs) {
+        if (oneOfs == null) {
+            return List.of();
+        }
+        return oneOfs.stream()
+            .filter(oneOf -> oneOf.members().contains(entityDef.name()))
+            .toList();
+    }
+
+    private OneOfDef findOneOf(String name, List<OneOfDef> oneOfs) {
+        if (oneOfs != null) {
+            for (OneOfDef oneOf : oneOfs) {
+                if (oneOf.name().equals(name)) {
+                    return oneOf;
+                }
+            }
+        }
+        throw new IllegalArgumentException("Unknown oneof target: " + name);
+    }
+
     private String generateEntityForVersion(EntityDef entityDef, TenancyMode tenancyMode, String version,
-                                            Map<String, EntityDef> allEntities) {
+                                            Map<String, EntityDef> allEntities, List<OneOfDef> oneOfs) {
         ClassName entityAnnotation = ClassName.get("jakarta.persistence", "Entity");
         ClassName idAnnotation = ClassName.get("jakarta.persistence", "Id");
         
@@ -102,6 +146,10 @@ public class CodeGenerator {
             .addAnnotation(com.palantir.javapoet.AnnotationSpec.builder(ClassName.get("com.yahoo.elide.annotation", "Include"))
                 .addMember("name", "$S", entityDef.plural() != null ? entityDef.plural().toLowerCase() : entityDef.name().toLowerCase() + "s")
                 .build());
+
+        for (OneOfDef oneOf : containingOneOfs(entityDef, oneOfs)) {
+            typeBuilder.addSuperinterface(ClassName.get("com.itsjool.aperture.generated.v" + version, oneOf.name() + "V" + version));
+        }
 
         String tenantCheck = (tenancyMode == TenancyMode.POOL && entityDef.tenantScoped()) ? entityDef.name() + "V" + version + "TenantFilter" : null;
         String scopeCheck = entityDef.scopedBy() != null ? entityDef.name() + "V" + version + "ScopeFilter" : null;
@@ -271,7 +319,32 @@ public class CodeGenerator {
 
                 FieldSpec.Builder fieldBuilder;
                 com.palantir.javapoet.TypeName fieldTypeName = null;
-                if (field.targetClass() != null) {
+                if ("oneof".equalsIgnoreCase(field.type())) {
+                    OneOfDef oneOf = findOneOf(field.targetClass(), oneOfs);
+                    fieldTypeName = ClassName.get("com.itsjool.aperture.generated.v" + version, field.targetClass() + "V" + version);
+                    fieldBuilder = FieldSpec.builder(fieldTypeName, fieldName, Modifier.PRIVATE)
+                        .addAnnotation(com.palantir.javapoet.AnnotationSpec.builder(ClassName.get("org.hibernate.annotations", "Any"))
+                            .addMember("optional", "$L", !field.required())
+                            .build())
+                        .addAnnotation(com.palantir.javapoet.AnnotationSpec.builder(ClassName.get("org.hibernate.annotations", "AnyDiscriminator"))
+                            .addMember("value", "$T.STRING", ClassName.get("jakarta.persistence", "DiscriminatorType"))
+                            .build())
+                        .addAnnotation(com.palantir.javapoet.AnnotationSpec.builder(ClassName.get("org.hibernate.annotations", "AnyKeyJavaClass"))
+                            .addMember("value", "$T.class", UUID.class)
+                            .build())
+                        .addAnnotation(com.palantir.javapoet.AnnotationSpec.builder(ClassName.get("jakarta.persistence", "Column"))
+                            .addMember("name", "$S", fieldName + "_type")
+                            .build())
+                        .addAnnotation(com.palantir.javapoet.AnnotationSpec.builder(ClassName.get("jakarta.persistence", "JoinColumn"))
+                            .addMember("name", "$S", fieldName + "_id")
+                            .build());
+                    for (String member : oneOf.members()) {
+                        fieldBuilder.addAnnotation(com.palantir.javapoet.AnnotationSpec.builder(ClassName.get("org.hibernate.annotations", "AnyDiscriminatorValue"))
+                            .addMember("discriminator", "$S", member)
+                            .addMember("entity", "$T.class", ClassName.get("com.itsjool.aperture.generated.v" + version, member + "V" + version))
+                            .build());
+                    }
+                } else if (field.targetClass() != null) {
                     if ("OneToMany".equals(field.relation()) || "ManyToMany".equals(field.relation())) {
                         fieldTypeName = ParameterizedTypeName.get(ClassName.get(java.util.Set.class), ClassName.get("com.itsjool.aperture.generated.v" + version, field.targetClass() + "V" + version));
                     } else {

@@ -59,13 +59,14 @@ public class ChangesetGenerator {
             if ("ref".equals(field.type()) && !isOwningReference(field)) {
                 continue;
             }
-            String columnName = "ref".equals(field.type()) ? entry.getKey() + "_id" : entry.getKey();
-            sb.append(String.format("            <column name=\"%s\" type=\"%s\">\n",
-                columnName, toDbType(field.type())));
-            if (field.required()) {
-                sb.append("                <constraints nullable=\"false\"/>\n");
+            for (FieldColumn column : physicalColumns(entry.getKey(), field)) {
+                sb.append(String.format("            <column name=\"%s\" type=\"%s\">\n",
+                    column.name(), column.type()));
+                if (field.required()) {
+                    sb.append("                <constraints nullable=\"false\"/>\n");
+                }
+                sb.append("            </column>\n");
             }
-            sb.append("            </column>\n");
         }
         if (entity.optimisticLocking()) {
             sb.append("            <column name=\"version\" type=\"INTEGER\" defaultValue=\"0\">\n");
@@ -96,10 +97,9 @@ public class ChangesetGenerator {
             if ("ref".equals(field.type()) && !isOwningReference(field)) {
                 continue;
             }
-            String columnName = "ref".equals(field.type()) ? fieldName + "_id" : fieldName;
             if (field.unique() && entity.softDelete()) {
                 String columns = tenancyMode == TenancyMode.POOL && entity.tenantScoped()
-                    ? "aperture_tenant_id, " + columnName : columnName;
+                    ? "aperture_tenant_id, " + columnNamesForIndex(fieldName, field) : columnNamesForIndex(fieldName, field);
                 sb.append(String.format(
                     "        <sql>CREATE UNIQUE INDEX idx_%s_%s_uniq ON %s(%s) WHERE deleted_at IS NULL;</sql>\n",
                     tableName, fieldName.toLowerCase(Locale.ROOT), tableName, columns));
@@ -111,7 +111,9 @@ public class ChangesetGenerator {
                 if (tenancyMode == TenancyMode.POOL && entity.tenantScoped()) {
                     sb.append("            <column name=\"aperture_tenant_id\"/>\n");
                 }
-                sb.append(String.format("            <column name=\"%s\"/>\n", columnName));
+                for (FieldColumn column : physicalColumns(fieldName, field)) {
+                    sb.append(String.format("            <column name=\"%s\"/>\n", column.name()));
+                }
                 sb.append("        </createIndex>\n");
             }
         }
@@ -177,6 +179,25 @@ public class ChangesetGenerator {
         return "ref".equals(field.type()) && (field.mappedBy() == null || field.mappedBy().isBlank());
     }
 
+    private List<FieldColumn> physicalColumns(String fieldName, FieldDef field) {
+        if ("oneof".equalsIgnoreCase(field.type())) {
+            return List.of(
+                new FieldColumn(fieldName + "_type", "VARCHAR(255)"),
+                new FieldColumn(fieldName + "_id", "UUID")
+            );
+        }
+        if ("ref".equals(field.type())) {
+            return List.of(new FieldColumn(fieldName + "_id", toDbType(field.type())));
+        }
+        return List.of(new FieldColumn(fieldName, toDbType(field.type())));
+    }
+
+    private String columnNamesForIndex(String fieldName, FieldDef field) {
+        return physicalColumns(fieldName, field).stream()
+            .map(FieldColumn::name)
+            .collect(Collectors.joining(", "));
+    }
+
     private String tableName(EntityDef entity) {
         return entity.plural() != null
             ? "aperture_" + entity.plural().toLowerCase(Locale.ROOT)
@@ -189,6 +210,8 @@ public class ChangesetGenerator {
     }
 
     private record Reference(EntityDef entity, String fieldName, FieldDef field) {}
+
+    private record FieldColumn(String name, String type) {}
 
     public String generateGeneratedChangesets(DiffResult diff, TenancyMode tenancyMode) {
         StringBuilder sb = new StringBuilder();
@@ -216,18 +239,18 @@ public class ChangesetGenerator {
                 FieldDef field = entry.getValue();
                 if ("ref".equals(field.type())) {
                     if (field.mappedBy() != null && !field.mappedBy().isEmpty()) continue;
-                    fieldName = fieldName + "_id";
                 }
-                String dbType = toDbType(field.type());
-                String colChangesetId = changesetId + "-" + entry.getKey();
-                sb.append(String.format("    <changeSet id=\"%s\" author=\"aperture\">\n", colChangesetId));
-                sb.append("        <preConditions onFail=\"MARK_RAN\">\n");
-                sb.append(String.format("            <not><columnExists tableName=\"%s\" columnName=\"%s\"/></not>\n", tableName, fieldName));
-                sb.append("        </preConditions>\n");
-                sb.append(String.format("        <addColumn tableName=\"%s\">\n", tableName));
-                sb.append(String.format("            <column name=\"%s\" type=\"%s\"/>\n", fieldName, dbType));
-                sb.append("        </addColumn>\n");
-                sb.append("    </changeSet>\n");
+                for (FieldColumn column : physicalColumns(fieldName, field)) {
+                    String colChangesetId = changesetId + "-" + entry.getKey() + "-" + column.name();
+                    sb.append(String.format("    <changeSet id=\"%s\" author=\"aperture\">\n", colChangesetId));
+                    sb.append("        <preConditions onFail=\"MARK_RAN\">\n");
+                    sb.append(String.format("            <not><columnExists tableName=\"%s\" columnName=\"%s\"/></not>\n", tableName, column.name()));
+                    sb.append("        </preConditions>\n");
+                    sb.append(String.format("        <addColumn tableName=\"%s\">\n", tableName));
+                    sb.append(String.format("            <column name=\"%s\" type=\"%s\"/>\n", column.name(), column.type()));
+                    sb.append("        </addColumn>\n");
+                    sb.append("    </changeSet>\n");
+                }
             }
         });
 
@@ -254,8 +277,10 @@ public class ChangesetGenerator {
             String tableName = entityDef != null ? tableName(entityDef) : "aperture_" + entityName.toLowerCase(java.util.Locale.ROOT) + "s";
             String changesetId = "deferred-drop-" + tableName + "-" + String.join("-", new java.util.TreeSet<>(fields.keySet()));
             sb.append(String.format("    <changeSet id=\"%s\" author=\"aperture\" context=\"pending\">\n", changesetId));
-            for (String fieldName : fields.keySet()) {
-                sb.append(String.format("        <dropColumn tableName=\"%s\" columnName=\"%s\"/>\n", tableName, fieldName));
+            for (Map.Entry<String, FieldDef> entry : fields.entrySet()) {
+                for (FieldColumn column : physicalColumns(entry.getKey(), entry.getValue())) {
+                    sb.append(String.format("        <dropColumn tableName=\"%s\" columnName=\"%s\"/>\n", tableName, column.name()));
+                }
             }
             sb.append("    </changeSet>\n");
         });

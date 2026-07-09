@@ -17,6 +17,10 @@ spec:
       target: Product
       relation: ManyToOne
       description: "Product associated with this line item"
+    billable:
+      type: oneof
+      target: Billable
+      description: "Product or service package associated with this line item"
     quantity:
       type: decimal
       required: true

@@ -4,6 +4,7 @@ import com.itsjool.aperture.engine.config.TenancyMode;
 import com.itsjool.aperture.engine.model.EntityDef;
 import com.itsjool.aperture.engine.model.FieldDef;
 import com.itsjool.aperture.engine.model.HookDef;
+import com.itsjool.aperture.engine.model.OneOfDef;
 import org.junit.jupiter.api.Test;
 import java.util.List;
 import java.util.Map;
@@ -171,6 +172,37 @@ class CodeGeneratorTest {
             .contains("name = \"customer_id\"");
         assertThat(joined).doesNotContain("@JoinColumns");
         assertThat(joined).contains("private CustomerV1 customer;");
+    }
+
+    @Test
+    void oneOfGeneratesVersionedInterfaceAndAnyAssociation() {
+        OneOfDef billable = new OneOfDef("Billable", List.of("Product", "ServicePackage"));
+        EntityDef product = new EntityDef("Product", "products", null, null, false, false, true, Map.of(),
+            null, null, null, Map.of(), Map.of());
+        EntityDef lineItem = new EntityDef("LineItem", "lineitems", null, null, false, false, true, Map.of(
+            "billable", new FieldDef("oneof", true, false, false, false, null, null, null, null, "Billable", null, null)
+        ), null, null, null, Map.of(), Map.of());
+
+        CodeGenerator generator = new CodeGenerator();
+        List<String> interfaces = generator.generateOneOfInterfaces(List.of(billable), List.of("1"));
+        String productSource = String.join("\n", generator.generateForEntity(product, TenancyMode.POOL, List.of("1"),
+            Map.of("Product", product, "LineItem", lineItem), List.of(billable)));
+        String lineItemSource = String.join("\n", generator.generateForEntity(lineItem, TenancyMode.POOL, List.of("1"),
+            Map.of("Product", product, "LineItem", lineItem), List.of(billable)));
+
+        assertThat(String.join("\n", interfaces))
+            .contains("public interface BillableV1");
+        assertThat(productSource)
+            .contains("public class ProductV1 implements BillableV1");
+        assertThat(lineItemSource)
+            .contains("@Any")
+            .contains("@AnyKeyJavaClass(UUID.class)")
+            .contains("@Column(\n      name = \"billable_type\"")
+            .contains("@JoinColumn(\n      name = \"billable_id\"")
+            .contains("@AnyDiscriminatorValue(\n      discriminator = \"Product\",\n      entity = ProductV1.class\n  )")
+            .contains("@AnyDiscriminatorValue(\n      discriminator = \"ServicePackage\",\n      entity = ServicePackageV1.class\n  )")
+            .contains("private BillableV1 billable;")
+            .doesNotContain("BillableV1V1");
     }
 
     @Test

@@ -1,0 +1,8 @@
+apiVersion: aperture.itsjool.com/v1
+kind: OneOf
+metadata:
+  name: Billable
+spec:
+  members:
+    - Product
+    - ServicePackage

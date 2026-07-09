@@ -31,10 +31,13 @@ public class EntityJavaGenerationTarget implements ApertureGenerationTarget {
         LockFileManager lockManager = new LockFileManager();
         Map<String, EntityDef> allEntities = request.model().entities().stream()
             .collect(Collectors.toMap(EntityDef::name, e -> e));
+        for (String source : codeGenerator.generateOneOfInterfaces(request.model().oneOfs(), request.activeVersions())) {
+            staging.writeJavaSourceFromString(source);
+        }
         for (EntityDef entity : request.model().entities().stream()
                 .sorted(Comparator.comparing(EntityDef::name)).toList()) {
             for (String source : codeGenerator.generateForEntity(
-                    entity, request.tenancyMode(), request.activeVersions(), allEntities)) {
+                    entity, request.tenancyMode(), request.activeVersions(), allEntities, request.model().oneOfs())) {
                 staging.writeJavaSourceFromString(source);
             }
             lockManager.writeLockFile(request.activeVersions().getFirst(), entity, staging.locksStaging());

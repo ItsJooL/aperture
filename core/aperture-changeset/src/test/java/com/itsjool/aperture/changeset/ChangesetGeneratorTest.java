@@ -284,4 +284,55 @@ class ChangesetGeneratorTest {
         assertThat(xml).contains("<addColumn tableName=\"aperture_invoices\">");
         assertThat(xml).contains("baseColumnNames=\"aperture_tenant_id, customer_id\"");
     }
+
+    @Test
+    void schemaSnapshotEmitsOneOfPointerColumnsWithoutForeignKey() {
+        EntityDef lineItem = tenantEntity("LineItem", "lineitems", fields(
+            "billable", oneOf("Billable", true, true)
+        ));
+
+        String xml = new ChangesetGenerator().generateSchemaSnapshot(
+            new ResolvedDomainModel(List.of(lineItem)), TenancyMode.POOL);
+
+        assertThat(xml).contains("<column name=\"billable_type\" type=\"VARCHAR(255)\">");
+        assertThat(xml).contains("<column name=\"billable_id\" type=\"UUID\">");
+        assertThat(xml).contains("<createIndex indexName=\"idx_aperture_lineitems_billable\" tableName=\"aperture_lineitems\" unique=\"false\">");
+        assertThat(xml).contains("<column name=\"billable_type\"/>");
+        assertThat(xml).contains("<column name=\"billable_id\"/>");
+        assertThat(xml).doesNotContain("fk_aperture_lineitems_billable_id");
+        assertThat(xml).doesNotContain("<column name=\"billable\" type=");
+    }
+
+    @Test
+    void generatedChangesetsEmitOneOfPointerColumnsForAddedField() {
+        EntityDef lineItem = tenantEntity("LineItem", "lineitems", fields(
+            "description", field("String", false)
+        ));
+        FieldDef billable = oneOf("Billable", false, false);
+
+        DiffResult diff = new DiffResult(
+            List.of(),
+            List.of(),
+            List.of(),
+            Map.of("LineItem", Map.of("billable", billable)),
+            Map.of(),
+            Map.of(),
+            ChangeType.SAFE,
+            Map.of("LineItem", lineItem)
+        );
+
+        String xml = new ChangesetGenerator().generateGeneratedChangesets(diff, TenancyMode.POOL);
+
+        assertThat(xml).contains("<column name=\"billable_type\" type=\"VARCHAR(255)\"/>");
+        assertThat(xml).contains("<column name=\"billable_id\" type=\"UUID\"/>");
+        assertThat(xml).contains("<not><columnExists tableName=\"aperture_lineitems\" columnName=\"billable_type\"/></not>");
+        assertThat(xml).contains("<not><columnExists tableName=\"aperture_lineitems\" columnName=\"billable_id\"/></not>");
+        assertThat(xml).doesNotContain("<column name=\"billable\" type=");
+        assertThat(xml).doesNotContain("addForeignKeyConstraint");
+    }
+
+    private static FieldDef oneOf(String target, boolean required, boolean index) {
+        return new FieldDef("oneof", required, false, index, false, "1", null, null,
+            null, target, null, null);
+    }
 }
