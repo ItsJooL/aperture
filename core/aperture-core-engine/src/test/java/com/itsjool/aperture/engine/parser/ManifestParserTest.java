@@ -692,6 +692,44 @@ class ManifestParserTest {
     }
 
     @Test
+    void entityMcpToolsWithoutEnabledKey_parsesEnabledAsNullAndEntityIsExposed() throws Exception {
+        // The bug this plan fixes: an entity mcp block with only `tools` set (no `enabled` key)
+        // must parse enabled() as null — meaning "inherit" — not false. Before McpEntityConfig
+        // became tri-state, this silently produced enabled=false and dropped the entity from MCP.
+        Files.writeString(new File(tempDir, "roles.yaml").toPath(), """
+            apiVersion: aperture.itsjool.com/v1
+            kind: RoleDefinition
+            metadata:
+              name: roles
+            spec:
+              roles:
+                Admin: { description: Full access }
+            """);
+        Files.writeString(new File(tempDir, "entity.yaml").toPath(), """
+            apiVersion: aperture.itsjool.com/v1
+            kind: Entity
+            metadata:
+              name: Customer
+            spec:
+              mcp:
+                tools: [list, get]
+              fields:
+                name: { type: String }
+              permissions:
+                Admin: [read]
+            """);
+
+        ManifestParser parser = new ManifestParser();
+        ResolvedDomainModel model = parser.parseDirectory(tempDir);
+
+        assertThat(model.entities()).singleElement().satisfies(entity -> {
+            assertThat(entity.mcpConfig()).isNotNull();
+            assertThat(entity.mcpConfig().enabled()).isNull();
+            assertThat(entity.mcpConfig().tools()).containsExactly("list", "get");
+        });
+    }
+
+    @Test
     void frameworkConfigWithCli_parsesBinaryName() throws Exception {
         Files.writeString(new File(tempDir, "roles.yaml").toPath(), """
             apiVersion: aperture.itsjool.com/v1

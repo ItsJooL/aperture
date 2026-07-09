@@ -62,7 +62,14 @@ public class McpJavaGenerationTarget implements ApertureGenerationTarget {
         for (EntityDef entity : request.model().entities().stream()
                 .sorted(Comparator.comparing(EntityDef::name)).toList()) {
             McpEntityConfig entityMcp = entity.mcpConfig();
-            if (entityMcp != null && !entityMcp.enabled()) continue;
+            // entityMcp.enabled() == null means "unset" (inherit, i.e. the entity participates in
+            // MCP); only an explicit `enabled: false` excludes it. See McpEntityConfig's javadoc.
+            if (entityMcp != null && Boolean.FALSE.equals(entityMcp.enabled())) continue;
+            // derived(entity) ∩ ceiling ∩ narrowing (plan 016). An empty effective set means the
+            // entity's own access rules permit nothing MCP could expose, or the framework ceiling
+            // / entity narrowing eliminated everything; either way, emit no tool class rather than
+            // a class with zero @Tool methods.
+            if (mcpGen.effectiveTools(mcpConfig, entity, entityMcp).isEmpty()) continue;
             String source = mcpGen.generateForEntity(entity, mcpConfig, entityMcp, latestVersion, resourceTypesByEntity);
             claimClassName(emittedBy, StagingGenerationContext.topLevelTypeName(source),
                 "the generated tool class for entity '" + entity.name() + "'");

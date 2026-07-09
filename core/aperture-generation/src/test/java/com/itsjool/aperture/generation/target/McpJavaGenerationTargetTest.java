@@ -5,6 +5,7 @@ import com.itsjool.aperture.engine.model.EntityDef;
 import com.itsjool.aperture.engine.model.FieldDef;
 import com.itsjool.aperture.engine.model.FrameworkConfigDef;
 import com.itsjool.aperture.engine.model.McpConfig;
+import com.itsjool.aperture.engine.model.McpEntityConfig;
 import com.itsjool.aperture.engine.model.ResolvedDomainModel;
 import com.itsjool.aperture.generation.context.StagingGenerationContext;
 import com.itsjool.aperture.generation.spi.ApertureGenerationRequest;
@@ -46,6 +47,50 @@ class McpJavaGenerationTargetTest {
         Path locks = Files.createDirectories(tempDir.resolve("locks"));
         staging = new StagingGenerationContext(sources, resources, locks);
         request = requestWithProjectEntity();
+    }
+
+    @Test
+    void entityWithEmptyEffectiveToolSet_emitsNoClassFile() throws Exception {
+        // An entity with no permissions, policies, or publicOperations derives zero MCP tools
+        // (plan 016). The target must skip it entirely rather than emit a tool class with no
+        // @Tool methods.
+        FieldDef name = new FieldDef("String", true, false, false, false,
+            null, null, null, null, null, null, null);
+        EntityDef noAccessRules = new EntityDef("Ghost", "ghosts", null, null,
+            false, false, false, Map.of("name", name),
+            Map.of(), Map.of(), List.of(), Map.of(), Map.of());
+        FrameworkConfigDef frameworkConfig = new FrameworkConfigDef(
+            List.of(), TenancyMode.POOL, new McpConfig(true, "http", List.of("list", "get")), null);
+        ResolvedDomainModel model = new ResolvedDomainModel(
+            List.of(noAccessRules), List.of(), frameworkConfig, List.of(), List.of(), List.of(), List.of());
+        ApertureGenerationRequest ghostRequest = new ApertureGenerationRequest(model, null, null, List.of("1"), TenancyMode.POOL, null);
+
+        new McpJavaGenerationTarget().generate(ghostRequest, staging);
+
+        assertTrue(Files.notExists(mcpSource("GhostV1McpTools")),
+            "entity deriving zero MCP tools must not get a generated tool class");
+    }
+
+    @Test
+    void entityExplicitlyDisabled_emitsNoClassFileEvenWithFullPermissions() throws Exception {
+        // enabled: false always excludes the entity, regardless of what its own permissions would
+        // otherwise derive. Distinguishes this from the "absent enabled key" (inherit) case.
+        FieldDef name = new FieldDef("String", true, false, false, false,
+            null, null, null, null, null, null, null);
+        McpEntityConfig disabled = new McpEntityConfig(Boolean.FALSE, null);
+        EntityDef fullyPermittedButDisabled = new EntityDef("Secret", "secrets", null, disabled,
+            false, false, false, Map.of("name", name),
+            Map.of("Admin", List.of("read", "create", "update", "delete")), Map.of(), List.of(), Map.of(), Map.of());
+        FrameworkConfigDef frameworkConfig = new FrameworkConfigDef(
+            List.of(), TenancyMode.POOL, new McpConfig(true, "http", null), null);
+        ResolvedDomainModel model = new ResolvedDomainModel(
+            List.of(fullyPermittedButDisabled), List.of(), frameworkConfig, List.of(), List.of(), List.of(), List.of());
+        ApertureGenerationRequest secretRequest = new ApertureGenerationRequest(model, null, null, List.of("1"), TenancyMode.POOL, null);
+
+        new McpJavaGenerationTarget().generate(secretRequest, staging);
+
+        assertTrue(Files.notExists(mcpSource("SecretV1McpTools")),
+            "explicitly disabled entity must not get a generated tool class");
     }
 
     @Test
@@ -149,9 +194,12 @@ class McpJavaGenerationTargetTest {
     private static ApertureGenerationRequest requestWithProjectEntity() {
         FieldDef name = new FieldDef("String", true, false, false, false,
             null, null, null, null, null, null, null);
+        // "read" must be reachable so derived(entity) includes list/get — plan 016's MCP tool
+        // surface is derived from permissions/policies/publicOperations, not just the framework
+        // ceiling, so an entity with no access rules at all now derives zero MCP tools.
         EntityDef project = new EntityDef("Project", "projects", "A project", null,
             false, false, false, Map.of("name", name),
-            Map.of(), Map.of(), List.of(), Map.of(), Map.of());
+            Map.of("Admin", List.of("read")), Map.of(), List.of(), Map.of(), Map.of());
         FrameworkConfigDef frameworkConfig = new FrameworkConfigDef(
             List.of(), TenancyMode.POOL, new McpConfig(true, "http", List.of("list", "get")), null);
         ResolvedDomainModel model = new ResolvedDomainModel(
