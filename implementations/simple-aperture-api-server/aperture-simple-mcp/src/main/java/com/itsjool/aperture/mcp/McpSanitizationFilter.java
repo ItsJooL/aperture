@@ -11,7 +11,6 @@ import jakarta.servlet.ServletResponse;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletRequestWrapper;
 import org.springframework.core.annotation.Order;
-import org.springframework.stereotype.Component;
 
 import java.io.BufferedReader;
 import java.io.ByteArrayInputStream;
@@ -19,7 +18,12 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 
-@Component
+/**
+ * Not a {@code @Component} for the same reason as {@link McpElideAdapter}: component scanning of
+ * {@code com.itsjool.aperture} would install this servlet filter into every application, MCP
+ * enabled or not. {@link ApertureMcpAutoConfiguration} registers it behind
+ * {@code aperture.mcp.enabled}.
+ */
 @Order(-100) // Run before the MCP router
 public class McpSanitizationFilter implements Filter {
 

@@ -5,6 +5,7 @@ import com.yahoo.elide.spring.controllers.JsonApiController;
 import org.springframework.ai.tool.ToolCallbackProvider;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.method.MethodToolCallbackProvider;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.ApplicationContext;
@@ -24,7 +25,8 @@ import java.util.stream.Collectors;
 public class ApertureMcpAutoConfiguration {
 
     @Bean
-    public McpElideAdapter mcpElideAdapter(JsonApiController jsonApiController, ObjectMapper objectMapper) {
+    @ConditionalOnMissingBean(McpRequestAdapter.class)
+    public McpRequestAdapter mcpElideAdapter(JsonApiController jsonApiController, ObjectMapper objectMapper) {
         return new McpElideAdapter(jsonApiController, objectMapper);
     }
 
