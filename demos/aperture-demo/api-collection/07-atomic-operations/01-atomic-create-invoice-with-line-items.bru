@@ -27,7 +27,7 @@ body:json {
         "data": {
           "type": "invoices",
           "lid": "new-invoice",
-          "attributes": { "amount": 1500, "status": "DRAFT" },
+          "attributes": { "amount": 1249, "status": "DRAFT" },
           "relationships": {
             "customer": { "data": { "type": "customers", "id": "{{customerId}}" } }
           }
@@ -38,9 +38,16 @@ body:json {
         "data": {
           "type": "lineitems",
           "lid": "li-1",
-          "attributes": { "quantity": 1, "unit_price": 999.00 },
+          "attributes": {
+            "description": "Bruno Integration Starter",
+            "quantity": 1,
+            "unit_price": 499.00,
+            "price": 499.00
+          },
           "relationships": {
-            "invoice": { "data": { "type": "invoices", "lid": "new-invoice" } }
+            "invoice": { "data": { "type": "invoices", "lid": "new-invoice" } },
+            "product": { "data": { "type": "products", "id": "{{billableProductId}}" } },
+            "billable": { "data": { "type": "products", "id": "{{billableProductId}}" } }
           }
         }
       },
@@ -49,9 +56,15 @@ body:json {
         "data": {
           "type": "lineitems",
           "lid": "li-2",
-          "attributes": { "quantity": 1, "unit_price": 501.00 },
+          "attributes": {
+            "description": "Bruno Priority Onboarding",
+            "quantity": 1,
+            "unit_price": 750.00,
+            "price": 750.00
+          },
           "relationships": {
-            "invoice": { "data": { "type": "invoices", "lid": "new-invoice" } }
+            "invoice": { "data": { "type": "invoices", "lid": "new-invoice" } },
+            "billable": { "data": { "type": "servicepackages", "id": "{{billableServicePackageId}}" } }
           }
         }
       }
@@ -60,11 +73,13 @@ body:json {
 }
 
 docs {
-  Creates an Invoice and two LineItems in a single atomic transaction.
-  The LineItems reference the new Invoice using lid (local identifier)
-  before the Invoice has a real database ID.
+  Creates an Invoice and two LineItems in a single atomic transaction. The first
+  LineItem uses a Product as its Billable member; the second uses a ServicePackage.
+  Both still reference the new Invoice using lid (local identifier) before the
+  Invoice has a real database ID.
 
-  Run 01-create-customer first to populate {{customerId}}.
+  Run 01-create-customer, 08-create-product and 09-create-service-package first to
+  populate {{customerId}}, {{billableProductId}} and {{billableServicePackageId}}.
 }
 
 script:post-response {

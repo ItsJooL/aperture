@@ -26,6 +26,19 @@ export type Product = {
   relationships?: Record<string, JsonApiRelationship>
 }
 
+export type ServicePackage = {
+  id: string
+  type: string
+  name: string
+  sku: string
+  description?: string
+  unit_price: number
+  active?: boolean
+  version?: number
+  apertureTenantId?: string
+  relationships?: Record<string, JsonApiRelationship>
+}
+
 export type Invoice = {
   id: string
   type: string

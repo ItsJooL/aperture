@@ -1,0 +1,52 @@
+meta {
+  name: Create Service Package
+  type: http
+  seq: 9
+}
+
+post {
+  url: {{baseUrl}}/api/v1/servicepackages
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tenantAdminToken}}
+}
+
+headers {
+  Content-Type: application/vnd.api+json
+  Accept: application/vnd.api+json
+}
+
+body:json {
+  {
+    "data": {
+      "type": "servicepackages",
+      "attributes": {
+        "name": "Bruno Priority Onboarding",
+        "sku": "BRU-SVC-1",
+        "description": "A service-package member of the Billable one-of set.",
+        "unit_price": 750.00,
+        "active": true
+      }
+    }
+  }
+}
+
+docs {
+  Creates a ServicePackage that can be used as the second concrete member of the
+  Billable one-of. The generated resource path is servicepackages because the
+  manifest declares plural: ServicePackages.
+}
+
+script:post-response {
+  if (res.status === 201) {
+    bru.setVar("billableServicePackageId", res.body.data.id);
+  }
+}
+
+assert {
+  res.status: eq 201
+  res.body.data.id: isDefined
+}

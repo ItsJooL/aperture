@@ -11,6 +11,7 @@ import { http, HttpResponse } from 'msw'
 import {
   getCustomers, setCustomers,
   getProducts, setProducts,
+  getServicePackages,
   getInvoices, setInvoices,
   getLineItems, setLineItems,
   getInvites, setInvites,
@@ -29,11 +30,15 @@ function url(path: string) {
 /** Wrap an array of domain objects in a minimal JSON:API collection document. */
 function jsonApiCollection<T extends { id: string; type: string }>(items: T[]) {
   return {
-    data: items.map(({ id, type, ...rest }) => ({
-      type,
-      id,
-      attributes: rest,
-    })),
+    data: items.map((item) => {
+      const { id, type, relationships, ...rest } = item as T & { relationships?: unknown }
+      return {
+        type,
+        id,
+        attributes: rest,
+        relationships,
+      }
+    }),
     meta: { totalPages: 1, totalElements: items.length },
     links: {},
   }
@@ -41,12 +46,13 @@ function jsonApiCollection<T extends { id: string; type: string }>(items: T[]) {
 
 /** Wrap a single domain object in a minimal JSON:API single-resource document. */
 function jsonApiSingle<T extends { id: string; type: string }>(item: T) {
-  const { id, type, ...rest } = item
+  const { id, type, relationships, ...rest } = item as T & { relationships?: unknown }
   return {
     data: {
       type,
       id,
       attributes: rest,
+      relationships,
     },
   }
 }
@@ -183,6 +189,7 @@ const resourceHandlers = [
             quantity: data.attributes?.quantity ?? 0,
             unit_price: data.attributes?.unit_price ?? 0,
             price: data.attributes?.price ?? 0,
+            relationships: data.relationships,
           }
           setLineItems([...getLineItems(), lineItem])
           atomicResults.push({
@@ -287,6 +294,18 @@ const resourceHandlers = [
     const product = updated.find((product) => product.id === params.id)
     if (!product) return new HttpResponse(null, { status: 404 })
     return HttpResponse.json(jsonApiSingle(product), {
+      headers: { 'Content-Type': 'application/vnd.api+json' },
+    })
+  }),
+
+  // ── Service Packages ──────────────────────────────────────────────────────
+
+  http.get(resourcePath('servicepackages'), ({ request }) => {
+    const searchParam = new URL(request.url).searchParams.get('filter[servicepackages.name][infix]') ?? ''
+    const filtered = getServicePackages().filter((servicePackage) =>
+      !searchParam || servicePackage.name.toLowerCase().includes(searchParam.toLowerCase()),
+    )
+    return HttpResponse.json(jsonApiCollection(filtered), {
       headers: { 'Content-Type': 'application/vnd.api+json' },
     })
   }),

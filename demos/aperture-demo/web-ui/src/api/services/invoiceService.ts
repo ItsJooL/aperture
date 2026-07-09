@@ -1,11 +1,12 @@
 import { apiFetch } from '@/api/http/client'
 import { resourceIdentifier, singleFromDocument } from '@/api/jsonapi/adapter'
 import { createResource, getResource, listResources, updateResource } from './resourceService'
-import type { JsonApiDocument } from '@/api/jsonapi/types'
+import type { JsonApiDocument, ResourceIdentifier } from '@/api/jsonapi/types'
 import type { Invoice, LineItem, Payment } from '@/api/types/domain'
 
 export type InvoiceLineInput = {
   productId?: string
+  billable?: ResourceIdentifier | null
   description: string
   quantity: number
   unit_price: number
@@ -35,20 +36,28 @@ export const invoiceService = {
             relationships: { customer: { data: resourceIdentifier('customers', input.customerId) } },
           },
         },
-        ...input.lines.map((line) => ({
-          op: 'add',
-          data: {
-            type: 'lineitems',
-            lid: `line-${crypto.randomUUID()}`,
-            attributes: {
-              description: line.description,
-              quantity: line.quantity,
-              unit_price: line.unit_price,
-              price: line.quantity * line.unit_price,
+        ...input.lines.map((line) => {
+          const product = line.productId ? resourceIdentifier('products', line.productId) : line.billable?.type === 'products' ? line.billable : null
+          const billable = line.billable ?? product
+          return {
+            op: 'add',
+            data: {
+              type: 'lineitems',
+              lid: `line-${crypto.randomUUID()}`,
+              attributes: {
+                description: line.description,
+                quantity: line.quantity,
+                unit_price: line.unit_price,
+                price: line.quantity * line.unit_price,
+              },
+              relationships: {
+                invoice: { data: { type: 'invoices', lid: invoiceLid } },
+                ...(product ? { product: { data: product } } : {}),
+                ...(billable ? { billable: { data: billable } } : {}),
+              },
             },
-            relationships: { invoice: { data: { type: 'invoices', lid: invoiceLid } } },
-          },
-        })),
+          }
+        }),
       ],
     })
     const document = (response as { 'atomic:results'?: JsonApiDocument<Invoice>[] })['atomic:results']?.[0]

@@ -42,6 +42,7 @@ function listParams(resource: string, options: ListOptions = {}) {
     const searchFields: Record<string, string> = {
       customers: 'name',
       products: 'name',
+      servicepackages: 'name',
       suppliers: 'company_name',
       countries: 'name',
       currencies: 'code',

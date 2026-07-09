@@ -1,9 +1,14 @@
 import { createResource, getResource, listResources, updateResource } from './resourceService'
-import type { Product, Supplier } from '@/api/types/domain'
+import type { Product, ServicePackage, Supplier } from '@/api/types/domain'
 
 export type ProductInput = Pick<Product, 'name' | 'sku' | 'unit_price'> & {
   description?: string
   category?: string
+  active?: boolean
+}
+
+export type ServicePackageInput = Pick<ServicePackage, 'name' | 'sku' | 'unit_price'> & {
+  description?: string
   active?: boolean
 }
 
@@ -15,4 +20,10 @@ export const productService = {
   deactivate: (id: string) => updateResource<Product>('products', id, { active: false }),
   activate: (id: string) => updateResource<Product>('products', id, { active: true }),
   listSuppliers: (search?: string) => listResources<Supplier>('suppliers', { search, sort: ['company_name'] }),
+}
+
+export const servicePackageService = {
+  list: (search?: string, pageSize = 20) => listResources<ServicePackage>('servicepackages', { search, sort: ['name'], pageSize }),
+  create: (input: ServicePackageInput) => createResource<ServicePackage>('servicepackages', input),
+  update: (id: string, input: Partial<ServicePackageInput>) => updateResource<ServicePackage>('servicepackages', id, input),
 }

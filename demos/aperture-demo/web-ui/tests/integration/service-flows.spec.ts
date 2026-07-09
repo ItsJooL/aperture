@@ -26,12 +26,40 @@ describe('service integration flows with mocked HTTP API', () => {
     const invoice = await invoiceService.create({
       customerId: 'cust-001',
       status: 'draft',
-      lines: [{ productId: 'prod-001', description: 'Integration Starter Plan', quantity: 2, unit_price: 249 }],
+      lines: [{ billable: { type: 'products', id: 'prod-001' }, description: 'Integration Starter Plan', quantity: 2, unit_price: 249 }],
     })
 
     expect(invoice).toMatchObject({ type: 'invoices', amount: 498, status: 'draft' })
 
     const lineItems = await invoiceService.listLineItems()
-    expect(lineItems.items).toEqual(expect.arrayContaining([expect.objectContaining({ description: 'Integration Starter Plan', price: 498 })]))
+    expect(lineItems.items).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        description: 'Integration Starter Plan',
+        price: 498,
+        relationships: expect.objectContaining({
+          billable: { data: { type: 'products', id: 'prod-001' } },
+        }),
+      }),
+    ]))
+  })
+
+  it('creates invoice lines for service packages through the oneof billable relationship', async () => {
+    const invoice = await invoiceService.create({
+      customerId: 'cust-001',
+      status: 'draft',
+      lines: [{ billable: { type: 'servicepackages', id: 'svcpack-001' }, description: 'Priority onboarding', quantity: 1, unit_price: 750 }],
+    })
+
+    expect(invoice).toMatchObject({ type: 'invoices', amount: 750, status: 'draft' })
+
+    const lineItems = await invoiceService.listLineItems()
+    expect(lineItems.items).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        description: 'Priority onboarding',
+        relationships: expect.objectContaining({
+          billable: { data: { type: 'servicepackages', id: 'svcpack-001' } },
+        }),
+      }),
+    ]))
   })
 })

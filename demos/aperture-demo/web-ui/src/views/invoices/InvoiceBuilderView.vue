@@ -13,10 +13,10 @@
       </button>
     </div>
 
-    <ErrorState v-if="customersQuery.isError.value || productsQuery.isError.value" description="Customers or products could not be loaded.">
+    <ErrorState v-if="customersQuery.isError.value || productsQuery.isError.value || servicePackagesQuery.isError.value" description="Customers or billable catalogue items could not be loaded.">
       <AppButton variant="outline" @click="refetchLookups">Retry</AppButton>
     </ErrorState>
-    <PageSkeleton v-else-if="customersQuery.isLoading.value || productsQuery.isLoading.value" />
+    <PageSkeleton v-else-if="customersQuery.isLoading.value || productsQuery.isLoading.value || servicePackagesQuery.isLoading.value" />
 
     <section v-else class="invoice-builder">
       <AppCard>
@@ -31,13 +31,16 @@
 
         <template v-else-if="step === 1">
           <div class="flex-between">
-            <div><h2 class="card-title">Add line items</h2><p class="card-description">Choose products, adjust quantities and confirm pricing.</p></div>
+            <div><h2 class="card-title">Add line items</h2><p class="card-description">Choose products or service packages, adjust quantities and confirm pricing.</p></div>
             <AppButton variant="outline" @click="addLine">Add item</AppButton>
           </div>
           <div class="stack" style="margin-top:1rem;">
             <div v-for="(line, index) in lines" :key="line.localId" class="line-item-card">
               <div class="flex-between"><strong>Item {{ index + 1 }}</strong><AppButton v-if="lines.length > 1" variant="ghost" @click="removeLine(index)">Remove</AppButton></div>
-              <AppSelect v-model="line.productId" label="Product" placeholder="Select product" :options="productOptions" @update:model-value="productChanged(line)" />
+              <AppSelect v-model="line.billableKey" label="Billable item" placeholder="Select product or service package" :options="billableOptions" @update:model-value="billableChanged(line)" />
+              <div v-if="selectedBillable(line)" class="notice notice-compact">
+                {{ selectedBillable(line)?.kindLabel }} · {{ selectedBillable(line)?.sku }}
+              </div>
               <div class="form-grid">
                 <AppInput v-model="line.description" label="Description" placeholder="What is being billed?" />
                 <AppInput v-model.number="line.quantity" label="Quantity" type="number" placeholder="1" />
@@ -103,9 +106,29 @@ import PageHeader from '@/components/ui/PageHeader.vue'
 import PageSkeleton from '@/components/ui/PageSkeleton.vue'
 import { customerService } from '@/api/services/customerService'
 import { invoiceService } from '@/api/services/invoiceService'
-import { productService } from '@/api/services/productService'
+import { productService, servicePackageService } from '@/api/services/productService'
+import type { ResourceIdentifier } from '@/api/jsonapi/types'
 import { currency } from '@/lib/utils'
 import { useAppStore } from '@/stores/appStore'
+
+type BillableOption = {
+  label: string
+  value: string
+  id: string
+  resourceType: 'products' | 'servicepackages'
+  kindLabel: 'Product' | 'Service package'
+  name: string
+  sku: string
+  unit_price: number
+}
+
+type InvoiceLineDraft = {
+  localId: string
+  billableKey: string
+  description: string
+  quantity: number | string
+  unit_price: number | string
+}
 
 const route = useRoute()
 const router = useRouter()
@@ -115,27 +138,57 @@ const steps = ['Customer', 'Items', 'Review', 'Create']
 const step = ref(0)
 const customersQuery = useQuery({ queryKey: ['customers'], queryFn: () => customerService.list(undefined, 200) })
 const productsQuery = useQuery({ queryKey: ['products'], queryFn: () => productService.list(undefined, 200) })
+const servicePackagesQuery = useQuery({ queryKey: ['servicepackages'], queryFn: () => servicePackageService.list(undefined, 200) })
 const customerId = ref(String(route.query.customerId || ''))
 const status = ref('draft')
 const saving = ref(false)
 const validationError = ref<string | undefined>()
-const lines = reactive([{ localId: crypto.randomUUID(), productId: '', description: '', quantity: 1, unit_price: 0 }])
+const lines = reactive<InvoiceLineDraft[]>([{ localId: crypto.randomUUID(), billableKey: '', description: '', quantity: 1, unit_price: 0 }])
 const statusOptions = [{ label: 'Draft', value: 'draft' }, { label: 'Issue immediately', value: 'issued' }]
 const customers = computed(() => customersQuery.data.value?.items ?? [])
 const products = computed(() => (productsQuery.data.value?.items ?? []).filter((product) => product.active !== false))
+const servicePackages = computed(() => (servicePackagesQuery.data.value?.items ?? []).filter((servicePackage) => servicePackage.active !== false))
 const customerOptions = computed(() => customers.value.map((customer) => ({ label: `${customer.name} · ${customer.email}`, value: customer.id })))
-const productOptions = computed(() => products.value.map((product) => ({ label: `${product.name} · ${currency(product.unit_price)}`, value: product.id })))
+const billableOptions = computed<BillableOption[]>(() => [
+  ...products.value.map((product) => ({
+    label: `${product.name} · ${currency(product.unit_price)}`,
+    value: `products:${product.id}`,
+    id: product.id,
+    resourceType: 'products' as const,
+    kindLabel: 'Product' as const,
+    name: product.name,
+    sku: product.sku,
+    unit_price: Number(product.unit_price),
+  })),
+  ...servicePackages.value.map((servicePackage) => ({
+    label: `${servicePackage.name} · ${currency(servicePackage.unit_price)}`,
+    value: `servicepackages:${servicePackage.id}`,
+    id: servicePackage.id,
+    resourceType: 'servicepackages' as const,
+    kindLabel: 'Service package' as const,
+    name: servicePackage.name,
+    sku: servicePackage.sku,
+    unit_price: Number(servicePackage.unit_price),
+  })),
+])
 const selectedCustomer = computed(() => customers.value.find((customer) => customer.id === customerId.value))
-const validLines = computed(() => lines.filter((line) => line.description.trim() && Number(line.quantity) > 0 && Number(line.unit_price) > 0))
+const validLines = computed(() => lines.filter((line) => billableIdentifier(line) && line.description.trim() && Number(line.quantity) > 0 && Number(line.unit_price) > 0))
 const total = computed(() => validLines.value.reduce((sum, line) => sum + lineTotal(line), 0))
 function lineTotal(line: { quantity: number | string; unit_price: number | string }) { return Number(line.quantity || 0) * Number(line.unit_price || 0) }
-function addLine() { lines.push({ localId: crypto.randomUUID(), productId: '', description: '', quantity: 1, unit_price: 0 }) }
+function addLine() { lines.push({ localId: crypto.randomUUID(), billableKey: '', description: '', quantity: 1, unit_price: 0 }) }
 function removeLine(index: number) { lines.splice(index, 1) }
-function productChanged(line: typeof lines[number]) {
-  const product = products.value.find((candidate) => candidate.id === line.productId)
-  if (!product) return
-  line.description = product.name
-  line.unit_price = Number(product.unit_price)
+function selectedBillable(line: InvoiceLineDraft) {
+  return billableOptions.value.find((candidate) => candidate.value === line.billableKey)
+}
+function billableIdentifier(line: InvoiceLineDraft): ResourceIdentifier | null {
+  const option = selectedBillable(line)
+  return option ? { type: option.resourceType, id: option.id } : null
+}
+function billableChanged(line: InvoiceLineDraft) {
+  const billable = selectedBillable(line)
+  if (!billable) return
+  line.description = billable.name
+  line.unit_price = Number(billable.unit_price)
 }
 function validateCurrentStep() {
   validationError.value = undefined
@@ -146,12 +199,25 @@ function validateCurrentStep() {
 }
 function nextStep() { if (validateCurrentStep()) step.value++ }
 function goToStep(index: number) { if (index <= step.value || validateCurrentStep()) step.value = index }
-function refetchLookups() { customersQuery.refetch(); productsQuery.refetch() }
+function refetchLookups() { customersQuery.refetch(); productsQuery.refetch(); servicePackagesQuery.refetch() }
 async function createInvoice() {
   if (!validateCurrentStep()) return
   saving.value = true
   try {
-    const invoice = await invoiceService.create({ customerId: customerId.value, status: status.value, lines: validLines.value.map(({ productId, description, quantity, unit_price }) => ({ productId, description, quantity: Number(quantity), unit_price: Number(unit_price) })) })
+    const invoice = await invoiceService.create({
+      customerId: customerId.value,
+      status: status.value,
+      lines: validLines.value.map((line) => {
+        const billable = billableIdentifier(line)
+        return {
+          billable,
+          productId: billable?.type === 'products' ? billable.id : undefined,
+          description: line.description,
+          quantity: Number(line.quantity),
+          unit_price: Number(line.unit_price),
+        }
+      }),
+    })
     app.toast('Invoice created', `${currency(total.value)} invoice is ready.`, 'success')
     await queryClient.invalidateQueries({ queryKey: ['invoices'] })
     router.push(invoice?.id ? `/invoices/${invoice.id}` : '/invoices')

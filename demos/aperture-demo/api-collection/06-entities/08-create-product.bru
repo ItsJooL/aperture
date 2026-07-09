@@ -1,0 +1,52 @@
+meta {
+  name: Create Product
+  type: http
+  seq: 8
+}
+
+post {
+  url: {{baseUrl}}/api/v1/products
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tenantAdminToken}}
+}
+
+headers {
+  Content-Type: application/vnd.api+json
+  Accept: application/vnd.api+json
+}
+
+body:json {
+  {
+    "data": {
+      "type": "products",
+      "attributes": {
+        "name": "Bruno Integration Starter",
+        "sku": "BRU-PROD-1",
+        "description": "A product member of the Billable one-of set.",
+        "unit_price": 499.00,
+        "category": "SOFTWARE",
+        "active": true
+      }
+    }
+  }
+}
+
+docs {
+  Creates a Product that can be used as one concrete member of the Billable one-of.
+  Run this before the atomic one-of invoice request.
+}
+
+script:post-response {
+  if (res.status === 201) {
+    bru.setVar("billableProductId", res.body.data.id);
+  }
+}
+
+assert {
+  res.status: eq 201
+  res.body.data.id: isDefined
+}

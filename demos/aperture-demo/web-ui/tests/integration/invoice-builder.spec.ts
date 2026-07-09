@@ -37,10 +37,33 @@ describe('InvoiceBuilderView integration', () => {
 
     await wrapper.findAll('button').find((button) => button.text() === 'Continue')!.trigger('click')
     await flushPromises()
-    await wrapper.find('select').setValue('prod-001')
+    await wrapper.find('select').setValue('products:prod-001')
     await flushPromises()
     expect(wrapper.text()).toContain('Integration Starter')
     expect(wrapper.text()).toContain('€249')
+
+    await wrapper.findAll('button').find((button) => button.text() === 'Continue')!.trigger('click')
+    await flushPromises()
+    await wrapper.findAll('button').find((button) => button.text() === 'Continue')!.trigger('click')
+    await flushPromises()
+    await wrapper.findAll('button').find((button) => button.text() === 'Create invoice')!.trigger('click')
+    await flushPromises()
+
+    expect(router.currentRoute.value.fullPath).toMatch(/^\/invoices\/invo-/)
+  })
+
+  it('lets a user choose a service package as the line item billable', async () => {
+    const { wrapper, router } = await mountBuilder()
+
+    await wrapper.findAll('button').find((button) => button.text() === 'Continue')!.trigger('click')
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('Priority onboarding')
+    await wrapper.find('select').setValue('servicepackages:svcpack-001')
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('Service package')
+    expect(wrapper.text()).toContain('€750')
 
     await wrapper.findAll('button').find((button) => button.text() === 'Continue')!.trigger('click')
     await flushPromises()
