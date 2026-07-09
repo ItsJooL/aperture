@@ -7,8 +7,8 @@ path as the normal API.
 
 | Entity | Manifest MCP config | Generated tools |
 |---|---|---|
-| `Project` | Inherits the framework default from `manifests/framework/config.yaml` | `list_projects`, `get_project`, `create_project`, `update_project`, `delete_project` |
-| `Task` | `enabled: true`, `tools: [list, get, create, update, delete]` | `list_tasks`, `get_task`, `create_task`, `update_task`, `delete_task` |
+| `Project` | None — no `mcp` block. Full CRUD is derived from its `permissions` (`Admin: [create, read, update, delete]`). | `list_projects`, `get_project`, `create_project`, `update_project`, `delete_project` |
+| `Task` | None — no `mcp` block. Full CRUD is derived from its `permissions` (`Admin: [create, read, update, delete]`). | `list_tasks`, `get_task`, `create_task`, `update_task`, `delete_task` |
 
 Task's required `ManyToOne` project relationship is written through JSON:API
 `relationships`, and MCP exposes it as a raw `project_id` parameter.
