@@ -23,6 +23,24 @@ wait_healthy() {
     pass "Service healthy"
 }
 
+# The API reports healthy before the seeder has run, so every assertion about seeded data
+# races the seeder unless we wait for it. A stale volume masks this: the previous run's data
+# is already there. Poll until the seeder's project shows up.
+wait_for_seed() {
+    local token="$1"
+    local deadline=$((SECONDS + TIMEOUT))
+    echo "Waiting for the seeder to finish (timeout ${TIMEOUT}s) ..."
+    while :; do
+        local body count
+        body=$(curl -s "$BASE_URL/api/v1/projects" -H "Authorization: Bearer $token" \
+            -H "Accept: application/vnd.api+json")
+        count=$(echo "$body" | jq -r '.data | length' 2>/dev/null || echo 0)
+        [ -n "$count" ] && [ "$count" -ge 1 ] && { pass "Seeder finished"; return 0; }
+        [ $SECONDS -lt $deadline ] || { fail "Seeder did not seed within ${TIMEOUT}s"; exit 1; }
+        sleep 2
+    done
+}
+
 req() {
     local method="$1" url="$2" body="${3:-}" token="${4:-}" accept="${5:-application/json}"
     local args=(-s -w "\n%{http_code}" -X "$method" "$url" -H "Content-Type: application/json" -H "Accept: $accept")
@@ -56,6 +74,9 @@ main() {
     [ "$status" = "200" ] && [ -n "$TOKEN" ] \
         && pass "Superadmin login" \
         || { fail "Superadmin login: status=$status"; echo "$body"; exit 1; }
+
+    echo ""
+    wait_for_seed "$TOKEN"
 
     echo ""
     echo "Testing: Seeded project visible over JSON:API"
@@ -124,7 +145,7 @@ main() {
 
     echo ""
     echo "Testing: MCP tools/call create_task links a ManyToOne relationship by raw id"
-    [ -n "$SEEDED_PROJECT_ID" ] || fail "No seeded project id to link a task to"
+    [ -n "$SEEDED_PROJECT_ID" ] || { fail "No seeded project id to link a task to"; exit 1; }
     response=$(mcp_call "$TOKEN" 4 "tools/call" \
         "{\"name\":\"create_task\",\"arguments\":{\"title\":\"Smoke Test Task\",\"project_id\":\"$SEEDED_PROJECT_ID\"}}")
     status=$(echo "$response" | tail -n1)
@@ -139,9 +160,10 @@ main() {
     body=$(echo "$response" | sed '$d')
     linked_project_id=$(extract "$body" \
         '[.data[] | select(.attributes.title == "Smoke Test Task")][0].relationships.project.data.id')
-    [ "$status" = "200" ] && [ "$linked_project_id" = "$SEEDED_PROJECT_ID" ] \
+    # Require a non-empty id: without this, an unseeded stack compares "" to "" and passes.
+    [ "$status" = "200" ] && [ -n "$linked_project_id" ] && [ "$linked_project_id" = "$SEEDED_PROJECT_ID" ] \
         && pass "MCP-created task is linked to project $SEEDED_PROJECT_ID" \
-        || { fail "MCP-created task relationship: expected project $SEEDED_PROJECT_ID, got '$linked_project_id'"; }
+        || { fail "MCP-created task relationship: expected project '$SEEDED_PROJECT_ID', got '$linked_project_id'"; }
 
     echo ""
     echo "Testing: Unauthenticated MCP request is rejected"
