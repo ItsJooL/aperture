@@ -11,12 +11,14 @@ import com.itsjool.aperture.engine.model.FrameworkConfigDef;
 import com.itsjool.aperture.engine.model.McpConfig;
 import com.itsjool.aperture.engine.model.McpEntityConfig;
 import com.itsjool.aperture.engine.model.AbacPolicyDef;
+import com.itsjool.aperture.engine.model.OneOfDef;
 import com.itsjool.aperture.engine.model.PrincipalAttributeDefinitionDef;
 
 import java.util.Set;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.LinkedHashMap;
 import java.util.regex.Pattern;
 
 public class DomainModelValidator {
@@ -29,8 +31,49 @@ public class DomainModelValidator {
 
     public void validate(ResolvedDomainModel model, Map<Object, String> locationMap) {
         Set<String> knownEntityNames = new HashSet<>();
+        Map<String, EntityDef> entitiesByName = new LinkedHashMap<>();
         for (EntityDef e : model.entities()) {
             knownEntityNames.add(e.name());
+            entitiesByName.put(e.name(), e);
+        }
+
+        Set<String> knownOneOfNames = new HashSet<>();
+        Map<String, String> memberOwners = new LinkedHashMap<>();
+        for (OneOfDef oneOf : model.oneOfs()) {
+            String loc = locationMap.getOrDefault(oneOf, "unknown file");
+            if (oneOf.name() == null || oneOf.name().isBlank()) {
+                throw new ManifestValidationException("OneOf in " + loc + " must declare metadata.name");
+            }
+            if (!knownOneOfNames.add(oneOf.name())) {
+                throw new ManifestValidationException("Duplicate oneof name in " + loc + ": " + oneOf.name());
+            }
+            if (oneOf.members().size() < 2) {
+                throw new ManifestValidationException(
+                    "OneOf in " + loc + " (" + oneOf.name() + ") must declare at least two members");
+            }
+
+            Boolean tenantScoped = null;
+            for (String memberName : oneOf.members()) {
+                EntityDef member = entitiesByName.get(memberName);
+                if (member == null) {
+                    throw new ManifestValidationException(
+                        "Unknown oneof member in " + loc + " (OneOf " + oneOf.name()
+                            + "): '" + memberName + "' is not declared as an entity in this domain model");
+                }
+                String previousOwner = memberOwners.putIfAbsent(memberName, oneOf.name());
+                if (previousOwner != null) {
+                    throw new ManifestValidationException(
+                        "OneOf member in " + loc + " (OneOf " + oneOf.name() + "): '" + memberName
+                            + "' is already a member of OneOf " + previousOwner);
+                }
+                if (tenantScoped == null) {
+                    tenantScoped = member.tenantScoped();
+                } else if (tenantScoped != member.tenantScoped()) {
+                    throw new ManifestValidationException(
+                        "OneOf members must use the same tenant shape in " + loc
+                            + " (OneOf " + oneOf.name() + ")");
+                }
+            }
         }
 
         Set<String> declaredRoles = new HashSet<>();
@@ -211,7 +254,14 @@ public class DomainModelValidator {
                 for (Map.Entry<String, FieldDef> fieldEntry : entity.fields().entrySet()) {
                     String fieldName = fieldEntry.getKey();
                     FieldDef field = fieldEntry.getValue();
-                    if (field.targetClass() != null && !knownEntityNames.contains(field.targetClass())) {
+                    if ("oneof".equalsIgnoreCase(field.type())) {
+                        if (field.targetClass() == null || !knownOneOfNames.contains(field.targetClass())) {
+                            throw new ManifestValidationException(
+                                "Unknown oneof target in " + loc + " (Entity " + entity.name()
+                                    + " field " + fieldName + "): '" + field.targetClass()
+                                    + "' is not declared as a OneOf in this domain model");
+                        }
+                    } else if (field.targetClass() != null && !knownEntityNames.contains(field.targetClass())) {
                         throw new ManifestValidationException(
                             "Unknown relationship target in " + loc + " (Entity " + entity.name()
                             + " field " + fieldName + "): '" + field.targetClass()

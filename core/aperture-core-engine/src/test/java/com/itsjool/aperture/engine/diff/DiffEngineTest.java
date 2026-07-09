@@ -2,6 +2,7 @@ package com.itsjool.aperture.engine.diff;
 
 import com.itsjool.aperture.engine.model.EntityDef;
 import com.itsjool.aperture.engine.model.FieldDef;
+import com.itsjool.aperture.engine.model.OneOfDef;
 import com.itsjool.aperture.engine.model.ResolvedDomainModel;
 import org.junit.jupiter.api.Test;
 
@@ -258,5 +259,33 @@ class DiffEngineTest {
         assertThat(diff.addedFields()).containsKey("Invoice");
         assertThat(diff.addedFields().get("Invoice")).containsKey("customer");
         assertThat(diff.allEntities()).containsKey("Customer");
+    }
+
+    @Test
+    void addingOneOfMemberIsSafeAndTrackedAsModifiedOneOf() {
+        OneOfDef oldBillable = new OneOfDef("Billable", List.of("Product", "ServicePackage"));
+        OneOfDef newBillable = new OneOfDef("Billable", List.of("Product", "ServicePackage", "Subscription"));
+
+        DiffResult diff = new DiffEngine().computeDiff(
+            new ResolvedDomainModel(List.of(), List.of(), null, List.of(), List.of(), List.of(), List.of(), List.of(oldBillable)),
+            new ResolvedDomainModel(List.of(), List.of(), null, List.of(), List.of(), List.of(), List.of(), List.of(newBillable)),
+            List.of("1"));
+
+        assertThat(diff.hasBreakingChanges()).isFalse();
+        assertThat(diff.modifiedOneOfs()).containsExactly(newBillable);
+    }
+
+    @Test
+    void removingOneOfMemberIsBreakingAndTrackedAsModifiedOneOf() {
+        OneOfDef oldBillable = new OneOfDef("Billable", List.of("Product", "ServicePackage"));
+        OneOfDef newBillable = new OneOfDef("Billable", List.of("Product"));
+
+        DiffResult diff = new DiffEngine().computeDiff(
+            new ResolvedDomainModel(List.of(), List.of(), null, List.of(), List.of(), List.of(), List.of(), List.of(oldBillable)),
+            new ResolvedDomainModel(List.of(), List.of(), null, List.of(), List.of(), List.of(), List.of(), List.of(newBillable)),
+            List.of("1"));
+
+        assertThat(diff.hasBreakingChanges()).isTrue();
+        assertThat(diff.modifiedOneOfs()).containsExactly(newBillable);
     }
 }

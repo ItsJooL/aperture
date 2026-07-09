@@ -90,8 +90,9 @@ public class GeneratorOrchestrator {
             ResolvedDomainModel model = new ManifestParser().parseDirectory(manifestDirectory);
             List<String> activeVersions = computeActiveVersions(model);
             LockFileManager lockManager = new LockFileManager();
-            ResolvedDomainModel previousModel = new ResolvedDomainModel(lockDirectory.exists()
-                ? lockManager.readAllLockFiles(lockDirectory.toPath()) : List.of());
+            ResolvedDomainModel previousModel = lockDirectory.exists()
+                ? lockManager.readLockedDomainModel(lockDirectory.toPath())
+                : new ResolvedDomainModel(List.of());
             var diff = new DiffEngine().computeDiff(previousModel, model, activeVersions);
             if (diff.hasBreakingChanges()) {
                 throw new IllegalStateException("Breaking changes detected without API version bump");

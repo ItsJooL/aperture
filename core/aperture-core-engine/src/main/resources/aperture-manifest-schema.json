@@ -5,7 +5,7 @@
     "apiVersion": { "type": "string" },
     "kind": { 
       "type": "string",
-      "enum": ["Entity", "Migration", "FrameworkConfig", "RoleDefinition", "AbacPolicy", "ApiVersionConfig", "PrincipalAttributeDefinition"]
+      "enum": ["Entity", "OneOf", "Migration", "FrameworkConfig", "RoleDefinition", "AbacPolicy", "ApiVersionConfig", "PrincipalAttributeDefinition"]
     },
     "metadata": {
       "type": "object",
@@ -104,6 +104,25 @@
               }
             },
             "required": ["fields"]
+          }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "kind": { "const": "OneOf" } } },
+      "then": {
+        "properties": {
+          "spec": {
+            "type": "object",
+            "properties": {
+              "members": {
+                "type": "array",
+                "items": { "type": "string" },
+                "minItems": 2,
+                "uniqueItems": true
+              }
+            },
+            "required": ["members"]
           }
         }
       }

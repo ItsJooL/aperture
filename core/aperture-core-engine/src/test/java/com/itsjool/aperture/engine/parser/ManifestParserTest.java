@@ -774,4 +774,43 @@ class ManifestParserTest {
         assertEquals("exact", dept.personalKeyDelegation());
         assertEquals(true, dept.serviceAccountAssignable());
     }
+
+    @Test
+    void parsesOneOfManifestIntoDomainModel() throws Exception {
+        Files.writeString(new File(tempDir, "product.yaml").toPath(), """
+            apiVersion: aperture.itsjool.com/v1
+            kind: Entity
+            metadata:
+              name: Product
+            spec:
+              fields:
+                name: { type: String }
+            """);
+        Files.writeString(new File(tempDir, "service-package.yaml").toPath(), """
+            apiVersion: aperture.itsjool.com/v1
+            kind: Entity
+            metadata:
+              name: ServicePackage
+            spec:
+              fields:
+                name: { type: String }
+            """);
+        Files.writeString(new File(tempDir, "billable.yaml").toPath(), """
+            apiVersion: aperture.itsjool.com/v1
+            kind: OneOf
+            metadata:
+              name: Billable
+            spec:
+              members:
+                - Product
+                - ServicePackage
+            """);
+
+        ResolvedDomainModel model = new ManifestParser().parseDirectory(tempDir);
+
+        assertThat(model.oneOfs()).singleElement().satisfies(oneOf -> {
+            assertThat(oneOf.name()).isEqualTo("Billable");
+            assertThat(oneOf.members()).containsExactly("Product", "ServicePackage");
+        });
+    }
 }

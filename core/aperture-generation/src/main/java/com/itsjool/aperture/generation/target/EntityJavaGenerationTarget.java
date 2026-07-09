@@ -39,5 +39,6 @@ public class EntityJavaGenerationTarget implements ApertureGenerationTarget {
             }
             lockManager.writeLockFile(request.activeVersions().getFirst(), entity, staging.locksStaging());
         }
+        lockManager.writeDomainModelLockFile(request.activeVersions().getFirst(), request.model(), staging.locksStaging());
     }
 }

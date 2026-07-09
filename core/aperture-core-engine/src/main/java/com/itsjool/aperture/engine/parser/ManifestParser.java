@@ -40,6 +40,7 @@ public class ManifestParser {
         List<AbacPolicyDef> abacPolicies = new ArrayList<>();
         List<ApiVersionConfigDef> apiVersionConfigs = new ArrayList<>();
         List<PrincipalAttributeDefinitionDef> principalAttributeDefinitions = new ArrayList<>();
+        List<OneOfDef> oneOfs = new ArrayList<>();
         FrameworkConfigDef config = null;
         java.util.Map<Object, String> locationMap = new java.util.IdentityHashMap<>();
 
@@ -58,7 +59,7 @@ public class ManifestParser {
 
             if (files.isEmpty()) {
                 return new ResolvedDomainModel(entities, migrations, new FrameworkConfigDef(List.of(), null, null, null),
-                    roleDefinitions, abacPolicies, apiVersionConfigs, principalAttributeDefinitions);
+                    roleDefinitions, abacPolicies, apiVersionConfigs, principalAttributeDefinitions, oneOfs);
             }
 
         for (File f : files) {
@@ -118,6 +119,11 @@ public class ManifestParser {
                     PrincipalAttributeDefinitionDef def = mapper.treeToValue(resolvedNode, PrincipalAttributeDefinitionDef.class);
                     principalAttributeDefinitions.add(def);
                     locationMap.put(def, f.getPath());
+                } else if ("OneOf".equals(kind)) {
+                    OneOfDef def = mapper.treeToValue(specNode, OneOfDef.class);
+                    OneOfDef newDef = new OneOfDef(name, def.members());
+                    oneOfs.add(newDef);
+                    locationMap.put(newDef, f.getPath());
                 } else {
                     throw new RuntimeException("Unknown kind: " + kind + " in file " + f.getPath());
                 }
@@ -128,7 +134,7 @@ public class ManifestParser {
         
         ResolvedDomainModel model = new ResolvedDomainModel(entities, migrations,
             config != null ? config : new FrameworkConfigDef(List.of(), null, null, null),
-            roleDefinitions, abacPolicies, apiVersionConfigs, principalAttributeDefinitions);
+            roleDefinitions, abacPolicies, apiVersionConfigs, principalAttributeDefinitions, oneOfs);
             
         new com.itsjool.aperture.engine.validator.DomainModelValidator().validate(model, locationMap);
         

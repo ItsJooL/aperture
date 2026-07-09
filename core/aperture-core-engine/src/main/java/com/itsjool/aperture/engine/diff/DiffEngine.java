@@ -2,10 +2,12 @@ package com.itsjool.aperture.engine.diff;
 
 import com.itsjool.aperture.engine.model.EntityDef;
 import com.itsjool.aperture.engine.model.FieldDef;
+import com.itsjool.aperture.engine.model.OneOfDef;
 import com.itsjool.aperture.engine.model.ResolvedDomainModel;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -15,10 +17,15 @@ public class DiffEngine {
     public DiffResult computeDiff(ResolvedDomainModel oldModel, ResolvedDomainModel newModel, List<String> activeVersions) {
         Map<String, EntityDef> oldEntities = oldModel.entities().stream().collect(Collectors.toMap(EntityDef::name, e -> e));
         Map<String, EntityDef> newEntities = newModel.entities().stream().collect(Collectors.toMap(EntityDef::name, e -> e));
+        Map<String, OneOfDef> oldOneOfs = oldModel.oneOfs().stream().collect(Collectors.toMap(OneOfDef::name, o -> o));
+        Map<String, OneOfDef> newOneOfs = newModel.oneOfs().stream().collect(Collectors.toMap(OneOfDef::name, o -> o));
 
         List<EntityDef> added = new ArrayList<>();
         List<EntityDef> modified = new ArrayList<>();
         List<String> removed = new ArrayList<>();
+        List<OneOfDef> addedOneOfs = new ArrayList<>();
+        List<OneOfDef> modifiedOneOfs = new ArrayList<>();
+        List<String> removedOneOfs = new ArrayList<>();
         Map<String, Map<String, FieldDef>> addedFields = new HashMap<>();
         Map<String, Map<String, FieldDef>> deferredDrops = new HashMap<>();
         Map<String, Map<String, FieldDef>> renamedFields = new HashMap<>();
@@ -108,7 +115,32 @@ public class DiffEngine {
             }
         }
 
+        for (OneOfDef newOneOf : newOneOfs.values()) {
+            OneOfDef oldOneOf = oldOneOfs.get(newOneOf.name());
+            if (oldOneOf == null) {
+                addedOneOfs.add(newOneOf);
+                continue;
+            }
+
+            LinkedHashSet<String> oldMembers = new LinkedHashSet<>(oldOneOf.members());
+            LinkedHashSet<String> newMembers = new LinkedHashSet<>(newOneOf.members());
+            if (!oldMembers.equals(newMembers)) {
+                modifiedOneOfs.add(newOneOf);
+                if (!newMembers.containsAll(oldMembers)) {
+                    classification = ChangeType.BREAKING;
+                }
+            }
+        }
+
+        for (String oldOneOfName : oldOneOfs.keySet()) {
+            if (!newOneOfs.containsKey(oldOneOfName)) {
+                removedOneOfs.add(oldOneOfName);
+                classification = ChangeType.BREAKING;
+            }
+        }
+
         Map<String, EntityDef> allEntities = newEntities;
-        return new DiffResult(added, modified, removed, addedFields, deferredDrops, renamedFields, classification, allEntities);
+        return new DiffResult(added, modified, removed, addedFields, deferredDrops, renamedFields,
+            classification, allEntities, addedOneOfs, modifiedOneOfs, removedOneOfs);
     }
 }

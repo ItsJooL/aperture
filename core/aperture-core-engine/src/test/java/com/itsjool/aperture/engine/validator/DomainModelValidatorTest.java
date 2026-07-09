@@ -7,6 +7,7 @@ import com.itsjool.aperture.engine.model.FrameworkConfigDef;
 import com.itsjool.aperture.engine.model.HookDef;
 import com.itsjool.aperture.engine.model.McpConfig;
 import com.itsjool.aperture.engine.model.McpEntityConfig;
+import com.itsjool.aperture.engine.model.OneOfDef;
 import com.itsjool.aperture.engine.model.ResolvedDomainModel;
 import com.itsjool.aperture.engine.model.RoleDef;
 import com.itsjool.aperture.engine.model.RoleDefinitionDef;
@@ -28,12 +29,21 @@ class DomainModelValidatorTest {
             false, false, false, fields, null, null, null, Map.of(), Map.of());
     }
 
+    private static EntityDef tenantScopedEntity(String name, Map<String, FieldDef> fields) {
+        return new EntityDef(name, name.toLowerCase() + "s", null, null,
+            false, false, true, fields, null, null, null, Map.of(), Map.of());
+    }
+
     private static FieldDef stringField() {
         return new FieldDef("String", false, false, false, false, null, null, null, null, null, null, null);
     }
 
     private static FieldDef manyToOneField(String targetClass) {
         return new FieldDef("ref", false, false, false, false, null, null, null, "ManyToOne", targetClass, null, null);
+    }
+
+    private static FieldDef oneOfField(String targetClass) {
+        return new FieldDef("oneof", false, false, false, false, null, null, null, null, targetClass, null, null);
     }
 
     // ---------- relationship target validation ----------
@@ -57,6 +67,65 @@ class DomainModelValidatorTest {
             .isInstanceOf(ManifestValidationException.class)
             .hasMessageContaining("Unknown relationship target")
             .hasMessageContaining("Ghost");
+    }
+
+    @Test
+    void oneOfFieldTargetReferencesKnownOneOf_passes() {
+        EntityDef product = entity("Product", Map.of("name", stringField()));
+        EntityDef servicePackage = entity("ServicePackage", Map.of("name", stringField()));
+        EntityDef lineItem = entity("LineItem", Map.of("billable", oneOfField("Billable")));
+        OneOfDef billable = new OneOfDef("Billable", List.of("Product", "ServicePackage"));
+
+        assertThatCode(() -> validator.validate(
+            new ResolvedDomainModel(List.of(product, servicePackage, lineItem), List.of(), null,
+                List.of(), List.of(), List.of(), List.of(), List.of(billable)),
+            Map.of()))
+            .doesNotThrowAnyException();
+    }
+
+    @Test
+    void oneOfFieldTargetReferencesEntity_throws() {
+        EntityDef product = entity("Product", Map.of("name", stringField()));
+        EntityDef lineItem = entity("LineItem", Map.of("billable", oneOfField("Product")));
+        OneOfDef billable = new OneOfDef("Billable", List.of("Product", "LineItem"));
+
+        assertThatThrownBy(() -> validator.validate(
+            new ResolvedDomainModel(List.of(product, lineItem), List.of(), null,
+                List.of(), List.of(), List.of(), List.of(), List.of(billable)),
+            Map.of()))
+            .isInstanceOf(ManifestValidationException.class)
+            .hasMessageContaining("Unknown oneof target")
+            .hasMessageContaining("Product");
+    }
+
+    @Test
+    void oneOfMemberReferencesUnknownEntity_throws() {
+        EntityDef product = entity("Product", Map.of("name", stringField()));
+        OneOfDef billable = new OneOfDef("Billable", List.of("Product", "Ghost"));
+
+        assertThatThrownBy(() -> validator.validate(
+            new ResolvedDomainModel(List.of(product), List.of(), null,
+                List.of(), List.of(), List.of(), List.of(), List.of(billable)),
+            Map.of(billable, "billable.yaml")))
+            .isInstanceOf(ManifestValidationException.class)
+            .hasMessageContaining("Unknown oneof member")
+            .hasMessageContaining("Ghost")
+            .hasMessageContaining("billable.yaml");
+    }
+
+    @Test
+    void oneOfMembersMustShareTenantShape_throws() {
+        EntityDef product = tenantScopedEntity("Product", Map.of("name", stringField()));
+        EntityDef servicePackage = entity("ServicePackage", Map.of("name", stringField()));
+        OneOfDef billable = new OneOfDef("Billable", List.of("Product", "ServicePackage"));
+
+        assertThatThrownBy(() -> validator.validate(
+            new ResolvedDomainModel(List.of(product, servicePackage), List.of(), null,
+                List.of(), List.of(), List.of(), List.of(), List.of(billable)),
+            Map.of(billable, "billable.yaml")))
+            .isInstanceOf(ManifestValidationException.class)
+            .hasMessageContaining("same tenant shape")
+            .hasMessageContaining("Billable");
     }
 
     @Test
