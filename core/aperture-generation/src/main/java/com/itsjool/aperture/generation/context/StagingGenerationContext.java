@@ -53,7 +53,7 @@ public class StagingGenerationContext implements ApertureGenerationContext {
                 "Generated Java source has no package declaration; cannot determine where to write it. "
                     + "Source starts with: " + preview);
         }
-        String cls = extractClassName(source);
+        String cls = topLevelTypeName(source);
         if (cls != null) {
             writeJavaSource(pkg, cls, source);
         } else {
@@ -103,7 +103,14 @@ public class StagingGenerationContext implements ApertureGenerationContext {
         return m.find() ? m.group(1) : null;
     }
 
-    private String extractClassName(String source) {
+    /**
+     * Returns the name of the top-level type declared in {@code source}, or {@code null} if it
+     * declares none (a package-info source). This is the name {@link #writeJavaSourceFromString}
+     * derives the file name from, so a caller holding a class name it believes {@code source}
+     * declares must check it against this method — otherwise the write silently lands in a
+     * different file than the caller expects.
+     */
+    public static String topLevelTypeName(String source) {
         Matcher m = CLASS_PATTERN.matcher(source);
         return m.find() ? m.group(1) : null;
     }

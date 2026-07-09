@@ -25,6 +25,11 @@
         </dependency>
         <dependency>
             <groupId>com.itsjool</groupId>
+            <artifactId>aperture-mcp-spi</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.itsjool</groupId>
             <artifactId>aperture-changeset</artifactId>
             <version>${project.version}</version>
         </dependency>

@@ -6,6 +6,7 @@ import com.itsjool.aperture.cli.oidc.OidcDeviceCodeCliExtension;
 import com.itsjool.aperture.cli.spi.AuthPaths;
 import com.itsjool.aperture.cli.spi.CliAuthExtension;
 import com.itsjool.aperture.cli.spi.CliCommandContribution;
+import com.itsjool.aperture.mcp.spi.McpToolContribution;
 import org.apache.maven.model.Resource;
 import org.apache.maven.plugin.MojoExecutionException;
 import org.apache.maven.project.MavenProject;
@@ -525,6 +526,183 @@ class ApertureGenerateMojoTest {
     }
 
     @Test
+    void mcpToolGenerationFailsForInvalidToolName() throws Exception {
+        Path manifests = Files.createDirectories(tempDir.resolve("manifests-mcp-invalid-tool"));
+        Path sources = tempDir.resolve("sources-mcp-invalid-tool");
+        Path resources = tempDir.resolve("resources-mcp-invalid-tool");
+        Path locks = tempDir.resolve("locks-mcp-invalid-tool");
+        writeManifest(manifests, "entity.yaml", """
+            apiVersion: aperture.itsjool.com/v1
+            kind: Entity
+            metadata: { name: Widget }
+            spec:
+              fields:
+                name: { type: string, required: true }
+              permissions:
+                Admin: [create, read, update, delete]
+              mcp:
+                tools: [list, publish]
+            """);
+        writeManifest(manifests, "versions.yaml", """
+            apiVersion: aperture.itsjool.com/v1
+            kind: ApiVersionConfig
+            metadata: { name: versions }
+            spec:
+              versions:
+                "1": { status: ACTIVE }
+            """);
+        writeManifest(manifests, "framework.yaml", """
+            apiVersion: aperture.itsjool.com/v1
+            kind: FrameworkConfig
+            metadata: { name: framework }
+            spec:
+              defaultRoles: [Admin]
+              mcp:
+                enabled: true
+                transport: stateless
+            """);
+        writeManifest(manifests, "roles.yaml", """
+            apiVersion: aperture.itsjool.com/v1
+            kind: RoleDefinition
+            metadata: { name: roles }
+            spec:
+              roles:
+                Admin: { description: Admin }
+            """);
+        ApertureGenerateMojo mojo = new ApertureGenerateMojo();
+        mojo.setProject(new MavenProject());
+        mojo.setManifestDirectory(manifests.toFile());
+        mojo.setOutputDirectory(sources.toFile());
+        mojo.setGeneratedResourcesDirectory(resources.toFile());
+        mojo.setLockDirectory(locks.toFile());
+
+        assertThatThrownBy(mojo::execute)
+            .hasMessageContaining("Generation failed")
+            .hasStackTraceContaining("$.spec.mcp.tools[1]")
+            .hasStackTraceContaining("enumeration");
+    }
+
+    @Test
+    void mcpToolContributionExtensionReachesGeneratedProject() throws Exception {
+        Path manifests = Files.createDirectories(tempDir.resolve("manifests-mcp-contribution"));
+        Path sources = tempDir.resolve("sources-mcp-contribution");
+        Path resources = tempDir.resolve("resources-mcp-contribution");
+        Path locks = tempDir.resolve("locks-mcp-contribution");
+        writeManifest(manifests, "entity.yaml", """
+            apiVersion: aperture.itsjool.com/v1
+            kind: Entity
+            metadata: { name: Widget }
+            spec:
+              fields:
+                name: { type: string, required: true }
+              permissions:
+                Admin: [create, read, update, delete]
+            """);
+        writeManifest(manifests, "versions.yaml", """
+            apiVersion: aperture.itsjool.com/v1
+            kind: ApiVersionConfig
+            metadata: { name: versions }
+            spec:
+              versions:
+                "1": { status: ACTIVE }
+            """);
+        writeManifest(manifests, "framework.yaml", """
+            apiVersion: aperture.itsjool.com/v1
+            kind: FrameworkConfig
+            metadata: { name: framework }
+            spec:
+              defaultRoles: [Admin]
+              mcp:
+                enabled: true
+            """);
+        writeManifest(manifests, "roles.yaml", """
+            apiVersion: aperture.itsjool.com/v1
+            kind: RoleDefinition
+            metadata: { name: roles }
+            spec:
+              roles:
+                Admin: { description: Admin }
+            """);
+
+        ApertureGenerateMojo mojo = new ApertureGenerateMojo();
+        mojo.setProject(new MavenProject());
+        mojo.setManifestDirectory(manifests.toFile());
+        mojo.setOutputDirectory(sources.toFile());
+        mojo.setGeneratedResourcesDirectory(resources.toFile());
+        mojo.setLockDirectory(locks.toFile());
+        ApertureGenerateMojo.McpPluginConfig mcp = new ApertureGenerateMojo.McpPluginConfig();
+        mcp.setExtensions(java.util.List.of(StubToolContribution.class.getName()));
+        mojo.setMcp(mcp);
+
+        mojo.execute();
+
+        // The generated entity tool class and the SPI contribution land in the same package.
+        assertThat(sources.resolve("com/itsjool/aperture/generated/mcp/WidgetV1McpTools.java")).exists();
+        Path contributionFile = sources.resolve("com/itsjool/aperture/generated/mcp/StubMcpTools.java");
+        assertThat(contributionFile).exists().content()
+            .contains("package com.itsjool.aperture.generated.mcp;")
+            .contains("public class StubMcpTools")
+            .contains("latestApiVersion=1");
+    }
+
+    @Test
+    void mcpExtensionNotImplementingInterfaceFailsWithMojoExecutionException() throws Exception {
+        Path manifests = Files.createDirectories(tempDir.resolve("manifests-mcp-bad-extension"));
+        Path sources = tempDir.resolve("sources-mcp-bad-extension");
+        Path resources = tempDir.resolve("resources-mcp-bad-extension");
+        Path locks = tempDir.resolve("locks-mcp-bad-extension");
+        writeManifest(manifests, "entity.yaml", """
+            apiVersion: aperture.itsjool.com/v1
+            kind: Entity
+            metadata: { name: Widget }
+            spec:
+              fields:
+                name: { type: string, required: true }
+              permissions:
+                Admin: [create, read, update, delete]
+            """);
+        writeManifest(manifests, "versions.yaml", """
+            apiVersion: aperture.itsjool.com/v1
+            kind: ApiVersionConfig
+            metadata: { name: versions }
+            spec:
+              versions:
+                "1": { status: ACTIVE }
+            """);
+        writeManifest(manifests, "framework.yaml", """
+            apiVersion: aperture.itsjool.com/v1
+            kind: FrameworkConfig
+            metadata: { name: framework }
+            spec:
+              defaultRoles: [Admin]
+              mcp:
+                enabled: true
+            """);
+        writeManifest(manifests, "roles.yaml", """
+            apiVersion: aperture.itsjool.com/v1
+            kind: RoleDefinition
+            metadata: { name: roles }
+            spec:
+              roles:
+                Admin: { description: Admin }
+            """);
+
+        ApertureGenerateMojo mojo = new ApertureGenerateMojo();
+        mojo.setProject(new MavenProject());
+        mojo.setManifestDirectory(manifests.toFile());
+        mojo.setOutputDirectory(sources.toFile());
+        mojo.setGeneratedResourcesDirectory(resources.toFile());
+        mojo.setLockDirectory(locks.toFile());
+        ApertureGenerateMojo.McpPluginConfig mcp = new ApertureGenerateMojo.McpPluginConfig();
+        mcp.setExtensions(java.util.List.of(NotAnExtension.class.getName()));
+        mojo.setMcp(mcp);
+
+        assertThatThrownBy(mojo::execute)
+            .isInstanceOf(MojoExecutionException.class)
+            .hasMessageContaining("does not implement McpToolContribution");
+    }
+
+    @Test
     void generatesOpenApiYaml() throws Exception {
         Path manifests = Files.createDirectories(tempDir.resolve("manifests-oas"));
         Path sources = tempDir.resolve("sources-oas");
@@ -746,6 +924,26 @@ class ApertureGenerateMojoTest {
                     @Override public void run() { System.out.println("stub"); }
                 }
                 """;
+        }
+    }
+
+    /** Test-only stub — a real implementation would live in its own artifact. */
+    public static class StubToolContribution implements McpToolContribution {
+        @Override public String id() { return "stub-mcp-tools"; }
+        @Override public String toolClassName() { return "StubMcpTools"; }
+        @Override public String toolSource(String latestApiVersion) {
+            return """
+                package com.itsjool.aperture.generated.mcp;
+
+                import org.springframework.stereotype.Component;
+                import org.springframework.ai.tool.annotation.Tool;
+
+                @Component
+                public class StubMcpTools {
+                    @Tool(name = "stub_tool", description = "stub, latestApiVersion=%s")
+                    public String stubTool() { return "stub"; }
+                }
+                """.formatted(latestApiVersion);
         }
     }
 

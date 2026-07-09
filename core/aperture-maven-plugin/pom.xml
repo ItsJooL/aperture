@@ -39,6 +39,11 @@
         </dependency>
         <dependency>
             <groupId>com.itsjool</groupId>
+            <artifactId>aperture-mcp-spi</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.itsjool</groupId>
             <artifactId>aperture-cli-auth-oidc</artifactId>
             <version>${project.version}</version>
             <scope>test</scope>

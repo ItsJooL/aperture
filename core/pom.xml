@@ -17,6 +17,7 @@
         <module>aperture-provider-spi</module>
         <module>aperture-core-engine</module>
         <module>aperture-mcp</module>
+        <module>aperture-mcp-spi</module>
         <module>aperture-changeset</module>
         <module>aperture-core-runtime</module>
         <module>aperture-generation-spi</module>

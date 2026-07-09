@@ -15,6 +15,7 @@ import com.itsjool.aperture.generation.target.McpJavaGenerationTarget;
 import com.itsjool.aperture.generation.target.OpenApiGenerationTarget;
 import com.itsjool.aperture.generation.target.RuntimeMetadataGenerationTarget;
 import com.itsjool.aperture.generation.target.SecurityChecksGenerationTarget;
+import com.itsjool.aperture.mcp.spi.McpToolContribution;
 
 import java.io.File;
 import java.nio.file.Files;
@@ -39,26 +40,31 @@ import java.util.stream.Stream;
  */
 public class GeneratorOrchestrator {
 
-    private static final List<ApertureGenerationTarget> BUILT_IN_TARGETS = List.of(
-        new SecurityChecksGenerationTarget(),
-        new EntityJavaGenerationTarget(),
-        new McpJavaGenerationTarget(),
-        new LiquibaseGenerationTarget(),
-        new RuntimeMetadataGenerationTarget(),
-        new OpenApiGenerationTarget()
-    );
-
     /**
      * Runs all built-in targets plus any {@code extensionTargets} provided by the caller.
      *
      * @param options         directories and configuration
      * @param logger          receives info-level progress lines (e.g. {@code getLog()::info})
      * @param extensionTargets additional targets registered via plugin configuration
+     * @param mcpToolContributions SPI-contributed MCP tool classes, threaded into the built-in
+     *                              {@link McpJavaGenerationTarget} (which is NOT also an extension
+     *                              target — adding it to {@code extensionTargets} as well would
+     *                              run MCP generation twice).
      */
     public void generate(
             GenerationOptions options,
             Consumer<String> logger,
-            List<ApertureGenerationTarget> extensionTargets) throws Exception {
+            List<ApertureGenerationTarget> extensionTargets,
+            List<McpToolContribution> mcpToolContributions) throws Exception {
+
+        List<ApertureGenerationTarget> builtInTargets = List.of(
+            new SecurityChecksGenerationTarget(),
+            new EntityJavaGenerationTarget(),
+            new McpJavaGenerationTarget(mcpToolContributions != null ? mcpToolContributions : List.of()),
+            new LiquibaseGenerationTarget(),
+            new RuntimeMetadataGenerationTarget(),
+            new OpenApiGenerationTarget()
+        );
 
         File manifestDirectory = options.manifestDirectory();
         File outputDirectory = options.outputDirectory();
@@ -113,7 +119,7 @@ public class GeneratorOrchestrator {
             StagingGenerationContext context = new StagingGenerationContext(
                 tempSourcesStaging, tempResourcesStaging, tempLocksStaging);
 
-            List<ApertureGenerationTarget> allTargets = new ArrayList<>(BUILT_IN_TARGETS);
+            List<ApertureGenerationTarget> allTargets = new ArrayList<>(builtInTargets);
             if (extensionTargets != null) allTargets.addAll(extensionTargets);
 
             for (ApertureGenerationTarget target : allTargets) {
@@ -165,9 +171,17 @@ public class GeneratorOrchestrator {
         }
     }
 
-    /** Convenience overload for callers with no extension targets. */
+    /** Convenience overload for callers with extension targets but no MCP tool contributions. */
+    public void generate(
+            GenerationOptions options,
+            Consumer<String> logger,
+            List<ApertureGenerationTarget> extensionTargets) throws Exception {
+        generate(options, logger, extensionTargets, List.of());
+    }
+
+    /** Convenience overload for callers with no extension targets or MCP tool contributions. */
     public void generate(GenerationOptions options, Consumer<String> logger) throws Exception {
-        generate(options, logger, List.of());
+        generate(options, logger, List.of(), List.of());
     }
 
     private List<String> computeActiveVersions(ResolvedDomainModel model) {

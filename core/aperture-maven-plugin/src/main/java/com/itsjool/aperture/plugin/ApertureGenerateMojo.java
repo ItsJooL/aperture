@@ -6,6 +6,7 @@ import com.itsjool.aperture.cli.generator.CliGenerationTarget;
 import com.itsjool.aperture.generation.GenerationOptions;
 import com.itsjool.aperture.generation.GeneratorOrchestrator;
 import com.itsjool.aperture.generation.spi.ApertureGenerationTarget;
+import com.itsjool.aperture.mcp.spi.McpToolContribution;
 import org.apache.maven.model.Resource;
 import org.apache.maven.plugin.AbstractMojo;
 import org.apache.maven.plugin.MojoExecutionException;
@@ -40,12 +41,17 @@ public class ApertureGenerateMojo extends AbstractMojo {
     @Parameter
     private CliConfig cli;
 
+    /** {@code <mcp><extensions>...</extensions></mcp>} — additional MCP tool contributions. */
+    @Parameter
+    private McpPluginConfig mcp;
+
     public void setProject(MavenProject project) { this.project = project; }
     public void setManifestDirectory(File manifestDirectory) { this.manifestDirectory = manifestDirectory; }
     public void setOutputDirectory(File outputDirectory) { this.outputDirectory = outputDirectory; }
     public void setGeneratedResourcesDirectory(File d) { this.generatedResourcesDirectory = d; }
     public void setLockDirectory(File lockDirectory) { this.lockDirectory = lockDirectory; }
     public void setCli(CliConfig cli) { this.cli = cli; }
+    public void setMcp(McpPluginConfig mcp) { this.mcp = mcp; }
 
     @Override
     public void execute() throws MojoExecutionException {
@@ -59,7 +65,8 @@ public class ApertureGenerateMojo extends AbstractMojo {
         );
         try {
             List<ApertureGenerationTarget> extensions = buildExtensionTargets();
-            new GeneratorOrchestrator().generate(options, getLog()::info, extensions);
+            List<McpToolContribution> mcpContributions = instantiateMcpExtensions();
+            new GeneratorOrchestrator().generate(options, getLog()::info, extensions, mcpContributions);
         } catch (IllegalStateException e) {
             throw new MojoExecutionException(e.getMessage(), e);
         } catch (Exception e) {
@@ -124,6 +131,36 @@ public class ApertureGenerateMojo extends AbstractMojo {
         List<CliCommandContribution> commandContributions) {
     }
 
+    /**
+     * Instantiates each configured {@code <mcp><extensions>} class exactly once. Each class must
+     * implement {@link McpToolContribution}; a class implementing neither is a misconfiguration
+     * and fails loudly rather than being silently ignored, exactly like the CLI extension
+     * mechanism in {@link #instantiateExtensions()}.
+     */
+    private List<McpToolContribution> instantiateMcpExtensions() {
+        List<McpToolContribution> contributions = new ArrayList<>();
+        if (mcp == null || mcp.getExtensions() == null) {
+            return contributions;
+        }
+        for (String className : mcp.getExtensions()) {
+            if (className == null || className.isBlank()) {
+                continue;
+            }
+            Object extension;
+            try {
+                extension = Class.forName(className).getDeclaredConstructor().newInstance();
+            } catch (Exception e) {
+                throw new IllegalStateException("Failed to instantiate MCP extension " + className, e);
+            }
+            if (extension instanceof McpToolContribution contribution) {
+                contributions.add(contribution);
+            } else {
+                throw new IllegalStateException(className + " does not implement McpToolContribution");
+            }
+        }
+        return contributions;
+    }
+
     private void registerBuildOutput() {
         if (project == null) return;
         project.addCompileSourceRoot(outputDirectory.getAbsolutePath());
@@ -137,6 +174,12 @@ public class ApertureGenerateMojo extends AbstractMojo {
         private List<String> extensions = new ArrayList<>();
         public boolean isEnabled() { return enabled; }
         public void setEnabled(boolean enabled) { this.enabled = enabled; }
+        public List<String> getExtensions() { return extensions; }
+        public void setExtensions(List<String> extensions) { this.extensions = extensions; }
+    }
+
+    public static class McpPluginConfig {
+        private List<String> extensions = new ArrayList<>();
         public List<String> getExtensions() { return extensions; }
         public void setExtensions(List<String> extensions) { this.extensions = extensions; }
     }
