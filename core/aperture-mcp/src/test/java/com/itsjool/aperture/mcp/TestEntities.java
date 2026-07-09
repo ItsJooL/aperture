@@ -24,6 +24,10 @@ final class TestEntities {
         return new FieldDef("UUID", false, false, false, false, null, null, null, "ManyToOne", targetClass, null, null);
     }
 
+    static FieldDef requiredManyToOneField(String targetClass) {
+        return new FieldDef("UUID", true, false, false, false, null, null, null, "ManyToOne", targetClass, null, null);
+    }
+
     static FieldDef oneToManyField(String mappedBy) {
         return new FieldDef("List", false, false, false, false, null, null, null, "OneToMany", null, mappedBy, null);
     }
@@ -45,6 +49,18 @@ final class TestEntities {
             "Widget", "widgets", null, null,
             false, false, false,
             Map.of("name", requiredStringField(null)),
+            null, null, null, null, null
+        );
+    }
+
+    static EntityDef taskWithProjectRelation() {
+        return new EntityDef(
+            "Task", "Tasks", null, null,
+            false, false, false,
+            Map.of(
+                "title", requiredStringField(null),
+                "project", requiredManyToOneField("Project")
+            ),
             null, null, null, null, null
         );
     }

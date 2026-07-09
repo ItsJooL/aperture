@@ -22,7 +22,7 @@ public class McpToolGenerator {
     private static final String PKG = "com.itsjool.aperture.generated.mcp";
     private static final List<String> ALL_OPS = List.of("list", "get", "create", "update", "delete");
 
-    private static final ClassName ADAPTER  = ClassName.get("com.itsjool.aperture.mcp", "McpElideAdapter");
+    private static final ClassName ADAPTER  = ClassName.get("com.itsjool.aperture.mcp", "McpRequestAdapter");
     private static final ClassName TOOL     = ClassName.get("org.springframework.ai.tool.annotation", "Tool");
     private static final ClassName TOOL_PARAM = ClassName.get("org.springframework.ai.tool.annotation", "ToolParam");
     private static final ClassName COMPONENT  = ClassName.get("org.springframework.stereotype", "Component");
@@ -35,13 +35,32 @@ public class McpToolGenerator {
     private static final ClassName OBS_REGISTRY = ClassName.get("io.micrometer.observation", "ObservationRegistry");
     private static final ClassName OBSERVATION  = ClassName.get("io.micrometer.observation", "Observation");
 
+    /**
+     * Backward-compatible overload for callers that don't need cross-entity relationship
+     * resolution (e.g. entities with no ManyToOne fields). ManyToOne fields generated this way
+     * fall back to the default plural rule ({@link #resourceTypeOf}) for their target's resource
+     * type, since there is no registry to consult.
+     */
     public String generateForEntity(EntityDef entity, McpConfig globalConfig,
                                     McpEntityConfig entityConfig, String version) {
+        return generateForEntity(entity, globalConfig, entityConfig, version, Map.of());
+    }
+
+    /**
+     * @param resourceTypesByEntity entity name -&gt; JSON:API resource type (plural, lowercased),
+     *                              used to resolve the target type of ManyToOne relationship
+     *                              fields. Entities missing from the map fall back to the default
+     *                              plural rule via {@link #resourceTypeOf}.
+     */
+    public String generateForEntity(EntityDef entity, McpConfig globalConfig,
+                                    McpEntityConfig entityConfig, String version,
+                                    Map<String, String> resourceTypesByEntity) {
         List<String> tools = effectiveTools(globalConfig, entityConfig);
         String entityName  = entity.name();
-        String pluralName  = entity.plural() != null ? entity.plural() : entityName.toLowerCase() + "s";
+        String pluralName  = resourceTypeOf(entityName, entity.plural());
         String className   = entityName + "V" + version + "McpTools";
-        String apiPath     = "/api/v" + version + "/" + pluralName.toLowerCase();
+        String apiPath     = "/api/v" + version + "/" + pluralName;
+        Map<String, String> resourceTypes = resourceTypesByEntity != null ? resourceTypesByEntity : Map.of();
 
         TypeSpec.Builder cls = TypeSpec.classBuilder(className)
             .addModifiers(Modifier.PUBLIC)
@@ -61,11 +80,21 @@ public class McpToolGenerator {
 
         if (tools.contains("list"))   cls.addMethod(listMethod(entity, pluralName, apiPath));
         if (tools.contains("get"))    cls.addMethod(getMethod(entity, apiPath));
-        if (tools.contains("create")) cls.addMethod(createMethod(entity, pluralName, apiPath));
-        if (tools.contains("update")) cls.addMethod(updateMethod(entity, pluralName, apiPath));
+        if (tools.contains("create")) cls.addMethod(createMethod(entity, pluralName, apiPath, resourceTypes));
+        if (tools.contains("update")) cls.addMethod(updateMethod(entity, pluralName, apiPath, resourceTypes));
         if (tools.contains("delete")) cls.addMethod(deleteMethod(entity, apiPath));
 
         return JavaFile.builder(PKG, cls.build()).build().toString();
+    }
+
+    /**
+     * The single shared plural rule: an explicit plural (lowercased) wins, otherwise the entity
+     * name is lowercased and suffixed with "s". Used both to resolve an entity's own JSON:API
+     * resource type and to resolve a ManyToOne field's relationship target type, so the two can
+     * never drift apart.
+     */
+    public static String resourceTypeOf(String entityName, String pluralOverride) {
+        return pluralOverride != null ? pluralOverride.toLowerCase() : entityName.toLowerCase() + "s";
     }
 
     private MethodSpec listMethod(EntityDef entity, String pluralName, String apiPath) {
@@ -92,30 +121,43 @@ public class McpToolGenerator {
             .build();
     }
 
-    private MethodSpec createMethod(EntityDef entity, String pluralName, String apiPath) {
+    private MethodSpec createMethod(EntityDef entity, String pluralName, String apiPath,
+                                     Map<String, String> resourceTypesByEntity) {
         MethodSpec.Builder m = MethodSpec.methodBuilder("create" + entity.name())
             .addModifiers(Modifier.PUBLIC)
             .returns(STRING)
             .addAnnotation(toolAnnotation("create_" + entity.name().toLowerCase(), toolDescription("create", entity)));
 
         List<ParamMapping> mappings = new ArrayList<>();
+        List<RelationshipMapping> relationships = new ArrayList<>();
         for (var e : entity.fields().entrySet()) {
             if (!isParameter(e.getValue())) continue;
             String pName = paramName(e.getKey(), e.getValue());
             m.addParameter(toolParam(STRING, pName, fieldDescription(e.getKey(), e.getValue())));
-            mappings.add(new ParamMapping(pName, e.getKey()));
+            if (isRelationship(e.getValue())) {
+                relationships.add(new RelationshipMapping(pName, e.getKey(),
+                    targetResourceType(e.getValue(), resourceTypesByEntity)));
+            } else {
+                mappings.add(new ParamMapping(pName, e.getKey()));
+            }
         }
 
         m.addStatement("$T<$T, $T> attrs = new $T<>()", MAP, STRING, ClassName.get(Object.class), HASH_MAP);
         for (ParamMapping mapping : mappings) {
             m.addStatement("attrs.put($S, $L)", mapping.fieldName(), mapping.paramName());
         }
-        m.addStatement("return $T.createNotStarted($S, observationRegistry).lowCardinalityKeyValue($S, $S).lowCardinalityKeyValue($S, $S).observe(() -> adapter.post($S, adapter.buildBody($S, null, attrs)))",
-            OBSERVATION, "aperture.mcp.tool_call", "tool.name", "create_" + entity.name().toLowerCase(), "server.name", "aperture-mcp", apiPath, pluralName.toLowerCase());
+        m.addStatement("$T<$T, $T> rels = new $T<>()", MAP, STRING, ClassName.get(Object.class), HASH_MAP);
+        for (RelationshipMapping rel : relationships) {
+            m.addStatement("rels.put($S, adapter.relationshipRef($S, $L))",
+                rel.fieldName(), rel.targetResourceType(), rel.paramName());
+        }
+        m.addStatement("return $T.createNotStarted($S, observationRegistry).lowCardinalityKeyValue($S, $S).lowCardinalityKeyValue($S, $S).observe(() -> adapter.post($S, adapter.buildBody($S, null, attrs, rels)))",
+            OBSERVATION, "aperture.mcp.tool_call", "tool.name", "create_" + entity.name().toLowerCase(), "server.name", "aperture-mcp", apiPath, pluralName);
         return m.build();
     }
 
-    private MethodSpec updateMethod(EntityDef entity, String pluralName, String apiPath) {
+    private MethodSpec updateMethod(EntityDef entity, String pluralName, String apiPath,
+                                     Map<String, String> resourceTypesByEntity) {
         MethodSpec.Builder m = MethodSpec.methodBuilder("update" + entity.name())
             .addModifiers(Modifier.PUBLIC)
             .returns(STRING)
@@ -123,12 +165,18 @@ public class McpToolGenerator {
             .addParameter(toolParam(STRING, "id", "UUID of the " + entity.name().toLowerCase() + " to update"));
 
         List<ParamMapping> mappings = new ArrayList<>();
+        List<RelationshipMapping> relationships = new ArrayList<>();
         for (var e : entity.fields().entrySet()) {
             if (!isParameter(e.getValue())) continue;
             String pName = paramName(e.getKey(), e.getValue());
             String desc = fieldDescription(e.getKey(), e.getValue()).replace(" (required)", "");
             m.addParameter(toolParam(STRING, pName, desc));
-            mappings.add(new ParamMapping(pName, e.getKey()));
+            if (isRelationship(e.getValue())) {
+                relationships.add(new RelationshipMapping(pName, e.getKey(),
+                    targetResourceType(e.getValue(), resourceTypesByEntity)));
+            } else {
+                mappings.add(new ParamMapping(pName, e.getKey()));
+            }
         }
 
         m.addStatement("$T<$T, $T> attrs = new $T<>()", MAP, STRING, ClassName.get(Object.class), HASH_MAP);
@@ -137,12 +185,33 @@ public class McpToolGenerator {
                 .addStatement("attrs.put($S, $L)", mapping.fieldName(), mapping.paramName())
                 .endControlFlow();
         }
-        m.addStatement("return $T.createNotStarted($S, observationRegistry).lowCardinalityKeyValue($S, $S).lowCardinalityKeyValue($S, $S).observe(() -> adapter.patch($S + id, adapter.buildBody($S, id, attrs)))",
-            OBSERVATION, "aperture.mcp.tool_call", "tool.name", "update_" + entity.name().toLowerCase(), "server.name", "aperture-mcp", apiPath + "/", pluralName.toLowerCase());
+        m.addStatement("$T<$T, $T> rels = new $T<>()", MAP, STRING, ClassName.get(Object.class), HASH_MAP);
+        for (RelationshipMapping rel : relationships) {
+            // A null id means the caller omitted this relationship param on a partial update —
+            // skip it entirely so buildBody doesn't touch the existing linked record.
+            m.beginControlFlow("if ($L != null)", rel.paramName())
+                .addStatement("rels.put($S, adapter.relationshipRef($S, $L))",
+                    rel.fieldName(), rel.targetResourceType(), rel.paramName())
+                .endControlFlow();
+        }
+        m.addStatement("return $T.createNotStarted($S, observationRegistry).lowCardinalityKeyValue($S, $S).lowCardinalityKeyValue($S, $S).observe(() -> adapter.patch($S + id, adapter.buildBody($S, id, attrs, rels)))",
+            OBSERVATION, "aperture.mcp.tool_call", "tool.name", "update_" + entity.name().toLowerCase(), "server.name", "aperture-mcp", apiPath + "/", pluralName);
         return m.build();
     }
 
+    private boolean isRelationship(FieldDef field) {
+        return "ManyToOne".equals(field.relation());
+    }
+
+    private String targetResourceType(FieldDef field, Map<String, String> resourceTypesByEntity) {
+        String targetEntity = field.targetClass();
+        String resolved = resourceTypesByEntity != null ? resourceTypesByEntity.get(targetEntity) : null;
+        return resolved != null ? resolved : resourceTypeOf(targetEntity, null);
+    }
+
     private record ParamMapping(String paramName, String fieldName) {}
+
+    private record RelationshipMapping(String paramName, String fieldName, String targetResourceType) {}
 
     private MethodSpec deleteMethod(EntityDef entity, String apiPath) {
         return MethodSpec.methodBuilder("delete" + entity.name())

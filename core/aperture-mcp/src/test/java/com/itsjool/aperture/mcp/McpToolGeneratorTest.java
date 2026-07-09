@@ -212,6 +212,53 @@ class McpToolGeneratorTest {
     }
 
     @Test
+    void manyToOneField_createMethod_emitsRelationshipsBlockResolvingRegisteredTargetType() {
+        EntityDef entity = TestEntities.taskWithProjectRelation();
+        McpConfig globalConfig = new McpConfig(true, "stateless", List.of("create"));
+        Map<String, String> resourceTypes = Map.of("Project", "projects");
+
+        String source = new McpToolGenerator().generateForEntity(entity, globalConfig, null, "1", resourceTypes);
+
+        assertThat(source)
+            .contains("String project_id")
+            .contains("rels.put(\"project\", adapter.relationshipRef(\"projects\", project_id))")
+            .contains("adapter.buildBody(\"tasks\", null, attrs, rels)");
+    }
+
+    @Test
+    void manyToOneField_updateMethod_guardsRelationshipPutOnNonNullId() {
+        EntityDef entity = TestEntities.taskWithProjectRelation();
+        McpConfig globalConfig = new McpConfig(true, "stateless", List.of("update"));
+        Map<String, String> resourceTypes = Map.of("Project", "projects");
+
+        String source = new McpToolGenerator().generateForEntity(entity, globalConfig, null, "1", resourceTypes);
+
+        assertThat(source)
+            .contains("if (project_id != null)")
+            .contains("rels.put(\"project\", adapter.relationshipRef(\"projects\", project_id))")
+            .contains("adapter.buildBody(\"tasks\", id, attrs, rels)");
+    }
+
+    @Test
+    void manyToOneField_noRegistryEntry_fallsBackToDefaultPluralForTargetType() {
+        EntityDef entity = new EntityDef(
+            "Invoice", "Invoices", null, null,
+            false, false, false,
+            Map.of(
+                "customer", TestEntities.manyToOneField("Customer")
+            ),
+            null, null, null, null, null
+        );
+        McpConfig globalConfig = new McpConfig(true, "stateless", List.of("create"));
+
+        // 4-arg overload — no resourceTypesByEntity registry supplied.
+        String source = new McpToolGenerator().generateForEntity(entity, globalConfig, null, "1");
+
+        assertThat(source)
+            .contains("rels.put(\"customer\", adapter.relationshipRef(\"customers\", customer_id))");
+    }
+
+    @Test
     void componentAndConditionalAnnotations_alwaysPresent() {
         EntityDef entity = new EntityDef(
             "Order", "orders", null, null,
