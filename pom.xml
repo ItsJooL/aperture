@@ -22,6 +22,7 @@
         <maven.compiler.target>25</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <testcontainers.version>2.0.5</testcontainers.version>
+        <skipITs>false</skipITs>
     </properties>
 
     <modules>
@@ -132,6 +133,7 @@
                         </goals>
                         <configuration combine.self="override">
                             <argLine>-javaagent:${settings.localRepository}/org/mockito/mockito-core/${mockito.version}/mockito-core-${mockito.version}.jar</argLine>
+                            <skip>${skipITs}</skip>
                             <includes>
                                 <include>**/*ComponentTest.java</include>
                                 <include>**/*IT.java</include>

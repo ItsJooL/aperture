@@ -1,0 +1,5 @@
+[mcp_servers.aperture-mcp-demo]
+command = "node"
+args = ["scripts/codex-mcp-http-proxy.mjs"]
+env = { "APERTURE_MCP_URL" = "http://localhost:8082/mcp" }
+env_vars = ["APERTURE_API_KEY"]

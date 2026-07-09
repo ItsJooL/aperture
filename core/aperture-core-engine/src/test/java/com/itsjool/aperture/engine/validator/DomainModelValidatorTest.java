@@ -3,7 +3,10 @@ package com.itsjool.aperture.engine.validator;
 import com.itsjool.aperture.engine.model.AbacPolicyDef;
 import com.itsjool.aperture.engine.model.EntityDef;
 import com.itsjool.aperture.engine.model.FieldDef;
+import com.itsjool.aperture.engine.model.FrameworkConfigDef;
 import com.itsjool.aperture.engine.model.HookDef;
+import com.itsjool.aperture.engine.model.McpConfig;
+import com.itsjool.aperture.engine.model.McpEntityConfig;
 import com.itsjool.aperture.engine.model.ResolvedDomainModel;
 import com.itsjool.aperture.engine.model.RoleDef;
 import com.itsjool.aperture.engine.model.RoleDefinitionDef;
@@ -128,6 +131,47 @@ class DomainModelValidatorTest {
         assertThatCode(() -> validator.validate(
             new ResolvedDomainModel(List.of(entity)), Map.of()))
             .doesNotThrowAnyException();
+    }
+
+    // ---------- MCP config validation ----------
+
+    @Test
+    void frameworkMcpInvalidTool_throws() {
+        FrameworkConfigDef framework = new FrameworkConfigDef(
+            List.of(), null, new McpConfig(true, "stateless", List.of("list", "publish")), null);
+
+        assertThatThrownBy(() -> validator.validate(
+            new ResolvedDomainModel(List.of(), List.of(), framework, List.of(), List.of(), List.of()), Map.of(framework, "framework.yaml")))
+            .isInstanceOf(ManifestValidationException.class)
+            .hasMessageContaining("Invalid MCP tool")
+            .hasMessageContaining("publish")
+            .hasMessageContaining("framework.yaml");
+    }
+
+    @Test
+    void frameworkMcpInvalidTransport_throws() {
+        FrameworkConfigDef framework = new FrameworkConfigDef(
+            List.of(), null, new McpConfig(true, "stdio", List.of("list")), null);
+
+        assertThatThrownBy(() -> validator.validate(
+            new ResolvedDomainModel(List.of(), List.of(), framework, List.of(), List.of(), List.of()), Map.of(framework, "framework.yaml")))
+            .isInstanceOf(ManifestValidationException.class)
+            .hasMessageContaining("Invalid MCP transport")
+            .hasMessageContaining("stdio")
+            .hasMessageContaining("framework.yaml");
+    }
+
+    @Test
+    void entityMcpInvalidTool_throws() {
+        EntityDef entity = new EntityDef("Order", "orders", null, new McpEntityConfig(true, List.of("get", "archive")),
+            false, false, false, Map.of("name", stringField()), null, null, null, Map.of(), Map.of());
+
+        assertThatThrownBy(() -> validator.validate(
+            new ResolvedDomainModel(List.of(entity)), Map.of(entity, "order.yaml")))
+            .isInstanceOf(ManifestValidationException.class)
+            .hasMessageContaining("Invalid MCP tool")
+            .hasMessageContaining("archive")
+            .hasMessageContaining("order.yaml");
     }
 
     // ---------- role and policy validation ----------

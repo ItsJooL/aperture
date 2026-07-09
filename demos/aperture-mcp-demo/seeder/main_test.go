@@ -2,6 +2,11 @@ package main
 
 import (
 	"encoding/json"
+	"io"
+	"log/slog"
+	"net/http"
+	"os"
+	"strings"
 	"testing"
 )
 
@@ -79,5 +84,96 @@ func TestExtractResourceIDReadsJSONAPIDataID(t *testing.T) {
 	}
 	if id != "42" {
 		t.Fatalf("id = %q, want 42", id)
+	}
+}
+
+func TestFindProjectReturnsExistingSeedProject(t *testing.T) {
+	s := testSeeder(func(r *http.Request) *http.Response {
+		if r.Method != http.MethodGet || r.URL.Path != "/api/v1/projects" {
+			t.Fatalf("unexpected request %s %s", r.Method, r.URL.Path)
+		}
+		return jsonResponse(`{
+			"data": [{
+				"type": "projects",
+				"id": "project-42",
+				"attributes": {
+					"name": "MCP Demo Launch",
+					"description": "A small project seeded so MCP clients can list, inspect, and update real Aperture data."
+				}
+			}]
+		}`)
+	})
+
+	id, err := s.findProject("token", Project{
+		Name:        "MCP Demo Launch",
+		Description: "A small project seeded so MCP clients can list, inspect, and update real Aperture data.",
+	})
+	if err != nil {
+		t.Fatalf("findProject returned error: %v", err)
+	}
+	if id != "project-42" {
+		t.Fatalf("id = %q, want project-42", id)
+	}
+}
+
+func TestFindTaskMatchesTitleNotesAndProject(t *testing.T) {
+	s := testSeeder(func(r *http.Request) *http.Response {
+		if r.Method != http.MethodGet || r.URL.Path != "/api/v1/tasks" {
+			t.Fatalf("unexpected request %s %s", r.Method, r.URL.Path)
+		}
+		return jsonResponse(`{
+			"data": [{
+				"type": "tasks",
+				"id": "task-42",
+				"attributes": {
+					"title": "Verify generated tools",
+					"notes": "Call tools/list and confirm Project and Task operations are available.",
+					"status": "DONE"
+				},
+				"relationships": {
+					"project": {
+						"data": {
+							"type": "projects",
+							"id": "project-42"
+						}
+					}
+				}
+			}]
+		}`)
+	})
+
+	exists, err := s.findTask("token", Task{
+		Title:     "Verify generated tools",
+		Notes:     "Call tools/list and confirm Project and Task operations are available.",
+		Status:    "DONE",
+		ProjectID: "project-42",
+	})
+	if err != nil {
+		t.Fatalf("findTask returned error: %v", err)
+	}
+	if !exists {
+		t.Fatal("findTask = false, want true")
+	}
+}
+
+type roundTripFunc func(*http.Request) *http.Response
+
+func (f roundTripFunc) RoundTrip(r *http.Request) (*http.Response, error) {
+	return f(r), nil
+}
+
+func jsonResponse(body string) *http.Response {
+	return &http.Response{
+		StatusCode: http.StatusOK,
+		Header:     http.Header{"Content-Type": []string{"application/vnd.api+json"}},
+		Body:       io.NopCloser(strings.NewReader(body)),
+	}
+}
+
+func testSeeder(handler roundTripFunc) *seeder {
+	return &seeder{
+		baseURL: "http://aperture.test",
+		client:  &http.Client{Transport: handler},
+		logger:  slog.New(slog.NewTextHandler(os.Stdout, nil)),
 	}
 }

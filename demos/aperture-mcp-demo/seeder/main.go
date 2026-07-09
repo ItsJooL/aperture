@@ -84,9 +84,13 @@ func main() {
 		},
 	}
 	for _, task := range tasks {
-		if err := s.createTask(token, task); err != nil {
+		created, err := s.createTask(token, task)
+		if err != nil {
 			logger.Error("task seed failed", "title", task.Title, "err", err)
 			os.Exit(1)
+		}
+		if !created {
+			continue
 		}
 	}
 
@@ -130,6 +134,15 @@ func (s *seeder) login(username, password string) (string, error) {
 }
 
 func (s *seeder) createProject(token string, project Project) (string, error) {
+	id, err := s.findProject(token, project)
+	if err != nil {
+		return "", err
+	}
+	if id != "" {
+		s.logger.Info("project already seeded", "name", project.Name, "id", id)
+		return id, nil
+	}
+
 	result, status, err := s.post("/api/v1/projects", token, "application/vnd.api+json", newProjectRequest(project))
 	if err != nil {
 		return "", fmt.Errorf("create project %q: %w", project.Name, err)
@@ -137,7 +150,7 @@ func (s *seeder) createProject(token string, project Project) (string, error) {
 	if status != http.StatusCreated {
 		return "", fmt.Errorf("create project %q: status %d", project.Name, status)
 	}
-	id, err := extractResourceID(result)
+	id, err = extractResourceID(result)
 	if err != nil {
 		return "", fmt.Errorf("create project %q: %w", project.Name, err)
 	}
@@ -145,16 +158,91 @@ func (s *seeder) createProject(token string, project Project) (string, error) {
 	return id, nil
 }
 
-func (s *seeder) createTask(token string, task Task) error {
+func (s *seeder) createTask(token string, task Task) (bool, error) {
+	exists, err := s.findTask(token, task)
+	if err != nil {
+		return false, err
+	}
+	if exists {
+		s.logger.Info("task already seeded", "title", task.Title, "status", task.Status)
+		return false, nil
+	}
+
 	_, status, err := s.post("/api/v1/tasks", token, "application/vnd.api+json", newTaskRequest(task))
 	if err != nil {
-		return fmt.Errorf("create task %q: %w", task.Title, err)
+		return false, fmt.Errorf("create task %q: %w", task.Title, err)
 	}
 	if status != http.StatusCreated {
-		return fmt.Errorf("create task %q: status %d", task.Title, status)
+		return false, fmt.Errorf("create task %q: status %d", task.Title, status)
 	}
 	s.logger.Info("task seeded", "title", task.Title, "status", task.Status)
-	return nil
+	return true, nil
+}
+
+func (s *seeder) findProject(token string, project Project) (string, error) {
+	result, status, err := s.get("/api/v1/projects", token, "application/vnd.api+json")
+	if err != nil {
+		return "", fmt.Errorf("list projects: %w", err)
+	}
+	if status != http.StatusOK {
+		return "", fmt.Errorf("list projects: status %d", status)
+	}
+	for _, resource := range responseData(result) {
+		projectResource := asResource(resource)
+		attrs := resourceMap(projectResource, "attributes")
+		if stringValue(attrs, "name") == project.Name &&
+			stringValue(attrs, "description") == project.Description {
+			return stringValue(projectResource, "id"), nil
+		}
+	}
+	return "", nil
+}
+
+func (s *seeder) findTask(token string, task Task) (bool, error) {
+	result, status, err := s.get("/api/v1/tasks", token, "application/vnd.api+json")
+	if err != nil {
+		return false, fmt.Errorf("list tasks: %w", err)
+	}
+	if status != http.StatusOK {
+		return false, fmt.Errorf("list tasks: status %d", status)
+	}
+	for _, resource := range responseData(result) {
+		taskResource := asResource(resource)
+		attrs := resourceMap(taskResource, "attributes")
+		if stringValue(attrs, "title") != task.Title || stringValue(attrs, "notes") != task.Notes {
+			continue
+		}
+		project := resourceMap(resourceMap(resourceMap(taskResource, "relationships"), "project"), "data")
+		if stringValue(project, "id") == task.ProjectID {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+func (s *seeder) get(path, token, accept string) (map[string]interface{}, int, error) {
+	req, err := http.NewRequest(http.MethodGet, s.baseURL+path, nil)
+	if err != nil {
+		return nil, 0, fmt.Errorf("build request: %w", err)
+	}
+	req.Header.Set("Accept", accept)
+	if token != "" {
+		req.Header.Set("Authorization", "Bearer "+token)
+	}
+	resp, err := s.client.Do(req)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer resp.Body.Close()
+	data, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, resp.StatusCode, fmt.Errorf("read response: %w", err)
+	}
+	var result map[string]interface{}
+	if len(data) > 0 {
+		_ = json.Unmarshal(data, &result)
+	}
+	return result, resp.StatusCode, nil
 }
 
 func (s *seeder) post(path, token, contentType string, body interface{}) (map[string]interface{}, int, error) {
@@ -232,6 +320,26 @@ func extractResourceID(response map[string]interface{}) (string, error) {
 		return "", fmt.Errorf("response data did not include id")
 	}
 	return id, nil
+}
+
+func responseData(response map[string]interface{}) []interface{} {
+	data, _ := response["data"].([]interface{})
+	return data
+}
+
+func asResource(resource interface{}) map[string]interface{} {
+	value, _ := resource.(map[string]interface{})
+	return value
+}
+
+func resourceMap(resource map[string]interface{}, key string) map[string]interface{} {
+	value, _ := resource[key].(map[string]interface{})
+	return value
+}
+
+func stringValue(resource map[string]interface{}, key string) string {
+	value, _ := resource[key].(string)
+	return value
 }
 
 func envOrDefault(key, def string) string {

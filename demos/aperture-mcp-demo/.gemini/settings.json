@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "aperture-mcp-demo": {
+      "httpUrl": "http://localhost:8082/mcp",
+      "headers": {
+        "X-API-Key": "REPLACE_WITH_APERTURE_API_KEY"
+      },
+      "timeout": 30000,
+      "trust": false
+    }
+  }
+}

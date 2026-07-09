@@ -30,6 +30,16 @@
               "softDelete": { "type": "boolean" },
               "tenantScoped": { "type": "boolean" },
               "scopedBy": { "type": "string", "description": "Name of a ManyToOne ref field; every read of this entity is then filtered by a per-request X-Aperture-Scope-<Field> header value (mandatory query filter, not per-user authorization)." },
+              "mcp": {
+                "type": "object",
+                "properties": {
+                  "enabled": { "type": "boolean" },
+                  "tools": {
+                    "type": "array",
+                    "items": { "type": "string", "enum": ["list", "get", "create", "update", "delete"] }
+                  }
+                }
+              },
               "pagination": {
                 "type": "object",
                 "properties": {
@@ -135,8 +145,19 @@
                     "description": "Name of the generated CLI binary (e.g. 'acme'). Defaults to 'aperture'."
                   }
                 }
+              },
+              "mcp": {
+                "type": "object",
+                "properties": {
+                  "enabled": { "type": "boolean" },
+                  "transport": { "type": "string", "enum": ["stateless"] },
+                  "tools": {
+                    "type": "array",
+                    "items": { "type": "string", "enum": ["list", "get", "create", "update", "delete"] }
+                  }
+                }
               }
-            }
+	            }
           }
         }
       }

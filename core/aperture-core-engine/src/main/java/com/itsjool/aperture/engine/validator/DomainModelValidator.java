@@ -8,6 +8,8 @@ import com.itsjool.aperture.engine.model.FieldDef;
 import com.itsjool.aperture.engine.model.HookDef;
 import com.itsjool.aperture.engine.model.RoleDefinitionDef;
 import com.itsjool.aperture.engine.model.FrameworkConfigDef;
+import com.itsjool.aperture.engine.model.McpConfig;
+import com.itsjool.aperture.engine.model.McpEntityConfig;
 import com.itsjool.aperture.engine.model.AbacPolicyDef;
 import com.itsjool.aperture.engine.model.PrincipalAttributeDefinitionDef;
 
@@ -20,6 +22,7 @@ import java.util.regex.Pattern;
 public class DomainModelValidator {
 
     private static final Set<String> VALID_OPERATIONS = Set.of("read", "create", "update", "delete");
+    private static final List<String> VALID_MCP_TOOLS = List.of("list", "get", "create", "update", "delete");
     private static final Set<String> VALID_ABAC_VARIABLES = Set.of("user", "record", "input");
     private static final Pattern SECURITY_ATTRIBUTE_PATTERN = Pattern.compile("#user\\.securityAttributes(?:\\[['\"]([^'\"]+)['\"]\\]|\\.([a-zA-Z0-9_]+))");
     private final HookSemanticsResolver hookSemanticsResolver = new HookSemanticsResolver();
@@ -59,6 +62,11 @@ public class DomainModelValidator {
                 }
             }
         }
+
+        if (model.frameworkConfig() != null && model.frameworkConfig().mcp() != null) {
+            String loc = locationMap.getOrDefault(model.frameworkConfig(), "unknown file");
+            validateFrameworkMcpConfig(model.frameworkConfig().mcp(), loc);
+        }
         
         Set<String> declaredPolicies = new HashSet<>();
         Set<String> declaredSecurityAttributes = new HashSet<>();
@@ -97,6 +105,10 @@ public class DomainModelValidator {
 
         for (EntityDef entity : model.entities()) {
             String loc = locationMap.getOrDefault(entity, "unknown file");
+
+            if (entity.mcpConfig() != null) {
+                validateEntityMcpConfig(entity.mcpConfig(), loc, entity.name());
+            }
             
             Set<String> publicOps = new HashSet<>();
             if (entity.publicOperations() != null) {
@@ -248,6 +260,32 @@ public class DomainModelValidator {
                     }
                 }
                 throw new ManifestValidationException("Unattached policy in " + loc + ": " + policy);
+            }
+        }
+    }
+
+    private void validateFrameworkMcpConfig(McpConfig config, String loc) {
+        validateMcpTools(config.tools(), loc, "FrameworkConfig");
+        if (config.transport() != null && !config.transport().isBlank()
+                && !"stateless".equalsIgnoreCase(config.transport())) {
+            throw new ManifestValidationException(
+                "Invalid MCP transport in " + loc + " (FrameworkConfig): " + config.transport()
+                    + ". Supported transports: stateless");
+        }
+    }
+
+    private void validateEntityMcpConfig(McpEntityConfig config, String loc, String entityName) {
+        validateMcpTools(config.tools(), loc, "Entity " + entityName);
+    }
+
+    private void validateMcpTools(List<String> tools, String loc, String context) {
+        if (tools == null) return;
+        for (String tool : tools) {
+            String normalized = tool != null ? tool.toLowerCase() : "";
+            if (!VALID_MCP_TOOLS.contains(normalized)) {
+                throw new ManifestValidationException(
+                    "Invalid MCP tool in " + loc + " (" + context + "): " + tool
+                        + ". Supported tools: " + String.join(", ", VALID_MCP_TOOLS));
             }
         }
     }
