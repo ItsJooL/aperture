@@ -5,7 +5,7 @@ metadata:
 spec:
   mcp:
     enabled: true
-    tools: [list, get]
+    tools: [list, get, create, update, delete]
   optimisticLocking: true
   softDelete: true
   fields:

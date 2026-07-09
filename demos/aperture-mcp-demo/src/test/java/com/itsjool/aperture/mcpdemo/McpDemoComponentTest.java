@@ -60,11 +60,12 @@ class McpDemoComponentTest {
     private MockMvc mockMvc;
 
     private ResultActions elide(MockHttpServletRequestBuilder builder) throws Exception {
-        var result = mockMvc.perform(builder).andReturn();
+        var actions = mockMvc.perform(builder);
+        var result = actions.andReturn();
         if (result.getRequest().isAsyncStarted()) {
             return mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.asyncDispatch(result));
         }
-        return mockMvc.perform(builder);
+        return actions;
     }
 
     private String loginAsSuperadmin() throws Exception {
@@ -76,6 +77,36 @@ class McpDemoComponentTest {
         JsonNode root = MAPPER.readTree(result.getResponse().getContentAsString());
         assertThat(root.path("accessToken").isMissingNode()).isFalse();
         return "Bearer " + root.path("accessToken").asText();
+    }
+
+    private String loginAsAgentAdmin() throws Exception {
+        var result = mockMvc.perform(post("/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"username\":\"agent-admin@mcp-demo.local\",\"password\":\"changeme-local-only\"}"))
+                .andReturn();
+        assertThat(result.getResponse().getStatus()).isEqualTo(200);
+        JsonNode root = MAPPER.readTree(result.getResponse().getContentAsString());
+        assertThat(root.path("accessToken").isMissingNode()).isFalse();
+        return "Bearer " + root.path("accessToken").asText();
+    }
+
+    private String createAgentApiKey() throws Exception {
+        String token = loginAsAgentAdmin();
+        var result = mockMvc.perform(post("/auth/me/api-keys")
+                        .header("Authorization", token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "name": "Component test MCP key",
+                                  "domainRoles": ["Admin"],
+                                  "securityAttributes": {}
+                                }
+                                """))
+                .andReturn();
+        assertThat(result.getResponse().getStatus()).isEqualTo(201);
+        JsonNode root = MAPPER.readTree(result.getResponse().getContentAsString());
+        assertThat(root.path("secret").isMissingNode()).isFalse();
+        return root.path("secret").asText();
     }
 
     private JsonNode callMcpTool(String token, int id, String toolName, String argumentsJson) throws Exception {
@@ -99,6 +130,25 @@ class McpDemoComponentTest {
     }
 
     @Test
+    void bootstrapCreatesAgentAdmin_andPersonalApiKeyCanCallMcp() throws Exception {
+        String apiKey = createAgentApiKey();
+
+        String listToolsBody = """
+                {"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}
+                """;
+        var result = elide(post("/mcp")
+                        .header("X-API-Key", apiKey)
+                        .header("Accept", MCP_ACCEPT)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(listToolsBody))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        JsonNode root = MAPPER.readTree(result.getResponse().getContentAsString());
+        assertThat(root.path("result").path("tools").isArray()).isTrue();
+    }
+
+    @Test
     void jsonApi_createAndListProject() throws Exception {
         String token = loginAsSuperadmin();
 
@@ -119,7 +169,7 @@ class McpDemoComponentTest {
     }
 
     @Test
-    void mcpListTools_exposesProjectFullCrudAndTaskReadOnly() throws Exception {
+    void mcpListTools_exposesProjectAndTaskFullCrud() throws Exception {
         String token = loginAsSuperadmin();
 
         String listToolsBody = """
@@ -145,9 +195,10 @@ class McpDemoComponentTest {
         assertThat(toolNames).contains(
                 "list_projects", "get_project", "create_project", "update_project", "delete_project");
 
-        // Task restricts its mcp tools to [list, get] only.
-        assertThat(toolNames).contains("list_tasks", "get_task");
-        assertThat(toolNames).doesNotContain("create_task", "update_task", "delete_task");
+        // Task's required ManyToOne `project` field is now writable via JSON:API relationships
+        // (see McpElideAdapter#relationshipRef / #buildBody), so Task also exposes full CRUD.
+        assertThat(toolNames).contains(
+                "list_tasks", "get_task", "create_task", "update_task", "delete_task");
     }
 
     @Test
@@ -174,6 +225,52 @@ class McpDemoComponentTest {
             }
         }
         assertThat(found).as("Expected project created via MCP to be visible over JSON:API").isTrue();
+    }
+
+    @Test
+    void mcpCreateTask_withProjectId_persistsRelationshipLink() throws Exception {
+        String token = loginAsSuperadmin();
+
+        JsonNode projectResult = callMcpTool(token, 3, "create_project",
+                "{\"name\":\"Task Relationship Project\"}");
+        assertThat(projectResult.has("error")).as("Unexpected MCP error: " + projectResult).isFalse();
+
+        var projectListResult = elide(get("/api/v1/projects")
+                        .header("Authorization", token)
+                        .accept(VNDAPI))
+                .andExpect(status().isOk())
+                .andReturn();
+        JsonNode projectList = MAPPER.readTree(projectListResult.getResponse().getContentAsString());
+        String projectId = null;
+        for (JsonNode project : projectList.path("data")) {
+            if ("Task Relationship Project".equals(project.path("attributes").path("name").asText())) {
+                projectId = project.path("id").asText();
+                break;
+            }
+        }
+        assertThat(projectId).as("Expected the project created via MCP to be findable").isNotNull();
+
+        JsonNode taskResult = callMcpTool(token, 4, "create_task",
+                "{\"title\":\"Wire up the relationship\",\"project_id\":\"" + projectId + "\"}");
+        assertThat(taskResult.has("error")).as("Unexpected MCP error: " + taskResult).isFalse();
+
+        var taskListResult = elide(get("/api/v1/tasks")
+                        .header("Authorization", token)
+                        .accept(VNDAPI))
+                .andExpect(status().isOk())
+                .andReturn();
+        JsonNode taskList = MAPPER.readTree(taskListResult.getResponse().getContentAsString());
+
+        boolean linked = false;
+        for (JsonNode task : taskList.path("data")) {
+            if ("Wire up the relationship".equals(task.path("attributes").path("title").asText())) {
+                assertThat(task.path("relationships").path("project").path("data").path("id").asText())
+                        .isEqualTo(projectId);
+                linked = true;
+                break;
+            }
+        }
+        assertThat(linked).as("Expected the task created via MCP to be linked to its project").isTrue();
     }
 
     @Test

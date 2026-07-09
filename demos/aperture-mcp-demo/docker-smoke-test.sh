@@ -63,6 +63,7 @@ main() {
     status=$(echo "$response" | tail -n1)
     body=$(echo "$response" | sed '$d')
     project_count=$(extract "$body" ".data | length")
+    SEEDED_PROJECT_ID=$(extract "$body" ".data[0].id")
     [ "$status" = "200" ] && [ -n "$project_count" ] && [ "$project_count" -ge 1 ] \
         && pass "Seeded project(s) visible ($project_count found)" \
         || { fail "List projects: status=$status body=$body"; }
@@ -78,21 +79,19 @@ main() {
         || { fail "List tasks: status=$status body=$body"; }
 
     echo ""
-    echo "Testing: MCP tools/list exposes Project full CRUD and Task read-only"
+    echo "Testing: MCP tools/list exposes Project and Task full CRUD"
     response=$(mcp_call "$TOKEN" 1 "tools/list" "{}")
     status=$(echo "$response" | tail -n1)
     body=$(echo "$response" | sed '$d')
     tool_names=$(extract "$body" "[.result.tools[].name] | join(\",\")")
-    if [ "$status" = "200" ] \
-        && echo "$tool_names" | grep -q "create_project" \
-        && echo "$tool_names" | grep -q "delete_project" \
-        && echo "$tool_names" | grep -q "list_tasks" \
-        && echo "$tool_names" | grep -q "get_task" \
-        && ! echo "$tool_names" | grep -q "create_task"; then
-        pass "MCP tool surface matches manifest config: $tool_names"
-    else
-        fail "MCP tools/list: status=$status tools=$tool_names"
-    fi
+    missing=""
+    for tool in list_projects get_project create_project update_project delete_project \
+                list_tasks get_task create_task update_task delete_task; do
+        echo "$tool_names" | grep -q "$tool" || missing="$missing $tool"
+    done
+    [ "$status" = "200" ] && [ -z "$missing" ] \
+        && pass "MCP tool surface matches manifest config: $tool_names" \
+        || fail "MCP tools/list: status=$status missing=[$missing] tools=$tool_names"
 
     echo ""
     echo "Testing: MCP tools/call list_tasks"
@@ -115,11 +114,40 @@ main() {
         && pass "MCP create_project call succeeded" \
         || { fail "MCP create_project call: status=$status body=$body"; }
 
+    response=$(req GET "$BASE_URL/api/v1/projects" "" "$TOKEN" "application/vnd.api+json")
+    status=$(echo "$response" | tail -n1)
+    body=$(echo "$response" | sed '$d')
+    created_count=$(extract "$body" '[.data[] | select(.attributes.name == "Smoke Test Project")] | length')
+    [ "$status" = "200" ] && [ -n "$created_count" ] && [ "$created_count" -ge 1 ] \
+        && pass "MCP-created project is visible over JSON:API" \
+        || { fail "MCP-created project not visible: status=$status body=$body"; }
+
+    echo ""
+    echo "Testing: MCP tools/call create_task links a ManyToOne relationship by raw id"
+    [ -n "$SEEDED_PROJECT_ID" ] || fail "No seeded project id to link a task to"
+    response=$(mcp_call "$TOKEN" 4 "tools/call" \
+        "{\"name\":\"create_task\",\"arguments\":{\"title\":\"Smoke Test Task\",\"project_id\":\"$SEEDED_PROJECT_ID\"}}")
+    status=$(echo "$response" | tail -n1)
+    body=$(echo "$response" | sed '$d')
+    has_error=$(extract "$body" ".error")
+    [ "$status" = "200" ] && [ -z "$has_error" ] \
+        && pass "MCP create_task call succeeded" \
+        || { fail "MCP create_task call: status=$status body=$body"; }
+
+    response=$(req GET "$BASE_URL/api/v1/tasks" "" "$TOKEN" "application/vnd.api+json")
+    status=$(echo "$response" | tail -n1)
+    body=$(echo "$response" | sed '$d')
+    linked_project_id=$(extract "$body" \
+        '[.data[] | select(.attributes.title == "Smoke Test Task")][0].relationships.project.data.id')
+    [ "$status" = "200" ] && [ "$linked_project_id" = "$SEEDED_PROJECT_ID" ] \
+        && pass "MCP-created task is linked to project $SEEDED_PROJECT_ID" \
+        || { fail "MCP-created task relationship: expected project $SEEDED_PROJECT_ID, got '$linked_project_id'"; }
+
     echo ""
     echo "Testing: Unauthenticated MCP request is rejected"
     response=$(curl -s -w "\n%{http_code}" -X POST "$BASE_URL/mcp" \
         -H "Content-Type: application/json" -H "Accept: application/json, text/event-stream" \
-        -d '{"jsonrpc":"2.0","id":4,"method":"tools/list","params":{}}')
+        -d '{"jsonrpc":"2.0","id":5,"method":"tools/list","params":{}}')
     status=$(echo "$response" | tail -n1)
     [ "$status" = "401" ] \
         && pass "Unauthenticated MCP request rejected (401)" \
