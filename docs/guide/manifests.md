@@ -319,7 +319,38 @@ spec:
     tools: [list, get, create, update, delete]
 ```
 
-Turns on MCP tool generation for every entity, project-wide. An individual entity can narrow or opt out of this via an entity-level `mcp` override — see [`spec.mcp`](/reference/manifest-schema#spec-mcp-entity-level-override) in the reference for the shape.
+Turns on MCP tool generation for every entity, project-wide. An individual entity can narrow or opt out of this via an entity-level `mcp` override — see [`spec.mcp`](/reference/manifest-schema#spec-mcp-entity-level-override) in the reference for the shape, including the gotcha where an entity-level `mcp:` block that omits `enabled` defaults to excluded.
+
+`stateless` is the only supported MCP transport today. Valid tool names are
+`list`, `get`, `create`, `update`, and `delete`; invalid names fail manifest
+validation during generation.
+
+### Relationship fields as tool parameters
+
+A `ManyToOne` field is generated as a tool parameter named `<field>_id`. Given the demo's `Task`
+entity with a `project` field (`type: ref`, `relation: ManyToOne`, `target: Project`), the
+generated `createTask`/`updateTask` tools take a `project_id` string parameter, not `project`.
+
+At the JSON:API layer, the adapter writes scalar fields into `data.attributes` and relationship
+fields into `data.relationships.<field>.data`, keyed by the manifest field name (`project`, not
+`project_id`):
+
+```json
+{
+  "data": {
+    "type": "tasks",
+    "attributes": { "title": "Ship the release", "status": "TODO" },
+    "relationships": {
+      "project": { "data": { "type": "projects", "id": "…" } }
+    }
+  }
+}
+```
+
+On `updateTask`, a relationship parameter that's left unset (`null`) is omitted from the request
+body entirely rather than sent as an explicit null — a partial update that doesn't mention
+`project_id` leaves the task's existing project untouched. `OneToMany` fields never become tool
+parameters; they have no column of their own and are read via the owning side.
 
 ## CLI generation config
 
@@ -331,3 +362,120 @@ spec:
 ```
 
 `spec.cli.binaryName` names the generated CLI binary (defaults to `aperture`); it only matters if the Maven plugin's CLI generator is enabled, which is a separate, off-by-default `pom.xml` setting. See the [Generated CLI guide](/guide/cli) for enabling generation, native builds, and everything else about the generated binary.
+
+## Extending MCP
+
+Beyond the per-entity tools the generator emits from `spec.mcp` and `mcp.enabled`, there are two
+separate seams for adding MCP behavior — one at build time, one at runtime.
+
+### Build time: contributing new tool classes
+
+`McpToolContribution` (in `aperture-mcp-spi`) adds entirely new generated tool classes alongside
+the per-entity ones — for example, a tool that isn't tied to any single entity.
+
+Generated MCP tool classes are ordinary Spring `@Component` beans with `@Tool`-annotated methods,
+discovered at runtime by the reflective `ToolCallbackProvider` that
+`ApertureMcpAutoConfiguration#apertureToolCallbackProvider` builds by scanning
+`com.itsjool.aperture.generated.mcp` for `@Component` beans with `@Tool` methods. But generation
+runs inside the Maven build — long before the generated project's own JVM exists — so there is no
+live MCP server or application context yet to register a tool instance with. `McpToolContribution`
+implementations therefore act as **source emitters**, exactly like the CLI's
+`CliCommandContribution`: `toolSource(latestApiVersion)` returns the complete Java source of a
+`@Component` class with one or more `@Tool`-annotated methods, which the MCP generation target
+writes into the generated project's `com.itsjool.aperture.generated.mcp` package alongside the
+entity tool classes. The result is an ordinary generated-project class — no reflection or
+ServiceLoader machinery involved at generation time, and fully native-image friendly.
+
+```java
+public interface McpToolContribution {
+    String id();
+    String toolClassName();
+    String toolSource(String latestApiVersion);
+}
+```
+
+Implementations are configured explicitly under the Maven plugin's `<mcp><extensions>` list —
+not ServiceLoader-discovered — and the implementation class must be on the `aperture-maven-plugin`
+plugin's classpath (typically via a `<dependency>` on the `<plugin>` element):
+
+```xml
+<plugin>
+  <groupId>com.itsjool</groupId>
+  <artifactId>aperture-maven-plugin</artifactId>
+  <version>1.0.0-SNAPSHOT</version>
+  <dependencies>
+    <dependency>
+      <groupId>com.itsjool</groupId>
+      <artifactId>billing-mcp-tools</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+  </dependencies>
+  <configuration>
+    <mcp>
+      <extensions>
+        <extension>com.example.billing.mcp.BillingMcpToolContribution</extension>
+      </extensions>
+    </mcp>
+  </configuration>
+</plugin>
+```
+
+A minimal implementation, following the same conventions as the generator's own entity tool
+classes (a `McpRequestAdapter` constructor dependency, `@ToolParam` on parameters):
+
+```java
+public class BillingMcpToolContribution implements McpToolContribution {
+    @Override public String id() { return "billing-mcp-tools"; }
+    @Override public String toolClassName() { return "BillingMcpTools"; }
+
+    @Override
+    public String toolSource(String latestApiVersion) {
+        return """
+            package com.itsjool.aperture.generated.mcp;
+
+            import com.itsjool.aperture.mcp.McpRequestAdapter;
+            import org.springframework.stereotype.Component;
+            import org.springframework.ai.tool.annotation.Tool;
+
+            @Component
+            public class BillingMcpTools {
+                private final McpRequestAdapter adapter;
+
+                public BillingMcpTools(McpRequestAdapter adapter) {
+                    this.adapter = adapter;
+                }
+
+                @Tool(name = "current_balance", description = "Look up the current billing balance")
+                public String currentBalance() {
+                    return adapter.get("/api/v%s/billing/balance");
+                }
+            }
+            """.formatted(latestApiVersion);
+    }
+}
+```
+
+A misconfigured contribution fails the build loudly rather than silently corrupting the generated
+project: the generator rejects an invalid `toolClassName()`, source that doesn't declare package
+`com.itsjool.aperture.generated.mcp`, a declared top-level type that doesn't match
+`toolClassName()`, and two contributions (or a contribution and an entity) that both try to emit
+the same class name.
+
+### Runtime: replacing the request adapter
+
+Generated `@Tool` methods depend on `McpRequestAdapter`, not a concrete class. The default bean,
+`McpElideAdapter`, dispatches straight into Elide's `JsonApiController` and is declared
+`@ConditionalOnMissingBean(McpRequestAdapter.class)` in `ApertureMcpAutoConfiguration`. Declare
+your own `@Bean` of type `McpRequestAdapter` in your application and it replaces the default
+wholesale — every generated and contributed tool class calls through it instead:
+
+```java
+@Bean
+public McpRequestAdapter mcpRequestAdapter(/* your dependencies */) {
+    return new GatewayRoutingMcpRequestAdapter(/* ... */);
+}
+```
+
+This is the seam to reach for to route MCP traffic through a gateway, add caching, or target a
+different Elide setup — and it mirrors the audit epic's `AuditWriter` seam: a well-known interface
+with a conditional default implementation that a single `@Bean` declaration replaces.

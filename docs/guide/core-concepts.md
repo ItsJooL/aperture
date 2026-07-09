@@ -127,7 +127,7 @@ Optionally (when `<cli><enabled>true</enabled></cli>` is set in the plugin confi
 - A standalone Maven project at `target/generated-cli/aperture-cli/` containing a Picocli-based CLI
   with CRUD commands for every entity, auth commands, and a native image build profile
 
-The generation system uses an `ApertureGenerationTarget` SPI internally. Custom generation targets are not yet configurable via the plugin — this is planned for a future release. CLI generation *is* extensible through `<cli><extensions>`: put an implementation of `CliAuthExtension` (custom auth commands) and/or `CliCommandContribution` (additional top-level commands) on the Maven plugin classpath and list its class name in the plugin configuration — see [Generated CLI → Custom auth extensions](/guide/cli#custom-auth-extensions) and [Custom commands](/guide/cli#custom-commands).
+The generation system uses an `ApertureGenerationTarget` SPI internally. Custom generation targets are not yet configurable via the plugin — this is planned for a future release. CLI generation *is* extensible through `<cli><extensions>`: put an implementation of `CliAuthExtension` (custom auth commands) and/or `CliCommandContribution` (additional top-level commands) on the Maven plugin classpath and list its class name in the plugin configuration — see [Generated CLI → Custom auth extensions](/guide/cli#custom-auth-extensions) and [Custom commands](/guide/cli#custom-commands). MCP generation has the same kind of seam via `<mcp><extensions>` and `McpToolContribution` — see [Extending MCP](/guide/manifests#extending-mcp).
 
 For the changeset generator:
 

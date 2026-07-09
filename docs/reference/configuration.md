@@ -152,10 +152,37 @@ aperture:
 
 | Property | Type | Default | Description |
 |---|---|---|---|
-| `aperture.mcp.enabled` | boolean | `false` | Enable MCP tool generation and server |
-| `spring.ai.mcp.server.protocol` | string | `STATELESS` | MCP transport (stateless HTTP) |
+| `aperture.mcp.enabled` | boolean | `false` | Activates `ApertureMcpAutoConfiguration`. With this unset or `false`, no MCP beans (adapter, tool callback provider, sanitization filter) are registered at all, regardless of what else is on the classpath |
+| `aperture.mcp.transport` | string | — | Bound for parity with the manifest's `spec.mcp.transport`, but not read by any runtime code path today — the active transport is controlled entirely by `spring.ai.mcp.server.protocol` below. Setting it has no effect |
+| `spring.ai.mcp.server.protocol` | string | `STATELESS` | MCP server mode. Aperture currently supports stateless HTTP |
+| `spring.ai.mcp.server.streamable-http.mcp-endpoint` | string | `/mcp` | HTTP endpoint for MCP JSON-RPC requests |
 | `spring.ai.mcp.server.name` | string | — | MCP server name shown to clients |
 | `spring.ai.mcp.server.version` | string | — | MCP server version shown to clients |
+
+`aperture.mcp.enabled` controls Aperture's generated tool registration.
+Spring AI's `spring.ai.mcp.server.*` properties control the transport. For
+the current stateless HTTP transport, direct HTTP clients should send both
+`Content-Type: application/json` and `Accept: application/json, text/event-stream`.
+
+```yaml
+aperture:
+  mcp:
+    enabled: true
+
+spring:
+  ai:
+    mcp:
+      server:
+        protocol: STATELESS
+        name: aperture-api
+        version: 1.0.0
+        streamable-http:
+          mcp-endpoint: /mcp
+```
+
+See [Extending MCP](/guide/manifests#extending-mcp) for the two ways to add behavior beyond
+the generated per-entity tools: build-time tool contributions (`McpToolContribution`) and the
+runtime `McpRequestAdapter` bean seam.
 
 ## GraphQL (`elide.graphql`)
 

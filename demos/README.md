@@ -1,6 +1,6 @@
 # Aperture Demos
 
-Six runnable demos showing different deployment configurations of the Aperture framework. Each is a self-contained Spring Boot application with Docker Compose for local development and a Testcontainers component test suite.
+Seven runnable demos showing different deployment configurations of the Aperture framework. Each is a self-contained Spring Boot application with Docker Compose for local development and a Testcontainers component test suite.
 
 Each demo has local `mise` tasks for common workflows. From a demo directory, run `mise run` for
 the interactive picker, or run tasks such as `mise run docker-deploy`, `mise run docker-clear`,
@@ -55,6 +55,25 @@ Admin and ReadOnly roles, plus a cleanup folder.
 - `/manage/tenants` returns 404 in NONE mode
 - `aperture_tenant_id` column absent from schema
 - Stale ETag on PATCH returns 412
+
+---
+
+## aperture-mcp-demo — Model Context Protocol (MCP) tools
+
+Proves that MCP tools can be generated from manifests and served through the same authentication, authorization, and JSON:API request path as the normal API. Demonstrates full CRUD operations on related entities over MCP.
+
+**Domain**: Project and Task entities (Task has a required ManyToOne relationship to Project)  
+**Auth**: Aperture's built-in JWT auth  
+**Highlights**: Generated MCP tools, relationship-aware write payloads, JSON:API integration, four MCP client templates (Claude Code, Codex, Gemini CLI, Antigravity CLI)
+
+```bash
+cd demos/aperture-mcp-demo
+docker compose up -d --build
+# Create an API key and configure your MCP client
+# See the README for client setup steps (Claude Code, Codex, Gemini, Antigravity)
+```
+
+Bruno collection: `api-collection/` covers auth, JSON:API CRUD, MCP initialization, tool listing, and tool invocation for both Project and Task entities.
 
 ---
 

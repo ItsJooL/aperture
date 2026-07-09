@@ -114,11 +114,31 @@ hooks:
 
 ### `spec.mcp` (entity-level override)
 
+Narrow which tools are generated for one entity, while still participating in MCP:
+
 ```yaml
 mcp:
-  enabled: false      # set false to exclude this entity from MCP tools
+  enabled: true       # required — see the note below
   tools: [list, get]  # override which tools to generate for this entity
 ```
+
+Exclude the entity from MCP entirely — no tool class is generated for it, regardless of `tools`:
+
+```yaml
+mcp:
+  enabled: false
+```
+
+Valid tool names are `list`, `get`, `create`, `update`, and `delete`.
+An entity with no `mcp` block at all inherits the framework-level default tool set
+(`spec.mcp.tools` from `FrameworkConfig`, or all five operations if that is also unset).
+Supplying `tools` on an entity replaces the inherited list for that entity — it does not merge
+with it.
+
+**`enabled` has no implicit default of `true`** once you write an entity-level `mcp:` block — it
+is a plain boolean field, so an `mcp:` block that supplies `tools` but omits `enabled` defaults to
+`enabled: false` and the entity is silently excluded. Always set `enabled: true` explicitly
+alongside `tools`, as in the first example above.
 
 ### Boolean spec fields
 
@@ -159,6 +179,9 @@ spec:
     transport: stateless      # stateless (HTTP) is the only supported transport
     tools: [list, get, create, update, delete]
 ```
+
+`transport` is optional and currently accepts only `stateless`. Valid tool
+names are `list`, `get`, `create`, `update`, and `delete`.
 
 ---
 
