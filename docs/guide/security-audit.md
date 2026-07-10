@@ -158,6 +158,8 @@ X-RateLimit-Reset: 1750000000
 
 The `RateLimitProvider` SPI allows swapping the implementation. The reference implementation keeps state in memory — suitable for single-instance deployments. The demo uses a Valkey-backed provider that loads a small Lua function library once and then executes `FCALL` on each request. For distributed/multi-instance deployments, implement `RateLimitProvider` backed by a shared store. Valkey is a good Redis-compatible option; to keep request overhead low, prefer no persistence or RDB-only snapshots instead of AOF.
 
+**Fail-open on backend errors:** `RateLimitFilter` runs ahead of every request in the app (`HIGHEST_PRECEDENCE + 20`). If the configured `RateLimitProvider` throws — for example a dropped Valkey connection — the filter does not propagate the exception. It logs a single WARN and allows the request through, as if the limit were not exceeded. This is deliberate: letting the exception escape would turn a transient backend outage into a 500 for the entire application. Real limit breaches (the provider returning normally with `allowed=false`) are unaffected and still produce a 429. There is currently no metric or alert emitted when the fail-open path triggers, so a sustained backend outage that disables rate limiting is not currently observable — see the note on `aperture.ratelimit.rejections` below.
+
 ## The audit trail
 
 Every `CREATE`, `UPDATE`, and `DELETE` operation is written to an audit log. The `JdbcAuditWriter` implementation uses a background queue and batch inserts for low write amplification:
