@@ -11,7 +11,7 @@ Aperture exposes metrics for internal components, and also leverages Spring Boot
 - `aperture.audit.write`: Timer and counter for audit log background writes (see [Audit Log Spans](#audit-log-spans) below for its tags).
 - `aperture.audit.queue.size`: Gauge tracking the current size of the async audit event queue.
 - `aperture.audit.dropped`: Counter of audit events dropped when the queue overflows.
-- `aperture.ratelimit.rejections`: Counter of requests rejected by the rate limiter, tagged by `type` (e.g. `ip`).
+- `aperture.ratelimit.rejections`: Counter of requests rejected by the rate limiter, tagged by `type` (e.g. `ip`). This is currently only incremented by `InMemoryRateLimitProvider`. The Valkey-backed provider (the one used in `demos/aperture-demo`'s rate-limit walkthrough) has no equivalent counter today, and `RateLimitFilter`'s fail-open path (see [Rate limiting](/guide/security-audit#rate-limiting)) does not emit one either — a Valkey-backed deployment has no metric for either real rejections or fail-open events.
 - `aperture.hook`: Timer and counter for outbound hook dispatch calls (see [Hook Dispatch Spans](#hook-dispatch-spans) below for its tags).
 
 ## Distributed Tracing (OpenTelemetry)
