@@ -152,7 +152,8 @@ aperture:
 
 | Property | Type | Default | Description |
 |---|---|---|---|
-| `aperture.mcp.enabled` | boolean | `false` | Activates `ApertureMcpAutoConfiguration`. With this unset or `false`, no MCP beans (adapter, tool callback provider, sanitization filter) are registered at all, regardless of what else is on the classpath |
+| `aperture.mcp.enabled` | boolean | `false` | Activates `ApertureMcpAutoConfiguration`. With this unset or `false`, no MCP beans (adapter, tool callback provider, sanitization filter, tools/list filter) are registered at all, regardless of what else is on the classpath |
+| `aperture.mcp.tool-list-scope` | `PRINCIPAL` \| `STATIC` | `PRINCIPAL` | `PRINCIPAL` scopes `tools/list` to the calling principal's roles and principal-only ABAC policies. `STATIC` restores the pre-phase-2 behavior: every generated tool is listed to every caller regardless of role |
 | `spring.ai.mcp.server.protocol` | string | `STATELESS` | MCP server mode. Aperture currently supports stateless HTTP |
 | `spring.ai.mcp.server.streamable-http.mcp-endpoint` | string | `/mcp` | HTTP endpoint for MCP JSON-RPC requests |
 | `spring.ai.mcp.server.name` | string | — | MCP server name shown to clients |
@@ -171,6 +172,7 @@ actually speaks comes from `spring.ai.mcp.server.protocol`.
 aperture:
   mcp:
     enabled: true
+    tool-list-scope: PRINCIPAL # or STATIC
 
 spring:
   ai:
@@ -182,6 +184,29 @@ spring:
         streamable-http:
           mcp-endpoint: /mcp
 ```
+
+### Principal-scoped `tools/list`
+
+With `tool-list-scope: PRINCIPAL` (the default), a caller only sees the generated tools their
+`domainRoles` and principal-only ABAC policies (expressions referencing only `#user`, decidable
+with no row in hand) could plausibly succeed at — e.g. a `ReadOnly`-role API key sees `list_*`/`get_*`
+tools but not `create_*`/`update_*`/`delete_*`. Superadmin principals always see every tool, and a
+TenantAdmin principal sees every tool of a tenant-scoped (or `scopedBy`) entity regardless of their
+own `domainRoles` — mirroring the `TenantAdminCheck` bypass Elide already grants those entities.
+
+**This is not an authorization boundary.** It exists purely so an agent-facing tool list — which
+functions like a prompt on every conversation — doesn't tempt a model with tools its principal
+would never actually succeed at calling. `tools/call` is still authorized for real by Elide on
+every invocation, completely independent of what `tools/list` returned; a bug in this filtering can
+leak a tool *name* to a caller who shouldn't see it, but it can never leak data and can never let a
+call through that Elide would otherwise reject. See `McpToolListFilter`'s javadoc in
+`aperture-simple-mcp`.
+
+An ABAC policy expression referencing `#record` or `#input` is row-scoped and cannot be decided
+without a row in hand; such policies never participate in `tools/list` filtering; the tool they
+apply to stays listed, and Elide alone enforces the policy on the actual call. `McpToolContribution`
+tools have no entity or operation and are never registry-governed — they are always listed,
+regardless of `tool-list-scope`.
 
 See [Extending MCP](/guide/manifests#extending-mcp) for the two ways to add behavior beyond
 the generated per-entity tools: build-time tool contributions (`McpToolContribution`) and the

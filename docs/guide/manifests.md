@@ -406,6 +406,10 @@ writes into the generated project's `com.itsjool.aperture.generated.mcp` package
 entity tool classes. The result is an ordinary generated-project class — no reflection or
 ServiceLoader machinery involved at generation time, and fully native-image friendly.
 
+Contributed tools have no entity or manifest operation, so they are never governed by the
+principal-scoped `tools/list` registry (see [MCP configuration](/reference/configuration#mcp-aperture-mcp-spring-ai-mcp)):
+they are always listed to every caller, regardless of `aperture.mcp.tool-list-scope`.
+
 ```java
 public interface McpToolContribution {
     String id();
