@@ -47,4 +47,16 @@ public class ApertureMcpAutoConfiguration {
     public McpSanitizationFilter mcpSanitizationFilter() {
         return new McpSanitizationFilter();
     }
+
+    /**
+     * Scopes {@code tools/list} to the calling principal (plan 016 phase 2). Gated on
+     * {@code aperture.mcp.tool-list-scope} being {@code PRINCIPAL} (the default) rather than
+     * {@code STATIC} — {@code STATIC} restores the pre-phase-2 behavior of listing every
+     * generated tool to every caller, by simply not registering this bean at all.
+     */
+    @Bean
+    @ConditionalOnProperty(name = "aperture.mcp.tool-list-scope", havingValue = "PRINCIPAL", matchIfMissing = true)
+    public McpToolListFilter mcpToolListFilter() {
+        return new McpToolListFilter();
+    }
 }

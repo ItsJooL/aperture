@@ -57,7 +57,20 @@ class ApertureMcpAutoConfigurationTest {
         runner.withPropertyValues("aperture.mcp.enabled=false").run(context -> {
             assertEquals(0, context.getBeanNamesForType(McpRequestAdapter.class).length);
             assertEquals(0, context.getBeanNamesForType(McpSanitizationFilter.class).length);
+            assertEquals(0, context.getBeanNamesForType(McpToolListFilter.class).length);
         });
+    }
+
+    @Test
+    void registersThePrincipalScopedToolListFilterByDefault() {
+        runner.withPropertyValues("aperture.mcp.enabled=true").run(context ->
+            assertEquals(1, context.getBeanNamesForType(McpToolListFilter.class).length));
+    }
+
+    @Test
+    void staticToolListScope_doesNotRegisterTheFilter() {
+        runner.withPropertyValues("aperture.mcp.enabled=true", "aperture.mcp.tool-list-scope=STATIC")
+            .run(context -> assertEquals(0, context.getBeanNamesForType(McpToolListFilter.class).length));
     }
 
     @Test
