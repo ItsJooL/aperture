@@ -204,6 +204,27 @@ GraphQL requires the path-based API versioning strategy (`elide.api-versioning-s
 
 To disable GraphQL entirely, omit the `elide.graphql` block or set `elide.graphql.enabled: false` — this is also the default if the block is absent.
 
+## Tracing (`management.tracing`)
+
+These are standard Spring Boot / Micrometer Tracing properties, not `aperture.*` ones — Aperture only supplies a default for the sampling probability.
+
+| Property | Type | Default | Description |
+|---|---|---|---|
+| `management.tracing.sampling.probability` | double | `0.1` | Fraction of requests traced. The `0.1` default is set by `ApertureDefaultsEnvironmentPostProcessor`; override to sample more (e.g. `1.0`, as `demos/aperture-demo` does, for full tracing in a demo/test environment) |
+| `management.otlp.tracing.endpoint` | string | — | OTLP/HTTP trace exporter endpoint, e.g. `http://jaeger:4318/v1/traces`. Requires the OTel exporter dependency on the classpath |
+
+```yaml
+management:
+  tracing:
+    sampling:
+      probability: 1.0
+  otlp:
+    tracing:
+      endpoint: "http://jaeger:4318/v1/traces"
+```
+
+See [Observability](/guide/observability#configuration) for the full tracing/metrics picture, including the spans and metrics Aperture emits once tracing is configured.
+
 ## Security (`aperture.server`)
 
 | Property | Type | Default | Description |
