@@ -5,7 +5,7 @@ description: Guard, validate, mutate, and react asynchronously — the four hook
 
 # Hooks & Lifecycle
 
-Hooks are HTTP callbacks you register on an entity. You build a small web service; Aperture calls it at the right moment and handles signing, retries, and timeouts. Nothing in the framework to modify — declare intent in the manifest and Aperture generates the Elide lifecycle wiring.
+Hooks are HTTP callbacks you register on an entity. You build a small web service; Aperture calls it at the right moment and handles signing and timeouts. Nothing in the framework to modify — declare intent in the manifest and Aperture generates the Elide lifecycle wiring.
 
 There are four hook types:
 
@@ -183,13 +183,15 @@ aperture:
 
 ## Retries And Timeouts
 
-Aperture retries failed hook calls with exponential backoff:
-
-| Attempt | Delay |
-|---|---|
-| 1st retry | 500 ms |
-| 2nd retry | 1 000 ms |
-| 3rd retry | 2 000 ms |
+Retries are currently disabled for every generated lifecycle hook, regardless of manifest
+configuration. The generated Elide wiring always calls `HookExecutor.executeHook(...)` with
+`retries=0`, and `HookExecutor`'s internal retry logic (`attempt < retries`) only fires when
+`retries` is greater than zero — so no guard, validate, mutate, or trigger hook ever retries a
+failed call today, even though `HookExecutor` implements exponential backoff (500 ms, 1 000 ms,
+2 000 ms, doubling per attempt) for the case where a non-zero retry count is eventually threaded
+through. There is no manifest knob to opt into it. If a hook call fails, the outcome is determined
+entirely by the hook's `onFailure` behavior (see [Declaring Hooks](#declaring-hooks) above), not by
+retrying the call.
 
 Timeouts are configured by runtime category:
 
