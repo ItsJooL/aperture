@@ -98,11 +98,29 @@ public class McpToolGenerator {
         return pluralOverride != null ? pluralOverride.toLowerCase() : entityName.toLowerCase() + "s";
     }
 
+    /**
+     * The exact {@code @Tool(name = ...)} value this generator emits for {@code op} ({@code list},
+     * {@code get}, {@code create}, {@code update}, or {@code delete}) on {@code entity}. The single
+     * place both this generator and {@link McpToolAccessClassifier} derive a tool's name from, so
+     * the generated tool class and the generated {@code McpToolRegistry} entry for it can never
+     * disagree about what the tool is called (plan 016 phase 2).
+     */
+    public static String toolName(String op, EntityDef entity) {
+        return switch (op) {
+            case "list"   -> "list_" + resourceTypeOf(entity.name(), entity.plural()).toLowerCase();
+            case "get"    -> "get_" + entity.name().toLowerCase();
+            case "create" -> "create_" + entity.name().toLowerCase();
+            case "update" -> "update_" + entity.name().toLowerCase();
+            case "delete" -> "delete_" + entity.name().toLowerCase();
+            default -> throw new IllegalArgumentException("Unknown MCP tool: " + op);
+        };
+    }
+
     private MethodSpec listMethod(EntityDef entity, String pluralName, String apiPath) {
         return MethodSpec.methodBuilder("list" + cap(pluralName))
             .addModifiers(Modifier.PUBLIC)
             .returns(STRING)
-            .addAnnotation(toolAnnotation("list_" + pluralName.toLowerCase(), toolDescription("list", entity)))
+            .addAnnotation(toolAnnotation(toolName("list", entity), toolDescription("list", entity)))
             .addParameter(toolParam(STRING, "filter", "RSQL filter expression, e.g. name=='Acme*'"))
             .addParameter(toolParam(INTEGER, "page", "Zero-based page number (default: 0)"))
             .addParameter(toolParam(INTEGER, "pageSize", "Number of results per page (default: 20, max: 100)"))
@@ -115,7 +133,7 @@ public class McpToolGenerator {
         return MethodSpec.methodBuilder("get" + entity.name())
             .addModifiers(Modifier.PUBLIC)
             .returns(STRING)
-            .addAnnotation(toolAnnotation("get_" + entity.name().toLowerCase(), toolDescription("get", entity)))
+            .addAnnotation(toolAnnotation(toolName("get", entity), toolDescription("get", entity)))
             .addParameter(toolParam(STRING, "id", "UUID of the " + entity.name().toLowerCase() + " to retrieve"))
             .addStatement("return $T.createNotStarted($S, observationRegistry).lowCardinalityKeyValue($S, $S).lowCardinalityKeyValue($S, $S).observe(() -> adapter.get($S + id))",
                 OBSERVATION, "aperture.mcp.tool_call", "tool.name", "get_" + entity.name().toLowerCase(), "server.name", "aperture-mcp", apiPath + "/")
@@ -127,7 +145,7 @@ public class McpToolGenerator {
         MethodSpec.Builder m = MethodSpec.methodBuilder("create" + entity.name())
             .addModifiers(Modifier.PUBLIC)
             .returns(STRING)
-            .addAnnotation(toolAnnotation("create_" + entity.name().toLowerCase(), toolDescription("create", entity)));
+            .addAnnotation(toolAnnotation(toolName("create", entity), toolDescription("create", entity)));
 
         List<ParamMapping> mappings = new ArrayList<>();
         List<RelationshipMapping> relationships = new ArrayList<>();
@@ -162,7 +180,7 @@ public class McpToolGenerator {
         MethodSpec.Builder m = MethodSpec.methodBuilder("update" + entity.name())
             .addModifiers(Modifier.PUBLIC)
             .returns(STRING)
-            .addAnnotation(toolAnnotation("update_" + entity.name().toLowerCase(), toolDescription("update", entity)))
+            .addAnnotation(toolAnnotation(toolName("update", entity), toolDescription("update", entity)))
             .addParameter(toolParam(STRING, "id", "UUID of the " + entity.name().toLowerCase() + " to update"));
 
         List<ParamMapping> mappings = new ArrayList<>();
@@ -218,7 +236,7 @@ public class McpToolGenerator {
         return MethodSpec.methodBuilder("delete" + entity.name())
             .addModifiers(Modifier.PUBLIC)
             .returns(STRING)
-            .addAnnotation(toolAnnotation("delete_" + entity.name().toLowerCase(), toolDescription("delete", entity)))
+            .addAnnotation(toolAnnotation(toolName("delete", entity), toolDescription("delete", entity)))
             .addParameter(toolParam(STRING, "id", "UUID of the " + entity.name().toLowerCase() + " to delete"))
             .addStatement("return $T.createNotStarted($S, observationRegistry).lowCardinalityKeyValue($S, $S).lowCardinalityKeyValue($S, $S).observe(() -> adapter.delete($S + id))",
                 OBSERVATION, "aperture.mcp.tool_call", "tool.name", "delete_" + entity.name().toLowerCase(), "server.name", "aperture-mcp", apiPath + "/")

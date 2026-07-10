@@ -7,7 +7,9 @@ import com.itsjool.aperture.generation.context.StagingGenerationContext;
 import com.itsjool.aperture.generation.spi.ApertureGenerationContext;
 import com.itsjool.aperture.generation.spi.ApertureGenerationRequest;
 import com.itsjool.aperture.generation.spi.ApertureGenerationTarget;
+import com.itsjool.aperture.mcp.McpToolAccessClassifier;
 import com.itsjool.aperture.mcp.McpToolGenerator;
+import com.itsjool.aperture.mcp.McpToolRegistryGenerator;
 import com.itsjool.aperture.mcp.spi.McpToolContribution;
 
 import javax.lang.model.SourceVersion;
@@ -59,6 +61,10 @@ public class McpJavaGenerationTarget implements ApertureGenerationTarget {
         // what emitted it. Writes are last-one-wins at the filesystem level, so a collision would
         // otherwise silently drop a tool class.
         Map<String, String> emittedBy = new LinkedHashMap<>();
+        // Tool name -> access rule (plan 016 phase 2), merged across every entity that emits a
+        // tool class, then written as a single generated McpToolRegistry alongside the tool
+        // classes themselves.
+        Map<String, McpToolAccessClassifier.ToolAccess> toolAccessByName = new LinkedHashMap<>();
         for (EntityDef entity : request.model().entities().stream()
                 .sorted(Comparator.comparing(EntityDef::name)).toList()) {
             McpEntityConfig entityMcp = entity.mcpConfig();
@@ -69,12 +75,22 @@ public class McpJavaGenerationTarget implements ApertureGenerationTarget {
             // entity's own access rules permit nothing MCP could expose, or the framework ceiling
             // / entity narrowing eliminated everything; either way, emit no tool class rather than
             // a class with zero @Tool methods.
-            if (mcpGen.effectiveTools(mcpConfig, entity, entityMcp).isEmpty()) continue;
+            List<String> tools = mcpGen.effectiveTools(mcpConfig, entity, entityMcp);
+            if (tools.isEmpty()) continue;
             String source = mcpGen.generateForEntity(entity, mcpConfig, entityMcp, latestVersion, resourceTypesByEntity);
             claimClassName(emittedBy, StagingGenerationContext.topLevelTypeName(source),
                 "the generated tool class for entity '" + entity.name() + "'");
             staging.writeJavaSourceFromString(source);
+            toolAccessByName.putAll(McpToolAccessClassifier.classify(entity, tools,
+                request.model().abacPolicies(), request.model().frameworkConfig().tenancyMode()));
         }
+        // Always emitted, even when toolAccessByName is empty (e.g. an app whose only MCP tools
+        // come from McpToolContribution), so the class name is unconditionally reserved below and
+        // a contribution named McpToolRegistry is always rejected rather than only sometimes.
+        String registrySource = McpToolRegistryGenerator.generate(toolAccessByName);
+        claimClassName(emittedBy, StagingGenerationContext.topLevelTypeName(registrySource),
+            "the generated MCP tool access registry");
+        staging.writeJavaSourceFromString(registrySource);
         writeToolContributions(staging, latestVersion, emittedBy);
     }
 

@@ -1,6 +1,7 @@
 package com.itsjool.aperture.generation.target;
 
 import com.itsjool.aperture.engine.config.TenancyMode;
+import com.itsjool.aperture.engine.model.AbacPolicyDef;
 import com.itsjool.aperture.engine.model.EntityDef;
 import com.itsjool.aperture.engine.model.FieldDef;
 import com.itsjool.aperture.engine.model.FrameworkConfigDef;
@@ -172,6 +173,75 @@ class McpJavaGenerationTargetTest {
 
         staging.writeJavaSourceFromString(source);
         assertTrue(Files.exists(mcpSource("SomeMcpTools")));
+    }
+
+    @Test
+    void rejectsContributionCollidingWithTheGeneratedToolRegistry() {
+        // The registry (plan 016 phase 2) lands in the same package as every generated tool
+        // class, so its name must be reserved through the same claimClassName collision check.
+        McpToolContribution squatter = contribution("registry-squatter", "McpToolRegistry", toolSource("McpToolRegistry"));
+
+        IllegalStateException e = assertThrows(IllegalStateException.class,
+            () -> new McpJavaGenerationTarget(List.of(squatter)).generate(request, staging));
+
+        assertTrue(e.getMessage().contains("McpToolRegistry"), e.getMessage());
+        assertTrue(e.getMessage().contains("the generated MCP tool access registry"), e.getMessage());
+    }
+
+    @Test
+    void registryIsAlwaysEmittedEvenWithNoEntityTools() throws Exception {
+        // An app whose only MCP tools come from McpToolContribution still gets a (possibly empty)
+        // registry, so the McpToolRegistry class name is unconditionally reserved rather than only
+        // sometimes — a contribution squatting on it must always be rejected.
+        FieldDef name = new FieldDef("String", true, false, false, false,
+            null, null, null, null, null, null, null);
+        EntityDef noAccessRules = new EntityDef("Ghost", "ghosts", null, null,
+            false, false, false, Map.of("name", name),
+            Map.of(), Map.of(), List.of(), Map.of(), Map.of());
+        FrameworkConfigDef frameworkConfig = new FrameworkConfigDef(
+            List.of(), TenancyMode.POOL, new McpConfig(true, "http", null), null);
+        ResolvedDomainModel model = new ResolvedDomainModel(
+            List.of(noAccessRules), List.of(), frameworkConfig, List.of(), List.of(), List.of(), List.of());
+        ApertureGenerationRequest ghostRequest = new ApertureGenerationRequest(model, null, null, List.of("1"), TenancyMode.POOL, null);
+
+        new McpJavaGenerationTarget().generate(ghostRequest, staging);
+
+        assertTrue(Files.exists(mcpSource("McpToolRegistry")), "registry must be emitted even with zero entity tools");
+        assertTrue(Files.readString(mcpSource("McpToolRegistry")).contains("unmodifiableMap(m)"),
+            "empty registry must still declare an (empty) TOOLS map");
+    }
+
+    @Test
+    void registryCapturesRolesPolicesAndPublicOperationsPerTool() throws Exception {
+        // Project: Admin gets full CRUD, Assistant/ReadOnly only read, and a named policy grants
+        // update only to callers for which a #user-only expression holds.
+        FieldDef nameField = new FieldDef("String", true, false, false, false,
+            null, null, null, null, null, null, null);
+        EntityDef project = new EntityDef("Project", "projects", "A project", null,
+            false, false, false, Map.of("name", nameField),
+            Map.of("Admin", List.of("create", "read", "update"), "ReadOnly", List.of("read")),
+            Map.of("FinanceOnly", List.of("update")),
+            List.of("delete"), Map.of(), Map.of());
+        FrameworkConfigDef frameworkConfig = new FrameworkConfigDef(
+            List.of(), TenancyMode.POOL, new McpConfig(true, "http", null), null);
+        List<AbacPolicyDef> abacPolicies = List.of(
+            new AbacPolicyDef("FinanceOnly", "#user.securityAttributes['department'] == 'finance'"));
+        ResolvedDomainModel model = new ResolvedDomainModel(
+            List.of(project), List.of(), frameworkConfig, List.of(), abacPolicies, List.of(), List.of());
+        ApertureGenerationRequest projectRequest = new ApertureGenerationRequest(model, null, null, List.of("1"), TenancyMode.POOL, null);
+
+        new McpJavaGenerationTarget().generate(projectRequest, staging);
+
+        String registrySource = Files.readString(mcpSource("McpToolRegistry"));
+        // list_projects/get_project (read): roles Admin + ReadOnly, no policy.
+        assertTrue(registrySource.contains("\"list_projects\""), registrySource);
+        assertTrue(registrySource.contains("\"Admin\""), registrySource);
+        assertTrue(registrySource.contains("\"ReadOnly\""), registrySource);
+        // update_project: policy expression is #user-only, so it must be captured verbatim.
+        assertTrue(registrySource.contains("#user.securityAttributes['department'] == 'finance'"), registrySource);
+        // delete_project: publicOperation must be true (delete is in publicOperations).
+        assertTrue(registrySource.contains("\"delete_project\""), registrySource);
+        assertTrue(registrySource.contains("new McpToolAccess(\"Project\", \"delete\", true"), registrySource);
     }
 
     private Path mcpSource(String className) {
