@@ -1,0 +1,44 @@
+meta {
+  name: Mint ReadOnly API Key
+  type: http
+  seq: 6
+}
+
+post {
+  url: {{baseUrl}}/auth/me/api-keys
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{agentAdminToken}}
+}
+
+body:json {
+  {
+    "name": "Bruno ReadOnly demo key",
+    "domainRoles": ["ReadOnly"],
+    "securityAttributes": {}
+  }
+}
+
+docs {
+  Mints a personal API key scoped to the ReadOnly role (permissions:
+  {ReadOnly: [read]} on both Project and Task). The next request calls
+  tools/list with this key to show the RBAC-scoped tool surface (plan 016
+  phase 2) concretely: 4 tools instead of the 10 an Admin key sees.
+
+  The raw secret is only returned once — captured into {{readOnlyApiKey}}
+  for the next request.
+}
+
+script:post-response {
+  if (res.status === 201) {
+    bru.setVar("readOnlyApiKey", res.body.secret);
+  }
+}
+
+assert {
+  res.status: eq 201
+  res.body.secret: isDefined
+}

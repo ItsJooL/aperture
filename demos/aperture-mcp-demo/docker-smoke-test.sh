@@ -115,6 +115,46 @@ main() {
         || fail "MCP tools/list: status=$status missing=[$missing] tools=$tool_names"
 
     echo ""
+    echo "Testing: Principal-scoped tools/list (plan 016 phase 2) - ReadOnly key sees only reads"
+    response=$(req POST "$BASE_URL/auth/login" \
+        '{"username":"agent-admin@mcp-demo.local","password":"changeme-local-only"}')
+    status=$(echo "$response" | tail -n1)
+    body=$(echo "$response" | sed '$d')
+    AGENT_ADMIN_TOKEN=$(extract "$body" ".accessToken")
+    [ "$status" = "200" ] && [ -n "$AGENT_ADMIN_TOKEN" ] \
+        || { fail "agent-admin login: status=$status"; exit 1; }
+
+    response=$(req POST "$BASE_URL/auth/me/api-keys" \
+        '{"name":"Smoke test ReadOnly key","domainRoles":["ReadOnly"],"securityAttributes":{}}' \
+        "$AGENT_ADMIN_TOKEN")
+    status=$(echo "$response" | tail -n1)
+    body=$(echo "$response" | sed '$d')
+    READONLY_KEY=$(extract "$body" ".secret")
+    [ "$status" = "201" ] && [ -n "$READONLY_KEY" ] \
+        || { fail "Mint ReadOnly API key: status=$status body=$body"; exit 1; }
+
+    # req()/mcp_call() send an Authorization: Bearer header, but MCP demo keys authenticate via
+    # X-API-Key, so build this request manually.
+    response=$(curl -s -w "\n%{http_code}" -X POST "$BASE_URL/mcp" \
+        -H "Content-Type: application/json" -H "Accept: application/json, text/event-stream" \
+        -H "X-API-Key: $READONLY_KEY" \
+        -d '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}')
+    status=$(echo "$response" | tail -n1)
+    body=$(echo "$response" | sed '$d')
+    readonly_tool_names=$(extract "$body" "[.result.tools[].name] | join(\",\")")
+    unexpected=""
+    for tool in create_project update_project delete_project create_task update_task delete_task; do
+        echo "$readonly_tool_names" | grep -q "$tool" && unexpected="$unexpected $tool"
+    done
+    missing=""
+    for tool in list_projects get_project list_tasks get_task; do
+        echo "$readonly_tool_names" | grep -q "$tool" || missing="$missing $tool"
+    done
+    [ "$status" = "200" ] && [ -z "$unexpected" ] && [ -z "$missing" ] \
+        && pass "ReadOnly API key sees only the four read tools: $readonly_tool_names" \
+        || fail "ReadOnly tools/list: status=$status unexpected=[$unexpected] missing=[$missing] tools=$readonly_tool_names"
+
+    echo ""
     echo "Testing: MCP tools/call list_tasks"
     response=$(mcp_call "$TOKEN" 2 "tools/call" '{"name":"list_tasks","arguments":{}}')
     status=$(echo "$response" | tail -n1)

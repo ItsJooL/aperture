@@ -60,14 +60,29 @@ public class McpDemoBootstrap {
                         "ON CONFLICT ON CONSTRAINT uq_aperture_roles_tenant_name DO NOTHING",
                 "mcp-demo-admin-role", AGENT_ADMIN_TENANT_ID);
         jdbcTemplate.update(
+                "INSERT INTO aperture_roles (id, tenant_id, role_name) VALUES (?, ?, 'Assistant') " +
+                        "ON CONFLICT ON CONSTRAINT uq_aperture_roles_tenant_name DO NOTHING",
+                "mcp-demo-assistant-role", AGENT_ADMIN_TENANT_ID);
+        jdbcTemplate.update(
+                "INSERT INTO aperture_roles (id, tenant_id, role_name) VALUES (?, ?, 'ReadOnly') " +
+                        "ON CONFLICT ON CONSTRAINT uq_aperture_roles_tenant_name DO NOTHING",
+                "mcp-demo-readonly-role", AGENT_ADMIN_TENANT_ID);
+        jdbcTemplate.update(
                 "INSERT INTO aperture_users (id, username, password_hash, tenant_id, status, super_admin) " +
                         "VALUES (?, ?, ?, ?, 'ACTIVE', false) " +
                         "ON CONFLICT (id) DO NOTHING",
                 AGENT_ADMIN_USER_ID, AGENT_ADMIN_USERNAME, passwordEncoder.encode(adminPassword), AGENT_ADMIN_TENANT_ID);
-        jdbcTemplate.update(
-                "INSERT INTO aperture_user_roles (tenant_id, user_id, role_name) VALUES (?, ?, 'Admin') " +
-                        "ON CONFLICT DO NOTHING",
-                AGENT_ADMIN_TENANT_ID, AGENT_ADMIN_USER_ID);
+        // agent-admin holds all three demo roles directly (rather than just Admin) so it can mint
+        // personal API keys delegated down to any of them — ApiKeyService.issueWithPrincipal
+        // requires domainRoles to be a subset of the minting user's own roles. This is what lets
+        // the demo mint a ReadOnly-scoped key to show tools/list's principal-scoped surface
+        // (plan 016 phase 2) without also making agent-admin itself only ever look like ReadOnly.
+        for (String role : new String[] {"Admin", "Assistant", "ReadOnly"}) {
+            jdbcTemplate.update(
+                    "INSERT INTO aperture_user_roles (tenant_id, user_id, role_name) VALUES (?, ?, ?) " +
+                            "ON CONFLICT DO NOTHING",
+                    AGENT_ADMIN_TENANT_ID, AGENT_ADMIN_USER_ID, role);
+        }
 
         log.info("Bootstrap complete: superadmin '{}' and MCP agent admin '{}' created",
                 SUPERADMIN_USERNAME, AGENT_ADMIN_USERNAME);
