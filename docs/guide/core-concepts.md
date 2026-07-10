@@ -98,12 +98,18 @@ spec:
 | `uuid` | `UUID` | `UUID` |
 | `datetime` | `LocalDateTime` | `TIMESTAMPTZ` |
 | `ref` | `@ManyToOne` / `@OneToMany` | FK column (ManyToOne only) |
+| `oneof` | marker interface association | `{field}_type` + `{field}_id` |
+
+`oneof` fields point at a named `OneOf` manifest, not at a single entity. They are for cases where
+one field may reference one of a closed set of entity types. The generated database stores the
+concrete resource type and ID in separate columns; JSON:API clients send the concrete member type in
+the relationship data, for example `{ "type": "products", "id": "…" }`.
 
 ## The build pipeline
 
 When you run `mvn verify`, the `aperture-maven-plugin` runs during the `generate-sources` phase:
 
-1. **Parse** — reads all YAML files from `manifests/` into the domain model (`EntityDef`, `FieldDef`, `HookDef`, etc.)
+1. **Parse** — reads all YAML files from `manifests/` into the domain model (`EntityDef`, `OneOfDef`, `FieldDef`, `HookDef`, etc.)
 2. **Diff** — reads snapshot JSON from `.aperture.lock/` and computes a diff against the current manifests
 3. **Breaking change check** — if fields were removed or types changed without an API version bump, the build fails
 4. **Code generation** — writes Java source files to `target/generated-sources/aperture/`
@@ -144,10 +150,11 @@ For the changeset generator:
   1-Invoice.json
   1-Customer.json
   1-LineItem.json
+  1-domain-model.json
   ...
 ```
 
-These are JSON snapshots of each entity's state at the time of the last successful build. The `1-` prefix is the API version number.
+These are JSON snapshots of each entity's state at the time of the last successful build. The `1-` prefix is the API version number. `1-domain-model.json` records model-level constructs such as `OneOf` declarations so the diff engine can detect member-set changes separately from individual entity field changes.
 
 Example (`1-Invoice.json`):
 ```json

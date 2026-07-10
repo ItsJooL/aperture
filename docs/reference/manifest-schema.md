@@ -18,7 +18,7 @@ spec:
   ...
 ```
 
-Seven kinds are available: `Entity`, `FrameworkConfig`, `ApiVersionConfig`, `AbacPolicy`, `RoleDefinition`, `PrincipalAttributeDefinition`, and `Migration`.
+Eight kinds are available: `Entity`, `OneOf`, `FrameworkConfig`, `ApiVersionConfig`, `AbacPolicy`, `RoleDefinition`, `PrincipalAttributeDefinition`, and `Migration`.
 
 ---
 
@@ -51,7 +51,7 @@ Each key under `fields` is a field name (camelCase). Each value is a field defin
 
 | Property | Type | Default | Description |
 |---|---|---|---|
-| `type` | `string`, `decimal`, `integer`, `boolean`, `uuid`, `datetime`, `ref` | — | Required. Maps to a Java and SQL type |
+| `type` | `string`, `decimal`, `integer`, `boolean`, `uuid`, `datetime`, `ref`, `oneof` | — | Required. Maps to a Java and SQL type |
 | `required` | boolean | `false` | Generates `NOT NULL` constraint and Elide validation |
 | `unique` | boolean | `false` | Generates a unique index |
 | `index` | boolean | `false` | Generates a non-unique index |
@@ -59,12 +59,42 @@ Each key under `fields` is a field name (camelCase). Each value is a field defin
 | `since` | string (version number) | `null` | Field is only visible in API v{since}+ |
 | `renamedFrom` | string | `null` | Old column name — generates `renameColumn` changeset |
 | `relation` | `ManyToOne`, `OneToMany` | `null` | Required when `type: ref` |
-| `target` | string (entity name) | `null` | Required when `type: ref` |
+| `target` | string (entity or OneOf name) | `null` | Required when `type: ref` or `type: oneof` |
 | `mappedBy` | string (field name on target) | `null` | Required for `OneToMany` side of a bidirectional relationship |
 | `description` | string | `null` | Included in generated OpenAPI |
 | `enum` | list of strings | `null` | Generates an `IN (...)` validation and OpenAPI enum |
 
 **`type: ref` notes:** `ManyToOne` generates an FK column (`{fieldName}_id`). `OneToMany` with `mappedBy` generates no column — it's the inverse side of a relationship declared on the target entity.
+
+**`type: oneof` notes:** `target` names a `OneOf` manifest. The field generates `{fieldName}_type`
+and `{fieldName}_id` columns and is represented as a JSON:API relationship whose `data.type` is the
+concrete member resource type.
+
+## OneOf
+
+Declares a named closed set of entities that a `type: oneof` field may target.
+
+```yaml
+apiVersion: aperture.itsjool.com/v1
+kind: OneOf
+metadata:
+  name: Billable
+spec:
+  members:
+    - Product
+    - ServicePackage
+```
+
+| Property | Type | Default | Description |
+|---|---|---|---|
+| `spec.members` | list of entity names | — | Required. Every member must name an `Entity` manifest |
+
+Validation rules:
+
+- Every member must be a known entity.
+- A member entity may belong to only one `OneOf`.
+- Members must share the same `tenantScoped` shape.
+- A `type: oneof` field's `target` must name a known `OneOf`.
 
 ### `spec.permissions`
 

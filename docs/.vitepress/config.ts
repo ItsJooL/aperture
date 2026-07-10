@@ -44,6 +44,7 @@ export default defineConfig({
               items: [
                 { text: 'Manifest kinds',      link: '/guide/manifests#manifest-kinds' },
                 { text: 'Fields & relationships', link: '/guide/manifests#fields-types-and-constraints' },
+                { text: 'One-of relationships', link: '/guide/manifests#one-of-relationships' },
                 { text: 'Tenant scoping',       link: '/guide/manifests#tenant-scoping-tenantscoped' },
                 { text: 'scopedBy',             link: '/guide/manifests#scoping-by-relationship-scopedby' },
                 { text: 'Permissions & ABAC',   link: '/guide/manifests#permissions-roles-and-abac-policies' },
@@ -146,6 +147,7 @@ export default defineConfig({
               link: '/reference/manifest-schema',
               items: [
                 { text: 'Entity',          link: '/reference/manifest-schema#entity' },
+                { text: 'OneOf',           link: '/reference/manifest-schema#oneof' },
                 { text: 'FrameworkConfig', link: '/reference/manifest-schema#frameworkconfig' },
                 { text: 'AbacPolicy',      link: '/reference/manifest-schema#abacpolicy' },
                 { text: 'RoleDefinition',  link: '/reference/manifest-schema#roledefinition' },

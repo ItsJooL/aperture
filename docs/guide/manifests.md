@@ -9,11 +9,12 @@ This page is the practical, by-example companion to the [Manifest Schema referen
 
 ## Manifest kinds
 
-Every manifest is a YAML file under `manifests/` (any subdirectory, read recursively) with the same three top-level keys — `apiVersion`, `kind`, `metadata.name` — plus a `spec` whose shape depends on `kind`. Seven kinds exist:
+Every manifest is a YAML file under `manifests/` (any subdirectory, read recursively) with the same three top-level keys — `apiVersion`, `kind`, `metadata.name` — plus a `spec` whose shape depends on `kind`. Eight kinds exist:
 
 | Kind | Declares |
 |---|---|
 | [`Entity`](#entity) | A domain entity: fields, permissions, policies, hooks |
+| [`OneOf`](#oneof) | A named closed set of entities for one-of relationship fields |
 | [`FrameworkConfig`](#frameworkconfig) | Tenancy mode, default roles, MCP, CLI binary name — one per project |
 | [`ApiVersionConfig`](#apiversionconfig) | API versions and their ACTIVE/SUNSET status |
 | [`RoleDefinition`](#roledefinition) | The named domain roles available in the system |
@@ -41,6 +42,20 @@ spec:
 ```
 
 `spec.fields` is the only required key. Everything else — `tenantScoped`, `scopedBy`, `optimisticLocking`, `softDelete`, `permissions`, `policies`, `hooks` — is covered section by section below. See [Entity](/reference/manifest-schema#entity) for the full field table.
+
+### OneOf
+
+```yaml
+apiVersion: aperture.itsjool.com/v1
+kind: OneOf
+metadata:
+  name: Billable
+spec:
+  members: [Product, ServicePackage]
+```
+
+Names a closed set of entity types that a `type: oneof` field may reference. See
+[One-of relationships](#one-of-relationships) for field usage and runtime shape.
 
 ### FrameworkConfig
 
@@ -151,7 +166,7 @@ fields:
     renamedFrom: phone
 ```
 
-`unique: true` generates a unique index (and is required for encrypted fields you also want to filter on — see [deterministic encryption](/guide/security-audit#field-level-encryption)). `index: true` generates a plain, non-unique index for a field you filter or sort on often. `since:`/`renamedFrom:` are for versioned rollout and zero-downtime renames — see [Build & Deploy → Schema automation](/guide/build-deploy#schema-automation). `encrypted:` is covered in [Security & Audit → Field-level encryption](/guide/security-audit#field-level-encryption). The full type table (`string`, `decimal`, `integer`, `boolean`, `uuid`, `datetime`, `ref`) is in [Core Concepts](/guide/core-concepts#field-types) and [the reference](/reference/manifest-schema#spec-fields).
+`unique: true` generates a unique index (and is required for encrypted fields you also want to filter on — see [deterministic encryption](/guide/security-audit#field-level-encryption)). `index: true` generates a plain, non-unique index for a field you filter or sort on often. `since:`/`renamedFrom:` are for versioned rollout and zero-downtime renames — see [Build & Deploy → Schema automation](/guide/build-deploy#schema-automation). `encrypted:` is covered in [Security & Audit → Field-level encryption](/guide/security-audit#field-level-encryption). The full type table (`string`, `decimal`, `integer`, `boolean`, `uuid`, `datetime`, `ref`, `oneof`) is in [Core Concepts](/guide/core-concepts#field-types) and [the reference](/reference/manifest-schema#spec-fields).
 
 ## Relationships
 
@@ -171,6 +186,48 @@ fields:
 ```
 
 A `ManyToOne` field generates an FK column (`{fieldName}_id`) and is the only kind of relationship field that can also be named in `scopedBy` (below). A `OneToMany` field with `mappedBy` is the inverse side of a relationship declared on the target entity — it generates no column of its own. `target` must name another entity declared somewhere in the manifest set, or the build fails with an unknown-relationship-target error. See [`type: ref` notes](/reference/manifest-schema#spec-fields) in the reference.
+
+## One-of relationships
+
+Use a `OneOf` manifest when a relationship field can point at one member of a closed set of entity
+types:
+
+```yaml
+apiVersion: aperture.itsjool.com/v1
+kind: OneOf
+metadata:
+  name: Billable
+spec:
+  members: [Product, ServicePackage]
+```
+
+An entity field then targets that named model concept:
+
+```yaml
+fields:
+  billable:
+    type: oneof
+    target: Billable
+    description: "Product or service package associated with this line item"
+```
+
+The build validates that every member is an entity, each member belongs to only one `OneOf`, and all
+members have the same tenant shape. A tenant-scoped owner cannot use a one-of set that mixes tenant
+scoped and global members.
+
+In generated storage, the field becomes two columns: `{field}_type` and `{field}_id`. JSON:API
+clients send the concrete resource type in the relationship data:
+
+```json
+{
+  "relationships": {
+    "billable": { "data": { "type": "servicepackages", "id": "…" } }
+  }
+}
+```
+
+Adding a member to a `OneOf` is treated as a compatible model expansion. Removing a member or
+deleting a `OneOf` is a breaking model change because existing rows may still point at that member.
 
 ## Tenant scoping (`tenantScoped`)
 
@@ -330,6 +387,10 @@ validation during generation.
 A `ManyToOne` field is generated as a tool parameter named `<field>_id`. Given the demo's `Task`
 entity with a `project` field (`type: ref`, `relation: ManyToOne`, `target: Project`), the
 generated `createTask`/`updateTask` tools take a `project_id` string parameter, not `project`.
+
+A `oneof` field is generated as two tool parameters: `<field>_type` and `<field>_id`. The type is
+the JSON:API resource type for the concrete member (`products`, `servicepackages`, and so on), not
+the `OneOf` manifest name.
 
 At the JSON:API layer, the adapter writes scalar fields into `data.attributes` and relationship
 fields into `data.relationships.<field>.data`, keyed by the manifest field name (`project`, not

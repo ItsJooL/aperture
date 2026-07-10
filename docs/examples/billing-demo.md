@@ -23,16 +23,17 @@ docker compose ps    # all should show "healthy" or "exited(0)" for seeder
 
 ## Domain model
 
-Eight entities in two domain areas:
+Nine entities in two domain areas, plus one named one-of concept:
 
 ### Billing domain
 
 | Entity | Tenant-scoped | Key features |
 |---|---|---|
 | `Invoice` | Yes | `validate` hook, two ABAC policies |
-| `LineItem` | Yes | `guard` hook for bulk-order review |
+| `LineItem` | Yes | `guard` hook for bulk-order review, `billable` one-of relationship |
 | `Payment` | Yes | `validate` hook |
-| `Product` | No | Shared reference data |
+| `Product` | Yes | Tenant catalogue item and `Billable` member |
+| `ServicePackage` | Yes | A second concrete member of `Billable` |
 | `Country` | No | Shared reference data, `guard` hook for country code hygiene |
 | `Currency` | No | Shared reference data, `trigger` hook for reference-data sync |
 
@@ -52,6 +53,10 @@ The `seeder` service creates two tenants at startup:
 - `accountant@acme.com` — `Accountant` with `department=finance`, `region=eu`, `status=active`
 - `viewer@acme.com` — `Viewer`
 - 3 customers, 3 invoices (PAID / ISSUED / DRAFT), 3 products
+
+`LineItem.billable` points at the `Billable` one-of. In the demo, `Billable` has two members:
+`Product` and `ServicePackage`. The web invoice builder shows them in one "Billable item" selector,
+and the Bruno collection's atomic invoice request creates one line for each concrete member.
 
 **TechStart Inc** (`admin@techstart.com` / `TechAdmin123!`)
 - `admin@techstart.com` — `TenantAdmin`
@@ -286,7 +291,9 @@ The demo ships with Jaeger. Browse to `http://localhost:16686` to see traces for
 Country (global) ←─── Customer (tenant-scoped, encrypted email, optimistic lock)
 Currency (global)         │
                           │
-Product (global) ←─── LineItem ───→ Invoice ←─── Payment
+Product ────────────┐
+                    ├── Billable ←── LineItem ───→ Invoice ←─── Payment
+ServicePackage ─────┘
                                         │
                                     ValidateInvoice (validate hook)
                                     CheckLineItem (guard hook)

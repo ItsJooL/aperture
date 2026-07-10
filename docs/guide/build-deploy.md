@@ -76,6 +76,9 @@ The four diff categories and what they generate:
 | New field added | `addColumn` with `MARK_RAN` precondition | Idempotent — skipped if column already exists |
 | Field renamed (`renamedFrom:`) | `renameColumn` | No data loss |
 | Field removed | `dropColumn` with `context="pending"` | **Not applied automatically** (see Deferred drops) |
+| `oneof` field added | `addColumn` for `{field}_type` and `{field}_id` | No FK constraint, because the target table depends on the row |
+| `OneOf` member added | Domain-model lock update only | Compatible model expansion |
+| `OneOf` member removed | Build fails as breaking without a versioned rollout | Existing rows may still reference that member |
 | New ManyToOne field | `addForeignKeyConstraint` | Added after both tables exist |
 
 ### Deferred drops explained
@@ -114,13 +117,17 @@ The diff engine generates a `renameColumn` changeset instead of a `dropColumn` +
 
 ## The lock files
 
-After a successful build, the Maven plugin writes updated JSON snapshots to `.aperture.lock/` (one file per entity). **Commit these alongside every manifest change.**
+After a successful build, the Maven plugin writes updated JSON snapshots to `.aperture.lock/` (one file per entity, plus a domain-model lock when model-level constructs such as `OneOf` are present). **Commit these alongside every manifest change.**
 
 Lock files serve two purposes:
 1. They tell the diff engine what the database currently looks like
 2. They are the schema migration record — without them, the next build treats every entity as new and regenerates all changesets from scratch
 
 Never delete lock files unless you intend to recreate the entire schema from scratch.
+
+`OneOf` declarations are stored in `1-domain-model.json` (or the matching API-version prefix). That
+file is part of the migration record. Without it, the diff engine cannot tell whether a member was
+added safely or removed as a breaking change.
 
 ## Manual migration manifests
 
