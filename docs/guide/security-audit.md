@@ -201,3 +201,39 @@ public interface AuditWriter {
     void write(AuditEvent event);
 }
 ```
+
+### aperture-audit-webhook
+
+`aperture-audit-webhook` is a reusable `AuditWriter` implementation that batches audit events and POSTs them to an HTTP endpoint — the module used by `demos/aperture-audit-demo` to ship events to a SIEM-style sink.
+
+Maven coordinates:
+
+```xml
+<dependency>
+  <groupId>com.itsjool</groupId>
+  <artifactId>aperture-audit-webhook</artifactId>
+  <version>1.0.0-SNAPSHOT</version>
+</dependency>
+```
+
+`WebhookAuditWriter` takes a required `URI endpoint` and three optional tuning parameters, defaulting to:
+
+| Parameter | Default | Description |
+|---|---|---|
+| `batchSize` | `100` | Events are flushed once a batch reaches this size |
+| `flushInterval` | `Duration.ofSeconds(1)` | Events are also flushed on this interval, whichever comes first |
+| `queueCapacity` | `10_000` | In-memory queue bound; once full, `write(event)` drops the event and logs a WARN rather than blocking |
+
+Wire it as a Spring bean:
+
+```java
+@Configuration
+class AuditWebhookConfig {
+    @Bean
+    WebhookAuditWriter webhookAuditWriter(@Value("${aperture.audit.webhook.url}") URI url) {
+        return new WebhookAuditWriter(url); // batchSize=100, flushInterval=1s, queueCapacity=10000
+    }
+}
+```
+
+To combine it with the JDBC writer instead of replacing it (so a webhook outage doesn't lose the queryable audit trail), fan out from a composite `AuditWriter` bean — see `demos/aperture-audit-demo`'s `AuditDemoAuditConfiguration` for the full pattern, including per-sink failure isolation.
