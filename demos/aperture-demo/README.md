@@ -189,7 +189,7 @@ curl http://localhost:8080/actuator/prometheus | grep aperture
 
 Key metrics during the walkthrough:
 
-- `aperture.hook.duration` — how long hook dispatch took
+- `aperture.hook` — how long hook dispatch took
 - `aperture.audit.queue.size` — how many events are pending write
 - `http.server.requests` — request count, latency, status by endpoint and tenant
 
