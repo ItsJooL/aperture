@@ -191,10 +191,22 @@ class CodeGeneratorTest {
             Map.of("Product", product, "LineItem", lineItem), List.of(billable)));
 
         assertThat(String.join("\n", interfaces))
-            .contains("public interface BillableV1");
+            .contains("@MappedInterface")
+            .contains("@Include(\n    name = \"billable\",\n    rootLevel = false\n)")
+            .contains("@ReadPermission(\n    expression = \"Prefab.Role.All\"\n)")
+            .contains("@CreatePermission(\n    expression = \"Prefab.Role.None\"\n)")
+            .contains("@UpdatePermission(\n    expression = \"Prefab.Role.None\"\n)")
+            .contains("@DeletePermission(\n    expression = \"Prefab.Role.None\"\n)")
+            .contains("public interface BillableV1")
+            .contains("@EntityId")
+            .contains("UUID getId();")
+            .contains("default String getApertureOneOf()")
+            .contains("return \"Billable\";")
+            .contains("default void setApertureOneOf(String apertureOneOf)");
         assertThat(productSource)
             .contains("public class ProductV1 implements BillableV1");
         assertThat(lineItemSource)
+            .contains("@ToOne")
             .contains("@Any")
             .contains("@AnyKeyJavaClass(UUID.class)")
             .contains("@Column(\n      name = \"billable_type\"")

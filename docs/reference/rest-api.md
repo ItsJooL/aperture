@@ -108,6 +108,29 @@ GET /api/v1/invoices?include=customer,lineItems
 
 Related resources appear in the `included` array. Relationships in `data[].relationships` contain `data.type` and `data.id` pointers.
 
+### One-of relationships
+
+A `type: oneof` field is still represented as a normal JSON:API relationship. The relationship
+name is the field name, and `data.type` is the concrete member resource type, not the `OneOf`
+manifest name:
+
+```json
+{
+  "data": {
+    "type": "lineitems",
+    "relationships": {
+      "billable": {
+        "data": { "type": "servicepackages", "id": "..." }
+      }
+    }
+  }
+}
+```
+
+Generated OpenAPI includes a relationship-data schema for each one-of field. For example,
+`LineItemBillableRelationshipData` lists the allowed `type` enum values such as `products` and
+`servicepackages`.
+
 ### Atomic operations
 
 Multiple mutations in a single all-or-nothing request using the `application/vnd.api+json;ext="https://jsonapi.org/ext/atomic"` content type:

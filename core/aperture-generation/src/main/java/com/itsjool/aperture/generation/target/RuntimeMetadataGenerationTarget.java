@@ -2,13 +2,18 @@ package com.itsjool.aperture.generation.target;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.itsjool.aperture.engine.model.EntityDef;
+import com.itsjool.aperture.engine.model.FieldDef;
+import com.itsjool.aperture.engine.model.OneOfDef;
 import com.itsjool.aperture.generation.spi.ApertureGenerationContext;
 import com.itsjool.aperture.generation.spi.ApertureGenerationRequest;
 import com.itsjool.aperture.generation.spi.ApertureGenerationTarget;
 
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.TreeMap;
@@ -63,6 +68,7 @@ public class RuntimeMetadataGenerationTarget implements ApertureGenerationTarget
         metadata.put("tenancyMode", model.frameworkConfig().tenancyMode().name().toLowerCase());
         metadata.put("allowedHttpMethods", allowedMethods);
         metadata.put("tenantScopedApiResources", tenantScopedApiResources);
+        metadata.put("oneOfs", oneOfMetadata(model));
 
         TreeSet<String> securityAttributeKeys = new TreeSet<>();
         Map<String, Object> securityAttributeDefinitions = new TreeMap<>();
@@ -82,6 +88,49 @@ public class RuntimeMetadataGenerationTarget implements ApertureGenerationTarget
 
         String json = MAPPER.writerWithDefaultPrettyPrinter().writeValueAsString(metadata);
         context.writeResource(Path.of("aperture/aperture-runtime-metadata.json"), json);
+    }
+
+    private Map<String, Object> oneOfMetadata(com.itsjool.aperture.engine.model.ResolvedDomainModel model) {
+        Map<String, EntityDef> entitiesByName = new TreeMap<>();
+        for (EntityDef entity : model.entities()) {
+            entitiesByName.put(entity.name(), entity);
+        }
+
+        Map<String, Object> oneOfs = new TreeMap<>();
+        model.oneOfs().stream()
+            .sorted(Comparator.comparing(OneOfDef::name))
+            .forEach(oneOf -> {
+                Map<String, Object> metadata = new LinkedHashMap<>();
+                metadata.put("name", oneOf.name());
+                metadata.put("members", List.copyOf(oneOf.members()));
+                metadata.put("memberResourceTypes", oneOf.members().stream()
+                    .map(entitiesByName::get)
+                    .map(this::plural)
+                    .toList());
+                metadata.put("fields", oneOfFields(model, oneOf.name()));
+                oneOfs.put(oneOf.name(), metadata);
+            });
+        return oneOfs;
+    }
+
+    private List<String> oneOfFields(com.itsjool.aperture.engine.model.ResolvedDomainModel model, String oneOfName) {
+        List<String> fields = new ArrayList<>();
+        model.entities().stream()
+            .sorted(Comparator.comparing(EntityDef::name))
+            .forEach(entity -> {
+                if (entity.fields() == null) {
+                    return;
+                }
+                entity.fields().entrySet().stream()
+                    .sorted(Map.Entry.comparingByKey())
+                    .filter(entry -> isOneOfTarget(entry.getValue(), oneOfName))
+                    .forEach(entry -> fields.add(plural(entity) + "." + entry.getKey()));
+            });
+        return fields;
+    }
+
+    private boolean isOneOfTarget(FieldDef field, String oneOfName) {
+        return "oneof".equalsIgnoreCase(field.type()) && oneOfName.equals(field.targetClass());
     }
 
     private LinkedHashSet<String> computeAllowedHttpMethods(com.itsjool.aperture.engine.model.ResolvedDomainModel model) {

@@ -21,7 +21,9 @@ import com.itsjool.aperture.spi.PrincipalMapper;
 import com.itsjool.aperture.spi.RateLimitProvider;
 import com.itsjool.aperture.spi.ServiceAccountIssuer;
 import com.yahoo.elide.ElideSettingsBuilderCustomizer;
+import com.yahoo.elide.core.dictionary.EntityBinding;
 import com.yahoo.elide.core.dictionary.EntityDictionary;
+import com.yahoo.elide.core.type.ClassType;
 import jakarta.annotation.PostConstruct;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
@@ -41,6 +43,7 @@ import java.security.SecureRandom;
 import java.time.Clock;
 import java.time.Duration;
 import java.util.Arrays;
+import java.util.Locale;
 
 @Configuration
 @EntityScan("com.itsjool.aperture.generated")
@@ -217,9 +220,35 @@ public class ApertureSimpleAutoConfiguration {
         }
 
         EntityDictionary dict = event.getApplicationContext().getBean(EntityDictionary.class);
+        bindOneOfMarkers(dict);
         java.util.Map<String, com.yahoo.elide.core.security.checks.Check> checks = event.getApplicationContext().getBeansOfType(com.yahoo.elide.core.security.checks.Check.class);
         for (com.yahoo.elide.core.security.checks.Check check : checks.values()) {
             dict.addSecurityCheck(check.getClass());
+        }
+    }
+
+    private void bindOneOfMarkers(EntityDictionary dict) {
+        if (metadata.oneOfs().isEmpty()) {
+            return;
+        }
+
+        for (String version : metadata.activeVersions()) {
+            for (String oneOfName : metadata.oneOfs().keySet()) {
+                String className = "com.itsjool.aperture.generated.v" + version + "." + oneOfName + "V" + version;
+                try {
+                    Class<?> markerClass = Class.forName(className);
+                    ClassType<?> markerType = ClassType.of(markerClass);
+                    EntityBinding binding = new EntityBinding(
+                            dict.getInjector(),
+                            markerType,
+                            oneOfName.toLowerCase(Locale.ROOT),
+                            version,
+                            ignored -> false);
+                    dict.bindEntity(binding);
+                } catch (ClassNotFoundException ignored) {
+                    // Generated projects without a marker for this version have no oneof binding to add.
+                }
+            }
         }
     }
 

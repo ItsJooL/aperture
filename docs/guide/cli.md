@@ -357,6 +357,20 @@ For entities with `optimisticLocking: true`, `update` and `delete` take a `--if-
 
 `create` and `update` also accept `-f <file>` as an alternative to typed flags, and `delete` accepts `-f <file> [-y]` — see [Declarative apply](#declarative-apply) below. These `-f` paths share the same file format and lookup machinery as `apply`.
 
+For `oneof` relationship fields, typed `create` and `update` commands use a concrete resource type
+and id pair:
+
+```bash
+aperture create lineitems \
+  --quantity 1 \
+  --unit-price 750 \
+  --billable-type servicepackages \
+  --billable-id 018fbf0c-2f4d-7b5e-a5c7-78dd0f03e21a
+```
+
+The `--<field>-type` value is the JSON:API resource type for the selected member (`products`,
+`servicepackages`, and so on), not the `OneOf` manifest name.
+
 Plus a built-in `auth` command group for token-based login:
 
 ```
@@ -416,6 +430,21 @@ invoices:
 ```
 
 Relationship values can be UUIDs or display values. For display values, the CLI first checks resources created earlier in the same apply run, then falls back to an API lookup using the target entity's natural key.
+
+One-of relationship values use an explicit JSON:API resource identifier map:
+
+```yaml
+lineitems:
+  - description: Priority onboarding
+    quantity: 1
+    unit_price: 750
+    billable:
+      type: servicepackages
+      id: 018fbf0c-2f4d-7b5e-a5c7-78dd0f03e21a
+```
+
+Atomic apply may also use `lid` instead of `id` when the selected member was created earlier in the
+same atomic batch.
 
 Records can also set an explicit `_ref:` key — a user-chosen label, valid for any entity, that other records in the same run can reference instead of (or as well as) the natural key:
 

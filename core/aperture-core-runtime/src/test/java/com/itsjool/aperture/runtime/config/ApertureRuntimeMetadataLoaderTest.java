@@ -68,6 +68,28 @@ class ApertureRuntimeMetadataLoaderTest {
     }
 
     @Test
+    void loadsOneOfMetadata() {
+        ApertureRuntimeMetadata metadata = loader.load(json("""
+                {"activeVersions":["1"],
+                 "defaultRoles":["TenantAdmin"],
+                 "declaredRoles":["TenantAdmin"],
+                 "oneOfs":{
+                   "Billable":{
+                     "name":"Billable",
+                     "members":["Product","ServicePackage"],
+                     "memberResourceTypes":["products","servicepackages"],
+                     "fields":["lineitems.billable"]
+                   }
+                 }}
+                """));
+
+        ApertureRuntimeMetadata.OneOfMetadata billable = metadata.oneOfs().get("Billable");
+        assertThat(billable.members()).containsExactly("Product", "ServicePackage");
+        assertThat(billable.memberResourceTypes()).containsExactly("products", "servicepackages");
+        assertThat(billable.fields()).containsExactly("lineitems.billable");
+    }
+
+    @Test
     void tenancyModeDefaultsToPoolWhenAbsent() {
         ApertureRuntimeMetadata metadata = loader.load(json("""
                 {"activeVersions":["1"],

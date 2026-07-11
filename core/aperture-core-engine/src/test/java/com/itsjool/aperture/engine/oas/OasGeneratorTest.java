@@ -4,6 +4,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.itsjool.aperture.engine.config.TenancyMode;
 import com.itsjool.aperture.engine.model.EntityDef;
+import com.itsjool.aperture.engine.model.FieldDef;
+import com.itsjool.aperture.engine.model.OneOfDef;
 import com.itsjool.aperture.engine.model.ResolvedDomainModel;
 import org.junit.jupiter.api.Test;
 
@@ -69,5 +71,41 @@ class OasGeneratorTest {
 
         assertThat(paths).doesNotContainKey("/manage/tenants");
         assertThat(paths).containsKey("/auth/login");
+    }
+
+    @Test
+    void emitsOneOfRelationshipDataSchemaWithMemberResourceTypes() throws Exception {
+        EntityDef product = entity("Product", null, Map.of());
+        EntityDef servicePackage = entity("ServicePackage", "ServicePackages", Map.of());
+        EntityDef lineItem = entity("LineItem", null, Map.of(
+            "billable", new FieldDef("oneof", false, false, false, false,
+                null, null, null, null, "Billable", null, null)));
+        ResolvedDomainModel model = new ResolvedDomainModel(
+            List.of(product, servicePackage, lineItem),
+            List.of(),
+            null,
+            List.of(),
+            List.of(),
+            List.of(),
+            List.of(),
+            List.of(new OneOfDef("Billable", List.of("Product", "ServicePackage"))));
+
+        String yaml = new OasGenerator().generate(model, TenancyMode.POOL, List.of("1"));
+
+        ObjectMapper mapper = new ObjectMapper(new YAMLFactory());
+        Map<String, Object> parsed = mapper.readValue(yaml, Map.class);
+        Map<String, Object> components = (Map<String, Object>) parsed.get("components");
+        Map<String, Object> schemas = (Map<String, Object>) components.get("schemas");
+        Map<String, Object> schema = (Map<String, Object>) schemas.get("LineItemBillableRelationshipData");
+        Map<String, Object> properties = (Map<String, Object>) schema.get("properties");
+        Map<String, Object> type = (Map<String, Object>) properties.get("type");
+
+        assertThat(schema.get("description").toString()).contains("Billable");
+        assertThat((List<String>) type.get("enum")).containsExactly("products", "servicepackages");
+    }
+
+    private static EntityDef entity(String name, String plural, Map<String, FieldDef> fields) {
+        return new EntityDef(name, plural, name, null, false, false, false,
+            fields, Map.of(), Map.of(), List.of(), Map.of(), Map.of());
     }
 }

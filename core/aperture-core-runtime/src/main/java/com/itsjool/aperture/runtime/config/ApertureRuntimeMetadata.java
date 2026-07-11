@@ -11,19 +11,27 @@ public record ApertureRuntimeMetadata(
         List<String> activeVersions, List<String> defaultRoles, List<String> declaredRoles,
         Set<String> lockingEntities, TenancyMode tenancyMode, Set<String> allowedHttpMethods,
         Set<String> securityAttributeKeys, Map<String, SecurityAttributeDefinition> securityAttributeDefinitions,
-        Set<String> tenantScopedApiResources) {
+        Set<String> tenantScopedApiResources, Map<String, OneOfMetadata> oneOfs) {
     public ApertureRuntimeMetadata(List<String> activeVersions, List<String> defaultRoles, List<String> declaredRoles,
             Set<String> lockingEntities, TenancyMode tenancyMode, Set<String> allowedHttpMethods,
             Set<String> securityAttributeKeys) {
         this(activeVersions, defaultRoles, declaredRoles, lockingEntities, tenancyMode, allowedHttpMethods,
-                securityAttributeKeys, Map.of(), null);
+                securityAttributeKeys, Map.of(), null, Map.of());
     }
 
     public ApertureRuntimeMetadata(List<String> activeVersions, List<String> defaultRoles, List<String> declaredRoles,
             Set<String> lockingEntities, TenancyMode tenancyMode, Set<String> allowedHttpMethods,
             Set<String> securityAttributeKeys, Map<String, SecurityAttributeDefinition> securityAttributeDefinitions) {
         this(activeVersions, defaultRoles, declaredRoles, lockingEntities, tenancyMode, allowedHttpMethods,
-                securityAttributeKeys, securityAttributeDefinitions, null);
+                securityAttributeKeys, securityAttributeDefinitions, null, Map.of());
+    }
+
+    public ApertureRuntimeMetadata(List<String> activeVersions, List<String> defaultRoles, List<String> declaredRoles,
+            Set<String> lockingEntities, TenancyMode tenancyMode, Set<String> allowedHttpMethods,
+            Set<String> securityAttributeKeys, Map<String, SecurityAttributeDefinition> securityAttributeDefinitions,
+            Set<String> tenantScopedApiResources) {
+        this(activeVersions, defaultRoles, declaredRoles, lockingEntities, tenancyMode, allowedHttpMethods,
+                securityAttributeKeys, securityAttributeDefinitions, tenantScopedApiResources, Map.of());
     }
 
     public ApertureRuntimeMetadata {
@@ -41,6 +49,7 @@ public record ApertureRuntimeMetadata(
                 ? Set.copyOf(securityAttributeDefinitions.keySet())
                 : (securityAttributeKeys != null ? Set.copyOf(securityAttributeKeys) : Set.of());
         tenantScopedApiResources = tenantScopedApiResources != null ? Set.copyOf(tenantScopedApiResources) : Set.of();
+        oneOfs = oneOfs != null ? Map.copyOf(oneOfs) : Map.of();
     }
 
     public RoleCatalog roleCatalog() {
@@ -59,5 +68,14 @@ public record ApertureRuntimeMetadata(
             throw new IllegalArgumentException("activeVersions must not contain duplicate values");
         }
         return copy;
+    }
+
+    public record OneOfMetadata(
+            String name, List<String> members, List<String> memberResourceTypes, Set<String> fields) {
+        public OneOfMetadata {
+            members = members != null ? List.copyOf(members) : List.of();
+            memberResourceTypes = memberResourceTypes != null ? List.copyOf(memberResourceTypes) : List.of();
+            fields = fields != null ? Set.copyOf(fields) : Set.of();
+        }
     }
 }

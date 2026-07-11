@@ -181,7 +181,12 @@ spec:
 
 Removing a version (or setting it to `SUNSET`) requires an API version bump to avoid breaking changes at build time.
 
-Every entity is reachable over GraphQL as well as JSON:API, at `/graphql/{version}` — off by default, and gated on the same path-based versioning as the REST endpoints. Nested relationship traversal and mutations both work against the same permission and manifest model as REST. See [GraphQL configuration](/reference/configuration#graphql-elide-graphql) to turn it on.
+Every entity is reachable over GraphQL as well as JSON:API, at `/graphql/{version}` — off by
+default, and gated on the same path-based versioning as the REST endpoints. Nested relationship
+traversal and mutations both work against the same permission and manifest model as REST for
+ordinary entity relationships. `oneof` fields are a JSON:API/CLI/MCP contract in this release, not
+a supported GraphQL shape. See [GraphQL configuration](/reference/configuration#graphql-elide-graphql)
+for the switch and limitation.
 
 ## Docker deployment
 

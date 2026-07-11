@@ -202,6 +202,10 @@ elide:
 
 GraphQL requires the path-based API versioning strategy (`elide.api-versioning-strategy.path.enabled: true` — see [API versioning](/guide/build-deploy#api-versioning)); there is no unversioned `/graphql` route. Query and mutation field names are the plural JSON:API resource path (`customers`, `invoices`, `lineitems`), not the singular entity name, and results come back as Relay-style connections (`{ edges { node { ... } } }`).
 
+`oneof` fields are not a supported GraphQL contract in this release. Use JSON:API, the generated
+CLI, or generated MCP tools for those relationships. If you enable GraphQL, treat any provider-level
+shape for one-of fields as internal and subject to change.
+
 To disable GraphQL entirely, omit the `elide.graphql` block or set `elide.graphql.enabled: false` — this is also the default if the block is absent.
 
 ## Security (`aperture.server`)

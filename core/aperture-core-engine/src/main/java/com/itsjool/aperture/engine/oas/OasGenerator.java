@@ -3,10 +3,13 @@ package com.itsjool.aperture.engine.oas;
 import com.itsjool.aperture.engine.config.TenancyMode;
 import com.itsjool.aperture.engine.model.EntityDef;
 import com.itsjool.aperture.engine.model.FieldDef;
+import com.itsjool.aperture.engine.model.OneOfDef;
 import com.itsjool.aperture.engine.model.ResolvedDomainModel;
 
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 public class OasGenerator {
@@ -31,6 +34,7 @@ public class OasGenerator {
         sb.append("      type: apiKey\n");
         sb.append("      in: header\n");
         sb.append("      name: X-API-Key\n");
+        appendOneOfSchemas(sb, model);
 
         sb.append("security:\n");
         sb.append("  - BearerAuth: []\n");
@@ -58,6 +62,51 @@ public class OasGenerator {
         appendAuditPaths(sb);
         
         return sb.toString();
+    }
+
+    private void appendOneOfSchemas(StringBuilder sb, ResolvedDomainModel model) {
+        Map<String, EntityDef> entitiesByName = model.entities().stream()
+            .collect(Collectors.toMap(EntityDef::name, entity -> entity, (left, right) -> left, LinkedHashMap::new));
+        Map<String, OneOfDef> oneOfsByName = model.oneOfs().stream()
+            .collect(Collectors.toMap(OneOfDef::name, oneOf -> oneOf, (left, right) -> left, LinkedHashMap::new));
+
+        boolean started = false;
+        for (EntityDef entity : model.entities()) {
+            if (entity.fields() == null) {
+                continue;
+            }
+            for (Map.Entry<String, FieldDef> entry : entity.fields().entrySet()) {
+                FieldDef field = entry.getValue();
+                if (!"oneof".equalsIgnoreCase(field.type())) {
+                    continue;
+                }
+                OneOfDef oneOf = oneOfsByName.get(field.targetClass());
+                if (oneOf == null) {
+                    continue;
+                }
+                if (!started) {
+                    sb.append("  schemas:\n");
+                    started = true;
+                }
+                String schemaName = entity.name() + capitalize(entry.getKey()) + "RelationshipData";
+                sb.append("    ").append(schemaName).append(":\n");
+                sb.append("      type: object\n");
+                sb.append("      required: [type, id]\n");
+                sb.append("      description: JSON:API resource identifier for one selected member of ").append(oneOf.name()).append("\n");
+                sb.append("      properties:\n");
+                sb.append("        type:\n");
+                sb.append("          type: string\n");
+                sb.append("          enum:\n");
+                oneOf.members().stream()
+                    .map(entitiesByName::get)
+                    .filter(java.util.Objects::nonNull)
+                    .map(this::plural)
+                    .forEach(resourceType -> sb.append("            - ").append(resourceType).append("\n"));
+                sb.append("        id:\n");
+                sb.append("          type: string\n");
+                sb.append("          format: uuid\n");
+            }
+        }
     }
     
     private void appendEntityPaths(StringBuilder sb, EntityDef entity, String version) {
@@ -145,6 +194,19 @@ public class OasGenerator {
         sb.append("      responses:\n");
         sb.append("        '204':\n");
         sb.append("          description: Deleted\n");
+    }
+
+    private String plural(EntityDef entity) {
+        return Optional.ofNullable(entity.plural())
+            .map(String::toLowerCase)
+            .orElseGet(() -> entity.name().toLowerCase() + "s");
+    }
+
+    private String capitalize(String value) {
+        if (value == null || value.isBlank()) {
+            return value;
+        }
+        return value.substring(0, 1).toUpperCase() + value.substring(1);
     }
 
     private void appendAuthPaths(StringBuilder sb) {
