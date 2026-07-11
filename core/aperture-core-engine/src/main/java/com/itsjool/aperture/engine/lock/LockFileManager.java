@@ -33,10 +33,13 @@ public class LockFileManager {
 
     public void writeDomainModelLockFile(String version, ResolvedDomainModel model, Path lockDir) {
         try {
+            Path filePath = lockDir.resolve(String.format("%s-domain-model.json", version));
+            if (model.oneOfs().isEmpty() && !Files.exists(filePath)) {
+                return;
+            }
             if (!Files.exists(lockDir)) {
                 Files.createDirectories(lockDir);
             }
-            Path filePath = lockDir.resolve(String.format("%s-domain-model.json", version));
             mapper.writeValue(filePath.toFile(), new DomainModelLock(model.oneOfs()));
         } catch (Exception e) {
             throw new RuntimeException("Failed to write domain model lock file", e);

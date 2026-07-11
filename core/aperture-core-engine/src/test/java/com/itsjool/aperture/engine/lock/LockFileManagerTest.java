@@ -61,6 +61,26 @@ class LockFileManagerTest {
     }
 
     @Test
+    void skipsEmptyDomainModelLockFileWhenNoPriorLockExists() {
+        ResolvedDomainModel model = new ResolvedDomainModel(List.of());
+
+        new LockFileManager().writeDomainModelLockFile("1", model, tempDir);
+
+        assertThat(tempDir.resolve("1-domain-model.json")).doesNotExist();
+    }
+
+    @Test
+    void updatesExistingDomainModelLockFileToEmptyWhenOneOfsAreRemoved() throws Exception {
+        Path lockFile = tempDir.resolve("1-domain-model.json");
+        Files.writeString(lockFile, "{\"oneOfs\":[{\"name\":\"Billable\",\"members\":[\"Product\"]}]}");
+        ResolvedDomainModel model = new ResolvedDomainModel(List.of());
+
+        new LockFileManager().writeDomainModelLockFile("1", model, tempDir);
+
+        assertThat(Files.readString(lockFile)).contains("\"oneOfs\":[]");
+    }
+
+    @Test
     void readsLockedDomainModelFromEntityAndDomainModelLockFiles() {
         EntityDef product = new EntityDef("Product", "products", null, null, false, false, false,
             Map.of(), Map.of(), Map.of(), List.of(), Map.of(), Map.of());
