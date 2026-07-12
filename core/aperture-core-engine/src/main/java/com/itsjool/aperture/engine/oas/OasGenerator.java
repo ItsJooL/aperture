@@ -88,7 +88,7 @@ public class OasGenerator {
                     sb.append("  schemas:\n");
                     started = true;
                 }
-                String schemaName = entity.name() + capitalize(entry.getKey()) + "RelationshipData";
+                String schemaName = oneOfRelationshipSchemaName(entity, entry.getKey());
                 sb.append("    ").append(schemaName).append(":\n");
                 sb.append("      type: object\n");
                 sb.append("      required: [type, id]\n");
@@ -112,6 +112,7 @@ public class OasGenerator {
     private void appendEntityPaths(StringBuilder sb, EntityDef entity, String version) {
         String pathBase = "/api/v" + version + "/" + (entity.plural() != null ? entity.plural().toLowerCase() : entity.name().toLowerCase() + "s");
         String title = entity.name();
+        List<Map.Entry<String, FieldDef>> oneOfFields = oneOfFields(entity);
         
         // Collection paths
         sb.append("  ").append(pathBase).append(":\n");
@@ -126,6 +127,7 @@ public class OasGenerator {
         // POST (Create)
         sb.append("    post:\n");
         sb.append("      summary: Create a ").append(title).append("\n");
+        appendOneOfRequestBody(sb, entity, oneOfFields);
         sb.append("      responses:\n");
         sb.append("        '201':\n");
         sb.append("          description: Created\n");
@@ -170,6 +172,7 @@ public class OasGenerator {
             sb.append("          schema:\n");
             sb.append("            type: string\n");
         }
+        appendOneOfRequestBody(sb, entity, oneOfFields);
         sb.append("      responses:\n");
         sb.append("        '200':\n");
         sb.append("          description: Updated\n");
@@ -194,6 +197,50 @@ public class OasGenerator {
         sb.append("      responses:\n");
         sb.append("        '204':\n");
         sb.append("          description: Deleted\n");
+    }
+
+    private void appendOneOfRequestBody(StringBuilder sb, EntityDef entity, List<Map.Entry<String, FieldDef>> oneOfFields) {
+        if (oneOfFields.isEmpty()) {
+            return;
+        }
+
+        sb.append("      requestBody:\n");
+        sb.append("        required: true\n");
+        sb.append("        content:\n");
+        sb.append("          application/vnd.api+json:\n");
+        sb.append("            schema:\n");
+        sb.append("              type: object\n");
+        sb.append("              properties:\n");
+        sb.append("                data:\n");
+        sb.append("                  type: object\n");
+        sb.append("                  properties:\n");
+        sb.append("                    type:\n");
+        sb.append("                      type: string\n");
+        sb.append("                      const: ").append(plural(entity)).append("\n");
+        sb.append("                    relationships:\n");
+        sb.append("                      type: object\n");
+        sb.append("                      properties:\n");
+        for (Map.Entry<String, FieldDef> entry : oneOfFields) {
+            sb.append("                        ").append(entry.getKey()).append(":\n");
+            sb.append("                          type: object\n");
+            sb.append("                          properties:\n");
+            sb.append("                            data:\n");
+            sb.append("                              $ref: '#/components/schemas/")
+                .append(oneOfRelationshipSchemaName(entity, entry.getKey())).append("'\n");
+        }
+    }
+
+    private List<Map.Entry<String, FieldDef>> oneOfFields(EntityDef entity) {
+        if (entity.fields() == null) {
+            return List.of();
+        }
+        return entity.fields().entrySet().stream()
+            .filter(entry -> "oneof".equalsIgnoreCase(entry.getValue().type()))
+            .toList();
+    }
+
+    private String oneOfRelationshipSchemaName(EntityDef entity, String fieldName) {
+        return entity.name() + capitalize(fieldName) + "RelationshipData";
     }
 
     private String plural(EntityDef entity) {

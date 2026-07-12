@@ -38,6 +38,7 @@ public class DomainModelValidator {
         }
 
         Set<String> knownOneOfNames = new HashSet<>();
+        Map<String, Boolean> oneOfTenantScopes = new LinkedHashMap<>();
         Map<String, String> memberOwners = new LinkedHashMap<>();
         for (OneOfDef oneOf : model.oneOfs()) {
             String loc = locationMap.getOrDefault(oneOf, "unknown file");
@@ -73,6 +74,9 @@ public class DomainModelValidator {
                         "OneOf members must use the same tenant shape in " + loc
                             + " (OneOf " + oneOf.name() + ")");
                 }
+            }
+            if (tenantScoped != null) {
+                oneOfTenantScopes.put(oneOf.name(), tenantScoped);
             }
         }
 
@@ -260,6 +264,13 @@ public class DomainModelValidator {
                                 "Unknown oneof target in " + loc + " (Entity " + entity.name()
                                     + " field " + fieldName + "): '" + field.targetClass()
                                     + "' is not declared as a OneOf in this domain model");
+                        }
+                        Boolean targetTenantScoped = oneOfTenantScopes.get(field.targetClass());
+                        if (!entity.tenantScoped() && Boolean.TRUE.equals(targetTenantScoped)) {
+                            throw new ManifestValidationException(
+                                "Global entity " + entity.name()
+                                    + " cannot reference tenant-scoped OneOf " + field.targetClass()
+                                    + " through oneof field " + entity.name() + "." + fieldName);
                         }
                     } else if (field.targetClass() != null && !knownEntityNames.contains(field.targetClass())) {
                         throw new ManifestValidationException(

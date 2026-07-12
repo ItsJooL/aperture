@@ -129,6 +129,36 @@ class DomainModelValidatorTest {
     }
 
     @Test
+    void globalEntityCannotReferenceTenantScopedOneOf_throws() {
+        EntityDef product = tenantScopedEntity("Product", Map.of("name", stringField()));
+        EntityDef servicePackage = tenantScopedEntity("ServicePackage", Map.of("name", stringField()));
+        EntityDef lineItem = entity("LineItem", Map.of("billable", oneOfField("Billable")));
+        OneOfDef billable = new OneOfDef("Billable", List.of("Product", "ServicePackage"));
+
+        assertThatThrownBy(() -> validator.validate(
+            new ResolvedDomainModel(List.of(product, servicePackage, lineItem), List.of(), null,
+                List.of(), List.of(), List.of(), List.of(), List.of(billable)),
+            Map.of(lineItem, "line-item.yaml")))
+            .isInstanceOf(ManifestValidationException.class)
+            .hasMessageContaining("Global entity LineItem cannot reference tenant-scoped OneOf Billable")
+            .hasMessageContaining("LineItem.billable");
+    }
+
+    @Test
+    void tenantScopedEntityCanReferenceTenantScopedOneOf_passes() {
+        EntityDef product = tenantScopedEntity("Product", Map.of("name", stringField()));
+        EntityDef servicePackage = tenantScopedEntity("ServicePackage", Map.of("name", stringField()));
+        EntityDef lineItem = tenantScopedEntity("LineItem", Map.of("billable", oneOfField("Billable")));
+        OneOfDef billable = new OneOfDef("Billable", List.of("Product", "ServicePackage"));
+
+        assertThatCode(() -> validator.validate(
+            new ResolvedDomainModel(List.of(product, servicePackage, lineItem), List.of(), null,
+                List.of(), List.of(), List.of(), List.of(), List.of(billable)),
+            Map.of()))
+            .doesNotThrowAnyException();
+    }
+
+    @Test
     void selfReferentialField_throws() {
         EntityDef category = entity("Category", Map.of("parent", manyToOneField("Unknown")));
 

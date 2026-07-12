@@ -102,10 +102,37 @@ class OasGeneratorTest {
 
         assertThat(schema.get("description").toString()).contains("Billable");
         assertThat((List<String>) type.get("enum")).containsExactly("products", "servicepackages");
+
+        Map<String, Object> paths = (Map<String, Object>) parsed.get("paths");
+        Map<String, Object> lineItems = (Map<String, Object>) paths.get("/api/v1/lineitems");
+        Map<String, Object> post = (Map<String, Object>) lineItems.get("post");
+        assertThat(oneOfRelationshipRef(post, "billable"))
+            .isEqualTo("#/components/schemas/LineItemBillableRelationshipData");
+
+        Map<String, Object> lineItemById = (Map<String, Object>) paths.get("/api/v1/lineitems/{id}");
+        Map<String, Object> patch = (Map<String, Object>) lineItemById.get("patch");
+        assertThat(oneOfRelationshipRef(patch, "billable"))
+            .isEqualTo("#/components/schemas/LineItemBillableRelationshipData");
     }
 
     private static EntityDef entity(String name, String plural, Map<String, FieldDef> fields) {
         return new EntityDef(name, plural, name, null, false, false, false,
             fields, Map.of(), Map.of(), List.of(), Map.of(), Map.of());
+    }
+
+    private static String oneOfRelationshipRef(Map<String, Object> operation, String fieldName) {
+        Map<String, Object> requestBody = (Map<String, Object>) operation.get("requestBody");
+        Map<String, Object> content = (Map<String, Object>) requestBody.get("content");
+        Map<String, Object> mediaType = (Map<String, Object>) content.get("application/vnd.api+json");
+        Map<String, Object> schema = (Map<String, Object>) mediaType.get("schema");
+        Map<String, Object> properties = (Map<String, Object>) schema.get("properties");
+        Map<String, Object> data = (Map<String, Object>) properties.get("data");
+        Map<String, Object> dataProperties = (Map<String, Object>) data.get("properties");
+        Map<String, Object> relationships = (Map<String, Object>) dataProperties.get("relationships");
+        Map<String, Object> relationshipProperties = (Map<String, Object>) relationships.get("properties");
+        Map<String, Object> billable = (Map<String, Object>) relationshipProperties.get(fieldName);
+        Map<String, Object> billableProperties = (Map<String, Object>) billable.get("properties");
+        Map<String, Object> relationshipData = (Map<String, Object>) billableProperties.get("data");
+        return relationshipData.get("$ref").toString();
     }
 }
