@@ -55,6 +55,45 @@ public class AtomicOperationsComponentTest extends DemoApplicationTestSupport {
     }
 
     @Test
+    void atomicCreate_invoiceWithOneofBillables_allOrNothing() throws Exception {
+        String token = getAcmeAdminToken();
+        String productId = createProduct(token);
+        String servicePackageId = createServicePackage(token);
+        Integer invoicesBefore  = jdbcTemplate.queryForObject("SELECT count(*) FROM aperture_invoices", Integer.class);
+        Integer lineItemsBefore = jdbcTemplate.queryForObject("SELECT count(*) FROM aperture_lineitems", Integer.class);
+
+        performElideRequest(post("/api/v1/operations")
+                .header("Authorization", token)
+                .contentType(ATOMIC_MEDIA_TYPE)
+                .accept(ATOMIC_MEDIA_TYPE)
+                .content("{\"atomic:operations\": [" +
+                    "{\"op\":\"add\",\"data\":{\"type\":\"invoices\",\"lid\":\"new-inv\"," +
+                        "\"attributes\":{\"amount\":1249,\"status\":\"DRAFT\"}," +
+                        "\"relationships\":{\"customer\":{\"data\":{\"type\":\"customers\",\"id\":\"" + CUSTOMER_1 + "\"}}}}}," +
+                    "{\"op\":\"add\",\"data\":{\"type\":\"lineitems\",\"lid\":\"li-1\"," +
+                        "\"attributes\":{\"description\":\"Atomic oneof product\",\"quantity\":1,\"unit_price\":499.00,\"price\":499.00}," +
+                        "\"relationships\":{\"invoice\":{\"data\":{\"type\":\"invoices\",\"lid\":\"new-inv\"}}," +
+                            "\"product\":{\"data\":{\"type\":\"products\",\"id\":\"" + productId + "\"}}," +
+                            "\"billable\":{\"data\":{\"type\":\"products\",\"id\":\"" + productId + "\"}}}}}," +
+                    "{\"op\":\"add\",\"data\":{\"type\":\"lineitems\",\"lid\":\"li-2\"," +
+                        "\"attributes\":{\"description\":\"Atomic oneof service\",\"quantity\":1,\"unit_price\":750.00,\"price\":750.00}," +
+                        "\"relationships\":{\"invoice\":{\"data\":{\"type\":\"invoices\",\"lid\":\"new-inv\"}}," +
+                            "\"billable\":{\"data\":{\"type\":\"servicepackages\",\"id\":\"" + servicePackageId + "\"}}}}}" +
+                    "]}"))
+                .andExpect(status().isOk());
+
+        assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM aperture_invoices", Integer.class))
+                .as("atomic oneof batch must have created one new invoice").isEqualTo(invoicesBefore + 1);
+        assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM aperture_lineitems", Integer.class))
+                .as("atomic oneof batch must have created two line items").isEqualTo(lineItemsBefore + 2);
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT count(*) FROM aperture_lineitems WHERE billable_type IN ('Product', 'ServicePackage')",
+                Integer.class))
+                .as("atomic oneof batch must persist both billable discriminator values")
+                .isGreaterThanOrEqualTo(2);
+    }
+
+    @Test
     void atomicCreate_oneInvalidOperation_entireBatchRollsBack() throws Exception {
         Integer suppliersBefore = jdbcTemplate.queryForObject("SELECT count(*) FROM aperture_suppliers", Integer.class);
 
@@ -115,5 +154,42 @@ public class AtomicOperationsComponentTest extends DemoApplicationTestSupport {
 
         assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM aperture_suppliers", Integer.class))
                 .as("RBAC-blocked atomic batch must not persist any data").isEqualTo(suppliersBefore);
+    }
+
+    private String createProduct(String token) throws Exception {
+        var result = performElideRequest(post("/api/v1/products")
+                .header("Authorization", token)
+                .contentType(MediaType.valueOf("application/vnd.api+json"))
+                .content("""
+                    {"data":{"type":"products","attributes":{
+                      "name":"Atomic Oneof Product",
+                      "sku":"AOO-PROD",
+                      "description":"Product member for atomic oneof test",
+                      "unit_price":499.00,
+                      "category":"SOFTWARE",
+                      "active":true
+                    }}}
+                    """))
+            .andExpect(status().isCreated())
+            .andReturn();
+        return MAPPER.readTree(result.getResponse().getContentAsString()).path("data").path("id").asText();
+    }
+
+    private String createServicePackage(String token) throws Exception {
+        var result = performElideRequest(post("/api/v1/servicepackages")
+                .header("Authorization", token)
+                .contentType(MediaType.valueOf("application/vnd.api+json"))
+                .content("""
+                    {"data":{"type":"servicepackages","attributes":{
+                      "name":"Atomic Oneof Service",
+                      "sku":"AOO-SVC",
+                      "description":"Service member for atomic oneof test",
+                      "unit_price":750.00,
+                      "active":true
+                    }}}
+                    """))
+            .andExpect(status().isCreated())
+            .andReturn();
+        return MAPPER.readTree(result.getResponse().getContentAsString()).path("data").path("id").asText();
     }
 }

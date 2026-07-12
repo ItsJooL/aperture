@@ -459,6 +459,14 @@ public class CodeGenerator {
                 .addParameter(UUID.class, "id")
                 .addStatement("this.apertureTenantId = id")
                 .build());
+            typeBuilder.addMethod(MethodSpec.methodBuilder("ensureApertureTenantId")
+                .addAnnotation(ClassName.get("jakarta.persistence", "PrePersist"))
+                .addModifiers(Modifier.PRIVATE)
+                .returns(void.class)
+                .addStatement("if (this.apertureTenantId != null) return")
+                .addStatement("java.lang.String tenantId = $L.getTenantId()", ApertureRuntimeClassNames.TENANT_CONTEXT_HOLDER)
+                .addStatement("if (tenantId != null) this.apertureTenantId = java.util.UUID.fromString(tenantId)")
+                .build());
         }
 
         if (entityDef.optimisticLocking()) {

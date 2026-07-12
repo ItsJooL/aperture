@@ -46,6 +46,10 @@ class CodeGeneratorTest {
         assertThat(joined).contains("public class CustomerV2");
         assertThat(joined).contains("com.yahoo.elide.annotation.Include");
         assertThat(joined).contains("private UUID apertureTenantId;");
+        assertThat(joined).contains("@PrePersist")
+            .contains("private void ensureApertureTenantId()")
+            .contains("java.lang.String tenantId = com.itsjool.aperture.runtime.tenant.TenantContextHolder.getTenantId()")
+            .contains("if (tenantId != null) this.apertureTenantId = java.util.UUID.fromString(tenantId)");
         assertThat(joined).contains("@Convert(\n      converter = CustomerSsnConverter.class\n  )");
         assertThat(joined).contains("public class CustomerSsnConverter implements AttributeConverter<String, String>");
         assertThat(joined).contains("public class CustomerV2TenantFilter extends FilterExpressionCheck<CustomerV2>");

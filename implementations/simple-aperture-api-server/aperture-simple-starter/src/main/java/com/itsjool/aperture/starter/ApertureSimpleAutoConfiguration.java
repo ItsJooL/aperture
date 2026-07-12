@@ -26,6 +26,7 @@ import com.yahoo.elide.core.dictionary.EntityDictionary;
 import com.yahoo.elide.core.type.ClassType;
 import jakarta.annotation.PostConstruct;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.SmartInitializingSingleton;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.domain.EntityScan;
@@ -238,11 +239,15 @@ public class ApertureSimpleAutoConfiguration {
                 try {
                     Class<?> markerClass = Class.forName(className);
                     ClassType<?> markerType = ClassType.of(markerClass);
+                    if (isEntityBound(dict, markerType)) {
+                        continue;
+                    }
                     EntityBinding binding = new EntityBinding(
                             dict.getInjector(),
                             markerType,
                             oneOfName.toLowerCase(Locale.ROOT),
                             version,
+                            false,
                             ignored -> false);
                     dict.bindEntity(binding);
                 } catch (ClassNotFoundException ignored) {
@@ -250,6 +255,25 @@ public class ApertureSimpleAutoConfiguration {
                 }
             }
         }
+    }
+
+    private boolean isEntityBound(EntityDictionary dict, ClassType<?> markerType) {
+        try {
+            dict.getEntityBinding(markerType);
+            return true;
+        } catch (IllegalArgumentException unbound) {
+            return false;
+        }
+    }
+
+    @Bean
+    public SmartInitializingSingleton oneOfMarkerBinder(ObjectProvider<EntityDictionary> dictionaryProvider) {
+        return () -> {
+            EntityDictionary dict = dictionaryProvider.getIfAvailable();
+            if (dict != null) {
+                bindOneOfMarkers(dict);
+            }
+        };
     }
 
     @Bean
