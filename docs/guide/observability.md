@@ -39,7 +39,7 @@ This allows you to slice metrics dashboards by entity/operation and filter indiv
 When Aperture dispatches a webhook, it wraps the outbound HTTP call in an `aperture.hook` Observation. This observation includes the following low-cardinality tags:
 
 - `hook.name`: The name of the hook (from the manifest).
-- `hook.phase`: The phase of the hook (e.g., `PRECOMMIT`, `POSTCOMMIT`, `PREENRICH`).
+- `hook.phase`: The phase of the hook (e.g., `PRESECURITY`, `PRECOMMIT`, `POSTCOMMIT`).
 - `hook.async`: Boolean indicating if the hook was executed asynchronously.
 - `entity`: The entity triggering the hook.
 - `outcome`: Set once the call completes — `ok` (2xx response), `rejected` (non-2xx response), or `error` (the request itself failed, e.g. timeout/connection error).

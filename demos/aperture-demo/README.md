@@ -160,7 +160,35 @@ curl -X POST http://localhost:8080/api/v3/operations \
 # → 400 and the invoice is rolled back with the rejected line item
 ```
 
-### 7. View distributed traces
+### 7. Trigger a mutate hook — customer enrichment
+
+```bash
+# The hook-service trims whitespace from the customer name before it's persisted
+curl -X POST http://localhost:8080/api/v3/customers \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/vnd.api+json" \
+  -H "Accept: application/vnd.api+json" \
+  -d '{"data":{"type":"customers","attributes":{"name":"  Acme Corp  ","email":"acme-enriched@example.com"}}}'
+# → 201; response name comes back "Acme Corp" — the EnrichCustomer mutate hook ran and
+#   trimmed the whitespace before the customer was persisted
+```
+
+### 8. Trigger hooks — asynchronous side effects
+
+The create above also fired `Customer`'s `TenantProvisioned` trigger hook. Trigger hooks run
+after the write commits and never hold open the API response — `Supplier.NotifySupplier`,
+`Product.ProductChanged`, and `Currency.SyncCurrency` are the demo's other trigger hooks, exercised
+by the seeder on startup. Check the hook-service logs to see them land:
+
+```bash
+docker compose logs hook-service --tail=20
+```
+
+Look for log lines such as `customer enrichment` (the mutate hook from step 7), `tenant provisioned
+— sending welcome email (simulated)`, `supplier notification dispatched (simulated)`, `product
+change event`, and `currency reference sync queued (simulated)`.
+
+### 9. View distributed traces
 
 Open http://localhost:16686 and select `aperture-demo` service to see traces for the above requests.
 
@@ -172,7 +200,7 @@ The demo is configured to capture **100% of traces** for observability testing (
 
 Try the invoice creation flow (step 3 or 4 above) and look at the Jaeger trace — you'll see the API request → hook dispatch → hook-service validation all in one trace.
 
-### 7. Observability and Metrics
+### 10. Observability and Metrics
 
 Aperture exposes metrics at `/actuator/metrics` and Prometheus scrape endpoint at `/actuator/prometheus`. Bruno includes folders for both:
 

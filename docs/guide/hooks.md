@@ -204,7 +204,10 @@ aperture:
       connect: 2s
 ```
 
-`commit` applies to synchronous guard, validate, and mutate calls. `async` applies to trigger calls.
+Timeout category follows how `HookExecutor` dispatches the call, not the hook type directly:
+
+- `commit` applies to the phase-gated calls that run through `executeHook` during `PRECOMMIT`/`POSTCOMMIT` — that's `validate` (PRECOMMIT) and `trigger` (POSTCOMMIT).
+- `async` applies to `guard` (PRESECURITY — phase-gated, but neither `PRECOMMIT` nor `POSTCOMMIT`) calls. It also applies to every `mutate` call: the synchronous enrichment request (`executeHookWithResponse`) always uses the `async` timeout, hardcoded, regardless of phase.
 
 ## Hook Base URL Override
 

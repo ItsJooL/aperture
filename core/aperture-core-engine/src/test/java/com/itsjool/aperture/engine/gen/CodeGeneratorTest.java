@@ -320,4 +320,38 @@ class CodeGeneratorTest {
             .contains("executeHookWithResponse(\"NormalizeCustomer\", \"Customer\", \"PRECOMMIT\", \"http://hook\", payload, req, \"passthrough\")")
             .contains("HookPayloadBuilder.applyEnrichmentOverrides");
     }
+
+    @Test
+    void semanticGuardUsesPresecurityAndSynchronousJoin() {
+        EntityDef account = new EntityDef("Account", "accounts", null, null, false, false, false,
+            Map.of(), Map.of(), Map.of(), List.of(), Map.of(),
+            Map.of("IpAllowlist", new HookDef("guard", List.of("create", "update", "delete"),
+                "reject", "http://hook")));
+
+        List<String> classes = new CodeGenerator().generateForEntity(account, TenancyMode.NONE, List.of("1"));
+        String joined = String.join("\n\n", classes);
+
+        assertThat(joined)
+            .contains("phase = TransactionPhase.PRESECURITY")
+            .contains("java.util.concurrent.CompletableFuture<Boolean> future = hookExecutor.executeHook(\"IpAllowlist\", \"Account\", \"PRESECURITY\", \"http://hook\", payload, req, \"reject\", 0, false)")
+            .contains("future.join()")
+            .doesNotContain("executeHookWithResponse");
+    }
+
+    @Test
+    void semanticValidateUsesPrecommitAndSynchronousJoin() {
+        EntityDef invoice = new EntityDef("Invoice", "invoices", null, null, false, false, false,
+            Map.of(), Map.of(), Map.of(), List.of(), Map.of(),
+            Map.of("ValidateInvoice", new HookDef("validate", List.of("create", "update"),
+                "reject", "http://hook")));
+
+        List<String> classes = new CodeGenerator().generateForEntity(invoice, TenancyMode.NONE, List.of("1"));
+        String joined = String.join("\n\n", classes);
+
+        assertThat(joined)
+            .contains("phase = TransactionPhase.PRECOMMIT")
+            .contains("java.util.concurrent.CompletableFuture<Boolean> future = hookExecutor.executeHook(\"ValidateInvoice\", \"Invoice\", \"PRECOMMIT\", \"http://hook\", payload, req, \"reject\", 0, false)")
+            .contains("future.join()")
+            .doesNotContain("executeHookWithResponse");
+    }
 }

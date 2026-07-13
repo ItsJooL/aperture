@@ -132,10 +132,10 @@ aperture:
 
 | Property | Type | Default | Description |
 |---|---|---|---|
-| `aperture.hooks.secret` | string | `default-secret` | Shared secret sent in `X-Hook-Secret` header |
+| `aperture.hooks.secret` | string | `default-hook-secret` | Shared secret sent in `X-Hook-Secret` header |
 | `aperture.hooks.base-url` | string | (empty) | Override the host portion of all hook URLs |
-| `aperture.hooks.timeout.commit` | duration string | `5s` | Timeout for synchronous guard, validate, and mutate hooks |
-| `aperture.hooks.timeout.async` | duration string | `5s` | Timeout for asynchronous trigger hooks |
+| `aperture.hooks.timeout.commit` | duration string | `5s` | Timeout for the phase-gated `validate` (PRECOMMIT) and `trigger` (POSTCOMMIT) hook calls |
+| `aperture.hooks.timeout.async` | duration string | `30s` | Timeout for `guard` (PRESECURITY) hook calls, and — hardcoded regardless of phase — every `mutate` call |
 | `aperture.hooks.timeout.connect` | duration string | `2s` | TCP connect timeout |
 
 ```yaml
