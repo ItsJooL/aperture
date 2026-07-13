@@ -148,6 +148,8 @@ aperture:
       port: 6379
 ```
 
+**The ip bucket has no trusted-proxy support today.** The ip key is taken directly from `HttpServletRequest.getRemoteAddr()` — there is no `X-Forwarded-For` / `Forwarded` header handling and no `ForwardedHeaderFilter` configured. Behind any reverse proxy or load balancer, `getRemoteAddr()` returns the proxy's address for every request, so all clients behind that proxy share one ip-keyed bucket. Because the ip bucket is checked before the user and tenant buckets, one noisy client can exhaust it and cause every other client sharing that proxy to receive `429`s. If you deploy behind a reverse proxy or load balancer, be aware that ip-based rate limiting is effectively shared across all clients until this gets trusted-proxy support.
+
 When a request is rate-limited, Aperture returns `429 Too Many Requests` with headers:
 
 ```
@@ -158,7 +160,7 @@ X-RateLimit-Reset: 1750000000
 
 The `RateLimitProvider` SPI allows swapping the implementation. The reference implementation keeps state in memory — suitable for single-instance deployments. The demo uses a Valkey-backed provider that loads a small Lua function library once and then executes `FCALL` on each request. For distributed/multi-instance deployments, implement `RateLimitProvider` backed by a shared store. Valkey is a good Redis-compatible option; to keep request overhead low, prefer no persistence or RDB-only snapshots instead of AOF.
 
-**Fail-open on backend errors:** `RateLimitFilter` runs ahead of every request in the app (`HIGHEST_PRECEDENCE + 20`). If the configured `RateLimitProvider` throws — for example a dropped Valkey connection — the filter does not propagate the exception. It logs a single WARN and allows the request through, as if the limit were not exceeded. This is deliberate: letting the exception escape would turn a transient backend outage into a 500 for the entire application. Real limit breaches (the provider returning normally with `allowed=false`) are unaffected and still produce a 429. There is currently no metric or alert emitted when the fail-open path triggers, so a sustained backend outage that disables rate limiting is not currently observable — see the note on `aperture.ratelimit.rejections` below.
+**Fail-open on backend errors:** `RateLimitFilter` runs ahead of every request in the app (`HIGHEST_PRECEDENCE + 20`). If the configured `RateLimitProvider` throws — for example a dropped Valkey connection — the filter does not propagate the exception. It logs a single WARN and allows the request through, as if the limit were not exceeded. This is deliberate: letting the exception escape would turn a transient backend outage into a 500 for the entire application. Real limit breaches (the provider returning normally with `allowed=false`) are unaffected and still produce a 429. Each fail-open increments the `aperture.ratelimit.failopen` counter (tagged `type=ip|user|tenant`), so a sustained backend outage that disables rate limiting is alertable. Rejections are likewise counted on `aperture.ratelimit.rejections` (same `type` tag) by both the in-memory and Valkey-backed providers.
 
 ## The audit trail
 

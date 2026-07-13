@@ -5,6 +5,9 @@ import com.itsjool.aperture.spi.RateLimitDecision;
 import com.itsjool.aperture.spi.RateLimitKey;
 import com.itsjool.aperture.spi.RateLimitProvider;
 import com.itsjool.aperture.spi.RateLimitRule;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.observation.Observation;
+import io.micrometer.observation.ObservationRegistry;
 
 import java.io.ByteArrayOutputStream;
 import java.io.Closeable;
@@ -25,33 +28,72 @@ public class ValkeyRateLimitProvider implements RateLimitProvider, Closeable {
 
     private final RespClient client;
     private final String keyPrefix;
+    private final MeterRegistry meterRegistry;
+    private final ObservationRegistry observationRegistry;
 
     public ValkeyRateLimitProvider(ApertureRateLimitProperties.Valkey valkeyProperties) {
+        this(valkeyProperties, null, null);
+    }
+
+    public ValkeyRateLimitProvider(ApertureRateLimitProperties.Valkey valkeyProperties, MeterRegistry meterRegistry) {
+        this(valkeyProperties, meterRegistry, null);
+    }
+
+    public ValkeyRateLimitProvider(ApertureRateLimitProperties.Valkey valkeyProperties, MeterRegistry meterRegistry, ObservationRegistry observationRegistry) {
         this.keyPrefix = valkeyProperties.getKeyPrefix();
         this.client = new RespClient(valkeyProperties.getHost(), valkeyProperties.getPort());
+        this.meterRegistry = meterRegistry;
+        this.observationRegistry = observationRegistry != null ? observationRegistry : ObservationRegistry.NOOP;
         loadFunctionLibrary();
     }
 
     @Override
     public RateLimitDecision evaluate(RateLimitKey key, RateLimitRule rule) {
         if (rule.capacity() <= 0) {
-            return new RateLimitDecision(false, 0, Math.max(rule.windowSeconds(), 1));
+            RateLimitDecision decision = new RateLimitDecision(false, 0, Math.max(rule.windowSeconds(), 1));
+            recordRejectionIfNeeded(key, decision);
+            return decision;
         }
 
-        Object response = client.command(
-                "FCALL",
-                FUNCTION_NAME,
-                "1",
-                redisKey(key),
-                Integer.toString(rule.capacity()),
-                Integer.toString(rule.burst()),
-                Integer.toString(rule.windowSeconds()));
+        Observation observation = Observation.createNotStarted("aperture.ratelimit.valkey", observationRegistry)
+                .lowCardinalityKeyValue("type", key.type());
+        observation.start();
+        try (Observation.Scope scope = observation.openScope()) {
+            Object response = client.command(
+                    "FCALL",
+                    FUNCTION_NAME,
+                    "1",
+                    redisKey(key),
+                    Integer.toString(rule.capacity()),
+                    Integer.toString(rule.burst()),
+                    Integer.toString(rule.windowSeconds()));
 
-        List<?> values = asList(response);
-        long allowed = asLong(values, 0);
-        int remaining = (int) asLong(values, 1);
-        long retryAfterSeconds = asLong(values, 2);
-        return new RateLimitDecision(allowed == 1L, Math.max(remaining, 0), Math.max(retryAfterSeconds, 0L));
+            List<?> values = asList(response);
+            long allowed = asLong(values, 0);
+            int remaining = (int) asLong(values, 1);
+            long retryAfterSeconds = asLong(values, 2);
+            RateLimitDecision decision = new RateLimitDecision(allowed == 1L, Math.max(remaining, 0), Math.max(retryAfterSeconds, 0L));
+            observation.lowCardinalityKeyValue("outcome", decision.allowed() ? "allowed" : "rejected");
+            recordRejectionIfNeeded(key, decision);
+            return decision;
+        } catch (RuntimeException e) {
+            observation.error(e);
+            observation.lowCardinalityKeyValue("outcome", "error");
+            throw e;
+        } finally {
+            observation.stop();
+        }
+    }
+
+    /**
+     * Mirrors {@code InMemoryRateLimitProvider}'s {@code aperture.ratelimit.rejections} counter
+     * (same name, same {@code type} tag) so a rejection is equally observable regardless of which
+     * {@link RateLimitProvider} backend is configured.
+     */
+    private void recordRejectionIfNeeded(RateLimitKey key, RateLimitDecision decision) {
+        if (!decision.allowed() && meterRegistry != null) {
+            meterRegistry.counter("aperture.ratelimit.rejections", "type", key.type()).increment();
+        }
     }
 
     @Override

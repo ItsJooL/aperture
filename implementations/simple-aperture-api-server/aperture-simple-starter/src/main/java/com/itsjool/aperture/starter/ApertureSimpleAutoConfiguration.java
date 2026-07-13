@@ -99,10 +99,14 @@ public class ApertureSimpleAutoConfiguration {
     @ConditionalOnMissingBean(RateLimitProvider.class)
     public RateLimitProvider rateLimitProvider(
             ObjectProvider<ApertureRateLimitProperties> rateLimitPropertiesProvider,
-            ObjectProvider<io.micrometer.core.instrument.MeterRegistry> meterRegistryProvider) {
+            ObjectProvider<io.micrometer.core.instrument.MeterRegistry> meterRegistryProvider,
+            ObjectProvider<io.micrometer.observation.ObservationRegistry> observationRegistryProvider) {
         ApertureRateLimitProperties rateLimitProperties = rateLimitPropertiesProvider.getIfAvailable();
         if (rateLimitProperties != null && "valkey".equalsIgnoreCase(rateLimitProperties.getBackend())) {
-            return new ValkeyRateLimitProvider(rateLimitProperties.getValkey());
+            return new ValkeyRateLimitProvider(
+                    rateLimitProperties.getValkey(),
+                    meterRegistryProvider.getIfAvailable(),
+                    observationRegistryProvider.getIfAvailable());
         }
         return new InMemoryRateLimitProvider(meterRegistryProvider.getIfAvailable());
     }

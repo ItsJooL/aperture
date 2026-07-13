@@ -6,6 +6,7 @@ import com.itsjool.aperture.spi.RateLimitDecision;
 import com.itsjool.aperture.spi.RateLimitKey;
 import com.itsjool.aperture.spi.RateLimitProvider;
 import com.itsjool.aperture.spi.RateLimitRule;
+import io.micrometer.core.instrument.MeterRegistry;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -16,6 +17,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
 
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.core.Ordered;
@@ -29,11 +31,17 @@ public class RateLimitFilter extends OncePerRequestFilter {
     private final RateLimitProvider rateLimitProvider;
     private final ApertureRateLimitProperties rateLimitProperties;
     private final boolean tenancyEnabled;
+    private final MeterRegistry meterRegistry;
 
-    public RateLimitFilter(RateLimitProvider rateLimitProvider, ApertureRateLimitProperties rateLimitProperties, @Value("${aperture.tenancy.enabled:true}") boolean tenancyEnabled) {
+    // ObjectProvider (not a bare MeterRegistry) so this filter still constructs cleanly in
+    // application-context slices that don't include Spring Boot's metrics autoconfiguration
+    // (e.g. @WebMvcTest slice tests) — it degrades to no metrics instead of failing bean
+    // creation with an UnsatisfiedDependencyException. Mirrors AuthFilter's ObservationRegistry wiring.
+    public RateLimitFilter(RateLimitProvider rateLimitProvider, ApertureRateLimitProperties rateLimitProperties, @Value("${aperture.tenancy.enabled:true}") boolean tenancyEnabled, ObjectProvider<MeterRegistry> meterRegistryProvider) {
         this.rateLimitProvider = rateLimitProvider;
         this.rateLimitProperties = rateLimitProperties;
         this.tenancyEnabled = tenancyEnabled;
+        this.meterRegistry = meterRegistryProvider != null ? meterRegistryProvider.getIfAvailable() : null;
     }
 
 
@@ -58,6 +66,13 @@ public class RateLimitFilter extends OncePerRequestFilter {
             return;
         }
 
+        // Track whichever bucket (ip/user/tenant) is closest to exhaustion as each is evaluated, so
+        // the advisory headers on the success path warn about the bucket a client is actually at risk
+        // of tripping next — the user and tenant limits are tighter than the ip limit by default
+        // (see docs/guide/security-audit.md), so always reporting the ip bucket here would mask that.
+        RateLimitDecision tightestDecision = ipDecision;
+        RateLimitRule tightestRule = ipRule;
+
         if (tenancyEnabled) {
             AperturePrincipal principal = (AperturePrincipal) request.getAttribute("aperturePrincipal");
             if (principal != null) {
@@ -72,6 +87,10 @@ public class RateLimitFilter extends OncePerRequestFilter {
                     response.sendError(429, "Too Many Requests");
                     return;
                 }
+                if (userDecision.remaining() < tightestDecision.remaining()) {
+                    tightestDecision = userDecision;
+                    tightestRule = userRule;
+                }
 
                 if (principal.tenantId() != null) {
                     RateLimitRule tenantRule = new RateLimitRule(
@@ -85,11 +104,15 @@ public class RateLimitFilter extends OncePerRequestFilter {
                         response.sendError(429, "Too Many Requests");
                         return;
                     }
+                    if (tenantDecision.remaining() < tightestDecision.remaining()) {
+                        tightestDecision = tenantDecision;
+                        tightestRule = tenantRule;
+                    }
                 }
             }
         }
-        
-        writeRateLimitHeaders(response, ipDecision, ipRule);
+
+        writeRateLimitHeaders(response, tightestDecision, tightestRule);
         filterChain.doFilter(request, response);
     }
 
@@ -107,6 +130,9 @@ public class RateLimitFilter extends OncePerRequestFilter {
             return rateLimitProvider.evaluate(key, rule);
         } catch (Exception e) {
             log.warn("rate-limit backend unavailable, failing open: {}", e.getMessage());
+            if (meterRegistry != null) {
+                meterRegistry.counter("aperture.ratelimit.failopen", "type", key.type()).increment();
+            }
             return new RateLimitDecision(true, rule.capacity(), 0);
         }
     }
