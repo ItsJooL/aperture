@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.itsjool.aperture.runtime.filter.ApertureRequestAttributes;
 import com.itsjool.aperture.runtime.security.AbacPolicyEvaluator;
 import com.itsjool.aperture.spi.AperturePrincipal;
 import jakarta.servlet.Filter;
@@ -43,13 +44,17 @@ import java.util.concurrent.ConcurrentHashMap;
  * a tool <em>name</em> to a caller who shouldn't see it; it can never leak data, and it can never
  * let a call through that Elide would otherwise reject.
  *
- * <p>Detects a {@code tools/list}-shaped response by its <em>shape</em> ({@code result.tools} is a
- * JSON array), not by re-parsing the request's JSON-RPC {@code method} — this avoids re-buffering
- * the request body a second time (see {@link McpSanitizationFilter}, which already does that for
- * {@code initialize}). Handles both a plain JSON body and an SSE-framed one ({@code data: {...}
- * \n\n}); the demo's stateless streamable-http server was observed returning plain JSON even with
- * an {@code Accept: text/event-stream} header, but both are handled defensively. A body that can't
- * be parsed as either is passed through unmodified, with a log line — never dropped.
+ * <p>Only a {@code tools/list} request pays for buffering and rewriting the response. The request's
+ * JSON-RPC {@code method} is read from {@link com.itsjool.aperture.runtime.filter.ApertureRequestAttributes#MCP_JSONRPC_METHOD},
+ * stashed by {@link McpSanitizationFilter} (one filter earlier, {@code @Order(-100)} vs this
+ * filter's {@code @Order(-90)}) when it parses the request body for its own sanitization — for
+ * free, since that filter already reads and replays the body. Every other {@code /mcp} response,
+ * notably {@code tools/call} (the frequent, potentially large call), streams straight through
+ * unbuffered. When the response is rewritten, it handles both a plain JSON body and an SSE-framed
+ * one ({@code data: {...} \n\n}); the demo's stateless streamable-http server was observed
+ * returning plain JSON even with an {@code Accept: text/event-stream} header, but both are handled
+ * defensively. A body that can't be parsed as either is passed through unmodified, with a log
+ * line — never dropped.
  *
  * <p>Not a {@code @Component}, for the same reason as {@link McpElideAdapter} and
  * {@link McpSanitizationFilter}: applications component-scan {@code com.itsjool.aperture}, so a
@@ -74,6 +79,16 @@ public class McpToolListFilter implements Filter {
         HttpServletRequest httpRequest = (HttpServletRequest) request;
 
         if (!"/mcp".equals(httpRequest.getRequestURI()) || !"POST".equalsIgnoreCase(httpRequest.getMethod())) {
+            chain.doFilter(request, response);
+            return;
+        }
+
+        String jsonRpcMethod = (String) request.getAttribute(ApertureRequestAttributes.MCP_JSONRPC_METHOD);
+        if (!"tools/list".equals(jsonRpcMethod)) {
+            // Not a tools/list request (or McpSanitizationFilter didn't run ahead of this filter
+            // to stash the method) — nothing for this filter to do. Stream the response straight
+            // through instead of buffering it into heap just to shape-detect it, which matters
+            // most for tools/call, the frequent, potentially large call.
             chain.doFilter(request, response);
             return;
         }

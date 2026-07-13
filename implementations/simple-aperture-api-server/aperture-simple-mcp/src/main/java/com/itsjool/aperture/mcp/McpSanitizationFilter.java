@@ -3,6 +3,7 @@ package com.itsjool.aperture.mcp;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.itsjool.aperture.runtime.filter.ApertureRequestAttributes;
 import jakarta.servlet.Filter;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -40,7 +41,13 @@ public class McpSanitizationFilter implements Filter {
             String body = new String(httpRequest.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
             try {
                 JsonNode root = objectMapper.readTree(body);
-                if (root != null && root.has("method") && "initialize".equals(root.get("method").asText())) {
+                String method = (root != null && root.has("method")) ? root.get("method").asText() : null;
+                // Stashed for every request that parses, regardless of what method turns out to
+                // be: McpToolListFilter reads this to decide whether to buffer/rewrite the
+                // response, instead of shape-detecting it.
+                httpRequest.setAttribute(ApertureRequestAttributes.MCP_JSONRPC_METHOD, method);
+
+                if ("initialize".equals(method)) {
                     JsonNode params = root.get("params");
                     if (params != null && params.has("capabilities")) {
                         JsonNode capabilities = params.get("capabilities");

@@ -25,6 +25,16 @@ public final class ApertureRequestAttributes {
      */
     public static final String PARENT_OBSERVATION = "aperture.parent.observation";
 
+    /**
+     * The JSON-RPC {@code method} of an {@code /mcp} request body, stashed by
+     * {@code McpSanitizationFilter} once it parses the request (it already reads and replays the
+     * body for its own sanitization work). {@code McpToolListFilter} reads this instead of
+     * shape-detecting the response, so only an actual {@code tools/list} request pays the cost of
+     * being buffered and rewritten — every other {@code /mcp} response, notably {@code tools/call},
+     * streams through unbuffered.
+     */
+    public static final String MCP_JSONRPC_METHOD = "aperture.mcp.jsonrpc.method";
+
     private ApertureRequestAttributes() {
     }
 }

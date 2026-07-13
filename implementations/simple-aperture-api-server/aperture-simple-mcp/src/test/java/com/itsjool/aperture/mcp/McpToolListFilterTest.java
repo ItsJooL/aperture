@@ -2,9 +2,11 @@ package com.itsjool.aperture.mcp;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.itsjool.aperture.runtime.filter.ApertureRequestAttributes;
 import com.itsjool.aperture.spi.AperturePrincipal;
 import com.itsjool.aperture.spi.PrincipalKind;
 import jakarta.servlet.FilterChain;
+import jakarta.servlet.ServletResponse;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
@@ -73,9 +75,22 @@ class McpToolListFilterTest {
         return names;
     }
 
+    /** Defaults the stashed JSON-RPC method to {@code tools/list}, the case most tests exercise. */
     private MockHttpServletRequest mcpPostRequest(AperturePrincipal principal) {
+        return mcpPostRequest(principal, "tools/list");
+    }
+
+    /**
+     * @param jsonRpcMethod the value {@code McpSanitizationFilter} would have stashed under
+     *                      {@link ApertureRequestAttributes#MCP_JSONRPC_METHOD}; {@code null}
+     *                      simulates a caller that skips that filter entirely (attribute absent).
+     */
+    private MockHttpServletRequest mcpPostRequest(AperturePrincipal principal, String jsonRpcMethod) {
         MockHttpServletRequest request = new MockHttpServletRequest("POST", "/mcp");
         request.setAttribute("aperturePrincipal", principal);
+        if (jsonRpcMethod != null) {
+            request.setAttribute(ApertureRequestAttributes.MCP_JSONRPC_METHOD, jsonRpcMethod);
+        }
         return request;
     }
 
@@ -215,13 +230,73 @@ class McpToolListFilterTest {
     }
 
     @Test
-    void toolsCallResponse_isNotShapedLikeToolsListAndPassesThroughUnchanged() throws Exception {
+    void toolsCallResponse_isPassedThroughUnwrappedWithoutBuffering() throws Exception {
+        // The core fix in plan 029: a tools/call response must never be buffered/rewrapped, only
+        // decided by the request's stashed JSON-RPC method (not response-body shape-detection).
         AperturePrincipal readOnly = principal(Set.of("ReadOnly"), false);
         MockHttpServletResponse response = new MockHttpServletResponse();
         String callResultBody = "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{\"content\":[]}}";
+        List<ServletResponse> seenByChain = new ArrayList<>();
+        FilterChain chain = (req, res) -> {
+            seenByChain.add(res);
+            res.getOutputStream().write(callResultBody.getBytes(StandardCharsets.UTF_8));
+        };
 
-        new McpToolListFilter().doFilter(mcpPostRequest(readOnly), response, writesBody(callResultBody, "application/json"));
+        new McpToolListFilter().doFilter(mcpPostRequest(readOnly, "tools/call"), response, chain);
 
+        assertThat(seenByChain).hasSize(1);
+        assertThat(seenByChain.get(0))
+            .as("the response handed to the rest of the chain must be the original, not a BufferingResponseWrapper")
+            .isSameAs(response);
+        assertThat(response.containsHeader("Content-Length"))
+            .as("this filter must not set Content-Length for a response it never buffered")
+            .isFalse();
         assertThat(response.getContentAsString()).isEqualTo(callResultBody);
+    }
+
+    @Test
+    void missingJsonRpcMethodAttribute_isPassedThroughUnwrappedAsIfNotToolsList() throws Exception {
+        // Simulates a future caller whose filter chain configuration skips McpSanitizationFilter:
+        // with no attribute stashed, this filter must fail safe to "not tools/list", not throw and
+        // not fall back to buffering.
+        AperturePrincipal readOnly = principal(Set.of("ReadOnly"), false);
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        String callResultBody = "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{\"content\":[]}}";
+        List<ServletResponse> seenByChain = new ArrayList<>();
+        FilterChain chain = (req, res) -> {
+            seenByChain.add(res);
+            res.getOutputStream().write(callResultBody.getBytes(StandardCharsets.UTF_8));
+        };
+
+        new McpToolListFilter().doFilter(mcpPostRequest(readOnly, null), response, chain);
+
+        assertThat(seenByChain.get(0)).isSameAs(response);
+        assertThat(response.containsHeader("Content-Length")).isFalse();
+        assertThat(response.getContentAsString()).isEqualTo(callResultBody);
+    }
+
+    @Test
+    void largeToolsCallPayload_streamsThroughByteForByteWithoutTruncation() throws Exception {
+        // Proves the hot-path claim in plan 029's "Why this matters": a list_tasks-sized tools/call
+        // response is not buffered into heap, and removing the buffer wrap does not truncate or
+        // otherwise mutate a large body.
+        AperturePrincipal readOnly = principal(Set.of("ReadOnly"), false);
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        var tasks = new ArrayList<Map<String, Object>>();
+        for (int i = 0; i < 5_000; i++) {
+            tasks.add(Map.of(
+                "id", String.valueOf(i),
+                "title", "Task number " + i,
+                "description", "x".repeat(200)));
+        }
+        String largeBody = MAPPER.writeValueAsString(
+            Map.of("jsonrpc", "2.0", "id", 1, "result", Map.of("content", tasks)));
+        assertThat(largeBody.length()).isGreaterThan(1_000_000);
+
+        new McpToolListFilter().doFilter(
+            mcpPostRequest(readOnly, "tools/call"), response, writesBody(largeBody, "application/json"));
+
+        assertThat(response.getContentAsString(StandardCharsets.UTF_8)).isEqualTo(largeBody);
     }
 }
