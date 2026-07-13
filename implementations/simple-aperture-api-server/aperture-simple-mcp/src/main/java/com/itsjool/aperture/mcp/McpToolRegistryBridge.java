@@ -1,5 +1,6 @@
 package com.itsjool.aperture.mcp;
 
+import com.itsjool.apertureautoconfigure.mcp.ApertureMcpAutoConfiguration;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

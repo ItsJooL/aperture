@@ -1,5 +1,7 @@
 package com.itsjool.aperture.mcp;
 
+import com.itsjool.apertureautoconfigure.mcp.ApertureMcpAutoConfiguration;
+
 import java.util.Map;
 
 /**

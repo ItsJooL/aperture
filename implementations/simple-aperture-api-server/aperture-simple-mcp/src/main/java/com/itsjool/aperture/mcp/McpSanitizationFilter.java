@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.itsjool.aperture.runtime.filter.ApertureRequestAttributes;
+import com.itsjool.apertureautoconfigure.mcp.ApertureMcpAutoConfiguration;
 import jakarta.servlet.Filter;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;

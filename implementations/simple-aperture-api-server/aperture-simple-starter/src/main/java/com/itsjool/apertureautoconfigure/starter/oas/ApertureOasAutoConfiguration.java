@@ -1,5 +1,6 @@
-package com.itsjool.aperture.starter.oas;
+package com.itsjool.apertureautoconfigure.starter.oas;
 
+import com.itsjool.aperture.starter.oas.ApertureOasController;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnResource;
 import org.springframework.context.annotation.Bean;

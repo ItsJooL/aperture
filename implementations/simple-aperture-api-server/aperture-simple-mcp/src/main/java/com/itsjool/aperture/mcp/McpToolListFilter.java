@@ -7,6 +7,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.itsjool.aperture.runtime.filter.ApertureRequestAttributes;
 import com.itsjool.aperture.runtime.security.AbacPolicyEvaluator;
 import com.itsjool.aperture.spi.AperturePrincipal;
+import com.itsjool.apertureautoconfigure.mcp.ApertureMcpAutoConfiguration;
 import jakarta.servlet.Filter;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;

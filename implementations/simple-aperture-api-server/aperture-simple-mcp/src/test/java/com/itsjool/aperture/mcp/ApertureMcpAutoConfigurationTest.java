@@ -1,6 +1,7 @@
 package com.itsjool.aperture.mcp;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.itsjool.apertureautoconfigure.mcp.ApertureMcpAutoConfiguration;
 import com.yahoo.elide.spring.controllers.JsonApiController;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
@@ -15,19 +16,40 @@ import static org.mockito.Mockito.mock;
 
 /**
  * The generated MCP tool classes take a single {@link McpRequestAdapter} constructor argument, so
- * the context must contain exactly one. Applications scan {@code com.itsjool.aperture}, which
- * covers this very package — these tests pin that scanning cannot smuggle in a second adapter
- * behind the auto-configuration's back, nor register MCP beans when MCP is switched off.
+ * the context must contain exactly one. {@link ApertureMcpAutoConfiguration} itself now lives in
+ * {@code com.itsjool.apertureautoconfigure.mcp} (plan 030), outside any consumer's
+ * {@code scanBasePackages = {"com.itsjool.aperture"}}, reachable only via {@code
+ * AutoConfiguration.imports}. This package still holds the sibling helper classes
+ * ({@link McpElideAdapter}, {@link McpSanitizationFilter}, {@link McpToolListFilter}) which are
+ * deliberately not {@code @Component}-annotated — these tests pin that scanning this package
+ * cannot smuggle in a second adapter, nor register MCP beans when MCP is switched off.
  */
 class ApertureMcpAutoConfigurationTest {
 
-    /** Mirrors the demo application's {@code @SpringBootApplication(scanBasePackages = ...)}. */
+    /** The package that must never accidentally discover MCP beans via component scan. */
     private static final String SCANNED_PACKAGE = "com.itsjool.aperture.mcp";
 
     private final ApplicationContextRunner runner = new ApplicationContextRunner()
         .withConfiguration(AutoConfigurations.of(ApertureMcpAutoConfiguration.class))
         .withBean(JsonApiController.class, () -> mock(JsonApiController.class))
         .withBean(ObjectMapper.class, ObjectMapper::new);
+
+    /**
+     * Plan 030 done criterion: proves the whole family of MCP beans (adapter, tool callback
+     * provider, sanitization filter, tools/list filter) comes up together purely through {@link
+     * AutoConfigurations#of} — the runner above has no component scan configured at all.
+     */
+    @Test
+    void loadsViaAutoConfigurationImportsAloneWithNoComponentScan() {
+        runner.withPropertyValues("aperture.mcp.enabled=true").run(context -> {
+            assertThat(context).hasNotFailed();
+            assertThat(context).hasSingleBean(McpRequestAdapter.class);
+            assertThat(context).hasSingleBean(
+                org.springframework.ai.tool.ToolCallbackProvider.class);
+            assertThat(context).hasSingleBean(McpSanitizationFilter.class);
+            assertThat(context).hasSingleBean(McpToolListFilter.class);
+        });
+    }
 
     @Test
     void registersTheDefaultAdapterWhenMcpIsEnabled() {

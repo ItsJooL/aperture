@@ -1,4 +1,4 @@
-package com.itsjool.aperture.starter;
+package com.itsjool.apertureautoconfigure.starter;
 
 import com.itsjool.aperture.audit.AuditQueryController;
 import com.itsjool.aperture.audit.JdbcAuditWriter;
@@ -20,6 +20,7 @@ import com.itsjool.aperture.spi.CredentialValidator;
 import com.itsjool.aperture.spi.PrincipalMapper;
 import com.itsjool.aperture.spi.RateLimitProvider;
 import com.itsjool.aperture.spi.ServiceAccountIssuer;
+import com.itsjool.aperture.starter.ApertureObservationFilter;
 import com.yahoo.elide.ElideSettingsBuilderCustomizer;
 import com.yahoo.elide.core.dictionary.EntityDictionary;
 import jakarta.annotation.PostConstruct;
@@ -29,6 +30,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.boot.autoconfigure.domain.EntityScan;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.event.EventListener;
 import org.springframework.core.env.Environment;
@@ -45,6 +47,7 @@ import java.util.Arrays;
 @Configuration
 @EntityScan("com.itsjool.aperture.generated")
 @org.springframework.context.annotation.Import(com.itsjool.aperture.runtime.tenant.TenantWebMvcConfiguration.class)
+@ComponentScan(basePackages = "com.itsjool.aperture.generated.security")
 public class ApertureSimpleAutoConfiguration {
 
     static {

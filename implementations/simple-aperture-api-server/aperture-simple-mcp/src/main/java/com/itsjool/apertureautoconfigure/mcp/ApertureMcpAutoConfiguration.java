@@ -1,6 +1,11 @@
-package com.itsjool.aperture.mcp;
+package com.itsjool.apertureautoconfigure.mcp;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.itsjool.aperture.mcp.ApertureMcpProperties;
+import com.itsjool.aperture.mcp.McpElideAdapter;
+import com.itsjool.aperture.mcp.McpRequestAdapter;
+import com.itsjool.aperture.mcp.McpSanitizationFilter;
+import com.itsjool.aperture.mcp.McpToolListFilter;
 import com.yahoo.elide.spring.controllers.JsonApiController;
 import org.springframework.ai.tool.ToolCallbackProvider;
 import org.springframework.ai.tool.annotation.Tool;
