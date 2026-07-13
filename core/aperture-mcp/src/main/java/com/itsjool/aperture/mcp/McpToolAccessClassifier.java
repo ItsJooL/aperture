@@ -26,9 +26,14 @@ import java.util.Set;
  * references {@code #record} or {@code #input} cannot be evaluated at {@code tools/list} time —
  * there is no row in hand yet — so naively including it here and later evaluating it with a
  * {@code null} record would silently and incorrectly hide the tool from every non-superadmin
- * caller. Such policies are simply omitted from the principal-only list: their tool stays listed,
- * unfiltered by that policy. Elide still enforces it for real on the actual {@code tools/call}; this
- * classification only ever affects what {@code tools/list} shows, never what a call is allowed to do.
+ * caller. Such policies are simply omitted from the principal-only list, unfiltered by that policy:
+ * if a role also grants the same operation, the tool stays listed for that role; but if the
+ * operation is granted only by the row-scoped policy — no role grants it, so {@link
+ * ToolAccess#roles()} is empty — the tool has no role to be listed under, and {@code
+ * McpToolListFilter.retain} hides it from every caller except SuperAdmin and (where {@link
+ * ToolAccess#tenantAdminBypass()} applies) TenantAdmin. Elide still enforces the policy for real on
+ * the actual {@code tools/call}; this classification only ever affects what {@code tools/list}
+ * shows, never what a call is allowed to do.
  *
  * <p><b>TenantAdmin is a second bypass, distinct from {@code roles()}.</b>
  * {@code DomainModelValidator} forbids the reserved names {@code TenantAdmin}/{@code SuperAdmin}

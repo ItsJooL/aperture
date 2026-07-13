@@ -10,9 +10,7 @@ import org.springframework.context.annotation.AnnotationConfigApplicationContext
 
 import java.util.Map;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertSame;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 
 /**
@@ -34,8 +32,8 @@ class ApertureMcpAutoConfigurationTest {
     @Test
     void registersTheDefaultAdapterWhenMcpIsEnabled() {
         runner.withPropertyValues("aperture.mcp.enabled=true").run(context -> {
-            assertEquals(1, context.getBeanNamesForType(McpRequestAdapter.class).length);
-            assertTrue(context.getBean(McpRequestAdapter.class) instanceof McpElideAdapter);
+            assertThat(context.getBeanNamesForType(McpRequestAdapter.class)).hasSize(1);
+            assertThat(context.getBean(McpRequestAdapter.class)).isInstanceOf(McpElideAdapter.class);
         });
     }
 
@@ -46,31 +44,32 @@ class ApertureMcpAutoConfigurationTest {
         runner.withPropertyValues("aperture.mcp.enabled=true")
             .withBean("customAdapter", McpRequestAdapter.class, () -> custom)
             .run(context -> {
-                assertEquals(1, context.getBeanNamesForType(McpRequestAdapter.class).length,
-                    "a consumer adapter must not coexist with the default one");
-                assertSame(custom, context.getBean(McpRequestAdapter.class));
+                assertThat(context.getBeanNamesForType(McpRequestAdapter.class))
+                    .as("a consumer adapter must not coexist with the default one")
+                    .hasSize(1);
+                assertThat(context.getBean(McpRequestAdapter.class)).isSameAs(custom);
             });
     }
 
     @Test
     void registersNoMcpBeansWhenMcpIsDisabled() {
         runner.withPropertyValues("aperture.mcp.enabled=false").run(context -> {
-            assertEquals(0, context.getBeanNamesForType(McpRequestAdapter.class).length);
-            assertEquals(0, context.getBeanNamesForType(McpSanitizationFilter.class).length);
-            assertEquals(0, context.getBeanNamesForType(McpToolListFilter.class).length);
+            assertThat(context.getBeanNamesForType(McpRequestAdapter.class)).isEmpty();
+            assertThat(context.getBeanNamesForType(McpSanitizationFilter.class)).isEmpty();
+            assertThat(context.getBeanNamesForType(McpToolListFilter.class)).isEmpty();
         });
     }
 
     @Test
     void registersThePrincipalScopedToolListFilterByDefault() {
         runner.withPropertyValues("aperture.mcp.enabled=true").run(context ->
-            assertEquals(1, context.getBeanNamesForType(McpToolListFilter.class).length));
+            assertThat(context.getBeanNamesForType(McpToolListFilter.class)).hasSize(1));
     }
 
     @Test
     void staticToolListScope_doesNotRegisterTheFilter() {
         runner.withPropertyValues("aperture.mcp.enabled=true", "aperture.mcp.tool-list-scope=STATIC")
-            .run(context -> assertEquals(0, context.getBeanNamesForType(McpToolListFilter.class).length));
+            .run(context -> assertThat(context.getBeanNamesForType(McpToolListFilter.class)).isEmpty());
     }
 
     @Test
@@ -79,10 +78,12 @@ class ApertureMcpAutoConfigurationTest {
             context.scan(SCANNED_PACKAGE);
             context.refresh();
 
-            assertEquals(0, context.getBeanNamesForType(McpRequestAdapter.class).length,
-                "component scanning must not register an adapter outside the enable flag");
-            assertEquals(0, context.getBeanNamesForType(McpSanitizationFilter.class).length,
-                "component scanning must not install the MCP filter outside the enable flag");
+            assertThat(context.getBeanNamesForType(McpRequestAdapter.class))
+                .as("component scanning must not register an adapter outside the enable flag")
+                .isEmpty();
+            assertThat(context.getBeanNamesForType(McpSanitizationFilter.class))
+                .as("component scanning must not install the MCP filter outside the enable flag")
+                .isEmpty();
         }
     }
 
@@ -101,8 +102,10 @@ class ApertureMcpAutoConfigurationTest {
             context.refresh();
 
             Map<String, McpRequestAdapter> adapters = context.getBeansOfType(McpRequestAdapter.class);
-            assertEquals(1, adapters.size(), "expected exactly one adapter, found: " + adapters.keySet());
-            assertSame(custom, adapters.values().iterator().next());
+            assertThat(adapters)
+                .as("expected exactly one adapter, found: " + adapters.keySet())
+                .hasSize(1);
+            assertThat(adapters.values().iterator().next()).isSameAs(custom);
         }
     }
 }

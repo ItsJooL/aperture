@@ -203,10 +203,13 @@ call through that Elide would otherwise reject. See `McpToolListFilter`'s javado
 `aperture-simple-mcp`.
 
 An ABAC policy expression referencing `#record` or `#input` is row-scoped and cannot be decided
-without a row in hand; such policies never participate in `tools/list` filtering; the tool they
-apply to stays listed, and Elide alone enforces the policy on the actual call. `McpToolContribution`
-tools have no entity or operation and are never registry-governed — they are always listed,
-regardless of `tool-list-scope`.
+without a row in hand; such policies never participate in `tools/list` filtering. If a role also
+grants the same operation, the tool they apply to stays listed for that role, unfiltered by the
+row-scoped policy — Elide alone enforces it on the actual call. But if the operation is granted
+*only* by a row-scoped policy (no role grants it), the tool has no role to be listed under, so it
+is hidden from every caller except SuperAdmin and (for tenant-scoped/`scopedBy` entities)
+TenantAdmin. `McpToolContribution` tools have no entity or operation and are never
+registry-governed — they are always listed, regardless of `tool-list-scope`.
 
 See [Extending MCP](/guide/manifests#extending-mcp) for the two ways to add behavior beyond
 the generated per-entity tools: build-time tool contributions (`McpToolContribution`) and the
