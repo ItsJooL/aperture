@@ -5,6 +5,7 @@ import com.itsjool.aperture.spi.AuditEvent;
 import com.itsjool.aperture.spi.AuditWriter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -32,6 +33,15 @@ public class AuditBridge implements LifeCycleHook<Object> {
         this(auditWriter, new ObjectMapper());
     }
 
+    // Elide instantiates lifecycle hooks bound via a class token (@LifeCycleHookBinding(hook =
+    // AuditBridge.class)) through its own Injector's createBean(Class), not by looking up the
+    // @Bean auditBridge(...) defined in ApertureSimpleAutoConfiguration by type. With three
+    // constructors and none marked @Autowired, Spring's constructor resolution for createBean(Class)
+    // cannot pick a unique autowire candidate and falls back to the no-arg constructor, whose
+    // ObjectMapper has no JavaTimeModule. Marking this constructor @Autowired makes it the
+    // deterministic choice, so the live hook instance gets the Spring-managed, JavaTimeModule-aware
+    // ObjectMapper instead of a plain `new ObjectMapper()`.
+    @Autowired
     public AuditBridge(AuditWriter auditWriter, ObjectMapper objectMapper) {
         this.auditWriter = auditWriter;
         this.objectMapper = objectMapper;
