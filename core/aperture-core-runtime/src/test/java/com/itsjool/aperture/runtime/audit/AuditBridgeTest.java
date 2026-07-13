@@ -20,7 +20,7 @@ import java.time.LocalDateTime;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.*;
 
 class AuditBridgeTest {
@@ -37,7 +37,7 @@ class AuditBridgeTest {
     }
 
     @Test
-    void versionSuffixStripping() throws InterruptedException {
+    void versionSuffixStripping() {
         // Create mock entities with different version suffixes
         ProductV1 entityV1 = new ProductV1("123");
         CustomerV3 entityV3 = new CustomerV3("456");
@@ -50,8 +50,9 @@ class AuditBridgeTest {
         auditBridge.execute(Operation.CREATE, TransactionPhase.POSTCOMMIT, entityV10, null, Optional.empty());
         auditBridge.execute(Operation.CREATE, TransactionPhase.POSTCOMMIT, entityNoSuffix, null, Optional.empty());
 
-        // Give async executor time to process
-        Thread.sleep(100);
+        // Bounded poll-until instead of a fixed sleep + hard verify: on a loaded CI box the
+        // async executor may not have drained all four writes within a fixed short sleep.
+        awaitAssertion(() -> verify(auditWriter, times(4)).write(any()));
 
         ArgumentCaptor<AuditEvent> captor = ArgumentCaptor.forClass(AuditEvent.class);
         verify(auditWriter, times(4)).write(captor.capture());
@@ -59,16 +60,16 @@ class AuditBridgeTest {
         var events = captor.getAllValues();
 
         // V1 suffix should be stripped
-        assertEquals("Product", events.get(0).entity());
+        assertThat(events.get(0).entity()).isEqualTo("Product");
 
         // V3 suffix should be stripped
-        assertEquals("Customer", events.get(1).entity());
+        assertThat(events.get(1).entity()).isEqualTo("Customer");
 
         // V10 suffix should be stripped
-        assertEquals("Order", events.get(2).entity());
+        assertThat(events.get(2).entity()).isEqualTo("Order");
 
         // Name without suffix should be unchanged
-        assertEquals("Item", events.get(3).entity());
+        assertThat(events.get(3).entity()).isEqualTo("Item");
     }
 
     @Test
@@ -77,9 +78,9 @@ class AuditBridgeTest {
         executorField.setAccessible(true);
         java.util.concurrent.ExecutorService executor = (java.util.concurrent.ExecutorService) executorField.get(auditBridge);
 
-        assertFalse(executor.isTerminated());
+        assertThat(executor.isTerminated()).isFalse();
         auditBridge.shutdown();
-        assertTrue(executor.isTerminated());
+        assertThat(executor.isTerminated()).isTrue();
     }
 
     @Test
@@ -92,9 +93,9 @@ class AuditBridgeTest {
         verify(auditWriter, timeout(500)).write(captor.capture());
 
         JsonNode details = OBJECT_MAPPER.readTree(captor.getValue().detailsJson());
-        assertEquals("status", details.get("fieldPath").asText());
-        assertEquals("draft", details.get("before").asText());
-        assertEquals("approved", details.get("after").asText());
+        assertThat(details.get("fieldPath").asText()).isEqualTo("status");
+        assertThat(details.get("before").asText()).isEqualTo("draft");
+        assertThat(details.get("after").asText()).isEqualTo("approved");
     }
 
     @Test
@@ -107,8 +108,8 @@ class AuditBridgeTest {
         verify(auditWriter, timeout(500)).write(captor.capture());
 
         JsonNode details = OBJECT_MAPPER.readTree(captor.getValue().detailsJson());
-        assertTrue(details.get("before").isNull());
-        assertEquals("draft", details.get("after").asText());
+        assertThat(details.get("before").isNull()).isTrue();
+        assertThat(details.get("after").asText()).isEqualTo("draft");
     }
 
     @Test
@@ -134,16 +135,17 @@ class AuditBridgeTest {
         verify(auditWriter, timeout(500)).write(captor.capture());
 
         String detailsJson = captor.getValue().detailsJson();
-        assertFalse(detailsJson.contains("detailsSerializationFailed"),
-            "LocalDateTime before/after values must not trigger the serialization-failure fallback");
+        assertThat(detailsJson)
+            .as("LocalDateTime before/after values must not trigger the serialization-failure fallback")
+            .doesNotContain("detailsSerializationFailed");
 
         JsonNode details = OBJECT_MAPPER.readTree(detailsJson);
-        assertEquals("occurredAt", details.get("fieldPath").asText());
+        assertThat(details.get("fieldPath").asText()).isEqualTo("occurredAt");
         // Compare by parsing back to LocalDateTime rather than string form: LocalDateTime.toString()
         // elides zero seconds ("09:30") while Jackson's ISO serializer emits them ("09:30:00").
         // Both are valid ISO_LOCAL_DATE_TIME, so round-tripping is the format-agnostic check.
-        assertEquals(before, LocalDateTime.parse(details.get("before").asText()));
-        assertEquals(after, LocalDateTime.parse(details.get("after").asText()));
+        assertThat(LocalDateTime.parse(details.get("before").asText())).isEqualTo(before);
+        assertThat(LocalDateTime.parse(details.get("after").asText())).isEqualTo(after);
     }
 
     @Test
@@ -163,8 +165,35 @@ class AuditBridgeTest {
 
         String detailsJson = captor.getValue().detailsJson();
         JsonNode details = OBJECT_MAPPER.readTree(detailsJson);
-        assertTrue(details.get("detailsSerializationFailed").asBoolean());
-        assertEquals("occurredAt", details.get("fieldPath").asText());
+        assertThat(details.get("detailsSerializationFailed").asBoolean()).isTrue();
+        assertThat(details.get("fieldPath").asText()).isEqualTo("occurredAt");
+    }
+
+    /**
+     * Retries {@code assertion} until it stops throwing {@link AssertionError} or a two-second
+     * deadline elapses, then rethrows the last failure. Mirrors the bounded poll-until pattern
+     * already used by the sibling async audit tests ({@code JdbcAuditWriterTest#waitUntil},
+     * {@code WebhookAuditWriterTest#waitForPayload}) instead of a fixed sleep followed by a hard
+     * verify, which is flaky under load (the async executor may not have drained yet).
+     */
+    private void awaitAssertion(Runnable assertion) {
+        long deadline = System.currentTimeMillis() + 2_000;
+        AssertionError lastFailure;
+        do {
+            try {
+                assertion.run();
+                return;
+            } catch (AssertionError e) {
+                lastFailure = e;
+                try {
+                    Thread.sleep(25);
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    throw lastFailure;
+                }
+            }
+        } while (System.currentTimeMillis() < deadline);
+        throw lastFailure;
     }
 
     // Test entity classes for version suffix stripping
