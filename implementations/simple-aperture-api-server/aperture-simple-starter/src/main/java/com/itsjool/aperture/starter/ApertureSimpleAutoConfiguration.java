@@ -193,8 +193,8 @@ public class ApertureSimpleAutoConfiguration {
     }
 
     @Bean
-    public ApertureObservationFilter apertureObservationFilter() {
-        return new ApertureObservationFilter();
+    public ApertureObservationFilter apertureObservationFilter(EntityDictionary entityDictionary) {
+        return new ApertureObservationFilter(entityDictionary);
     }
 
     @Bean

@@ -69,6 +69,10 @@ class ApertureSimpleAutoConfigurationTest {
                 .withBean(com.itsjool.aperture.runtime.config.ApertureRuntimeMetadata.class,
                         () -> new com.itsjool.aperture.runtime.config.ApertureRuntimeMetadata(java.util.List.of("1.0"), java.util.List.of("TenantAdmin"), java.util.List.of("TenantAdmin"), java.util.Set.of(), com.itsjool.aperture.runtime.config.TenancyMode.POOL, null, null))
                 .withBean(com.fasterxml.jackson.databind.ObjectMapper.class, com.fasterxml.jackson.databind.ObjectMapper::new)
+                // apertureObservationFilter() needs a real (if empty) EntityDictionary to validate
+                // aperture.entity tags against; this slice doesn't run Elide's own auto-config.
+                .withBean(com.yahoo.elide.core.dictionary.EntityDictionary.class,
+                        () -> com.yahoo.elide.core.dictionary.EntityDictionary.builder().build())
                 .withPropertyValues(
                         "aperture.auth.jwt.secret=test-secret-at-least-thirty-two-bytes-long",
                         "aperture.auth.jwt.issuer=aperture",

@@ -196,7 +196,7 @@ The demo is configured to capture **100% of traces** for observability testing (
 
 - **API request spans**: Each `/api/v*` call produces a root span with `aperture.entity`, `aperture.operation`, `aperture.api.version`, and `aperture.tenant.id` tags.
 - **Hook dispatch spans**: When a webhook is invoked (e.g., `ValidateInvoice`), the outbound HTTP call is wrapped in an `aperture.hook` span that propagates the trace context (`traceparent` header) to the hook service. This allows a single trace to span your API → hook-service → and back, showing the complete flow.
-- **Audit write spans**: Asynchronous audit log writes are linked to the original request span via span links (not parent-child, since writes occur post-commit).
+- **Audit write spans**: Asynchronous audit log writes are emitted as a child span of the original request span, even though writes occur post-commit.
 
 Try the invoice creation flow (step 3 or 4 above) and look at the Jaeger trace — you'll see the API request → hook dispatch → hook-service validation all in one trace.
 

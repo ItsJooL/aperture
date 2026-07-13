@@ -372,6 +372,31 @@ class McpToolGeneratorTest {
     }
 
     /**
+     * Every generated tool method wraps its {@code adapter.*} call in an OTel {@link
+     * io.micrometer.observation.Observation} named {@code aperture.mcp.tool_call}, tagged with the
+     * tool's own name and a fixed {@code server.name} (plan 013/MCP observability, commit
+     * d9f7a34). This is generated code: a malformed {@code addStatement(...)} template (wrong
+     * {@code $T}/{@code $S} arity, wrong tag key) would only surface downstream as a consumer's
+     * compile error or a silently wrong tag, never a failing test here — hence this pin.
+     */
+    @Test
+    void allTools_wrapAdapterCallInObservationTaggedWithToolNameAndServerName() {
+        EntityDef entity = TestEntities.simpleCustomer();
+        McpConfig globalConfig = new McpConfig(true, "stateless", List.of("list", "get", "create", "update", "delete"));
+
+        String source = new McpToolGenerator().generateForEntity(entity, globalConfig, null, "1");
+
+        assertThat(source).contains("Observation.createNotStarted(\"aperture.mcp.tool_call\", observationRegistry)");
+        assertThat(source).contains("lowCardinalityKeyValue(\"tool.name\", \"list_customers\")");
+        assertThat(source).contains("lowCardinalityKeyValue(\"tool.name\", \"get_customer\")");
+        assertThat(source).contains("lowCardinalityKeyValue(\"tool.name\", \"create_customer\")");
+        assertThat(source).contains("lowCardinalityKeyValue(\"tool.name\", \"update_customer\")");
+        assertThat(source).contains("lowCardinalityKeyValue(\"tool.name\", \"delete_customer\")");
+        // server.name is shared across every tool call on this generated class — 5 occurrences.
+        assertThat(source.split("lowCardinalityKeyValue\\(\"server\\.name\", \"aperture-mcp\"\\)", -1)).hasSize(6);
+    }
+
+    /**
      * Manifest validation accepts any casing for tool names, so the ceiling and narrowing bounds
      * must be compared case-insensitively. Comparing the raw manifest strings against the
      * lower-cased vocabulary silently yields an empty tool set instead.
