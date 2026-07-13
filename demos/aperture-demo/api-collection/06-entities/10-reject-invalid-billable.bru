@@ -1,0 +1,47 @@
+meta {
+  name: Reject Invalid Billable One-Of Member
+  type: http
+  seq: 10
+}
+
+post {
+  url: {{baseUrl}}/api/v1/lineitems
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tenantAdminToken}}
+}
+
+headers {
+  Content-Type: application/vnd.api+json
+  Accept: application/vnd.api+json
+}
+
+body:json {
+  {
+    "data": {
+      "type": "lineitems",
+      "attributes": {
+        "description": "Invalid billable target",
+        "quantity": 1,
+        "unit_price": 99.00
+      },
+      "relationships": {
+        "billable": { "data": { "type": "customers", "id": "{{customerId}}" } }
+      }
+    }
+  }
+}
+
+docs {
+  Demonstrates that a one-of relationship only accepts resource types declared
+  by its OneOf manifest. LineItem.billable accepts products and servicepackages,
+  so customers is rejected before a line item is persisted.
+}
+
+assert {
+  res.status: gte 400
+  res.status: lt 500
+}

@@ -16,6 +16,6 @@ import { ArrowRight } from '@lucide/vue'
 const actions = [
   { to: '/customers', kicker: 'CRM', title: 'Manage customers', description: 'Search accounts, open profiles and add billing contacts.' },
   { to: '/products', kicker: 'Catalogue', title: 'Review products', description: 'Keep products, SKUs and prices aligned before invoicing.' },
-  { to: '/invoices/new', kicker: 'Billing', title: 'Create invoice', description: 'Select a customer, add product lines and issue a new invoice.' },
+  { to: '/invoices/new', kicker: 'Billing', title: 'Create invoice', description: 'Select a customer, add billable items and issue a new invoice.' },
 ]
 </script>

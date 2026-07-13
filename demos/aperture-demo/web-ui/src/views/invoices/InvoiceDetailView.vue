@@ -45,6 +45,27 @@
           </div>
         </AppCard>
       </section>
+
+      <section style="margin-top:1rem;">
+        <AppCard>
+          <div class="flex-between"><div><h2 class="card-title">Line items</h2><p class="card-description">Each row keeps the selected billable member visible.</p></div><AppBadge>{{ lineItems.length }} lines</AppBadge></div>
+          <div class="table-wrap" style="margin-top:1rem;">
+            <table>
+              <thead><tr><th>Description</th><th>Billable</th><th>Qty</th><th>Unit</th><th>Total</th></tr></thead>
+              <tbody>
+                <tr v-for="line in lineItems" :key="line.id">
+                  <td>{{ line.description || 'Line item' }}</td>
+                  <td><span class="mono">{{ billableLabel(line) }}</span></td>
+                  <td>{{ line.quantity }}</td>
+                  <td>{{ currency(line.unit_price) }}</td>
+                  <td><strong>{{ currency(Number(line.quantity) * Number(line.unit_price)) }}</strong></td>
+                </tr>
+                <tr v-if="!lineItems.length"><td colspan="5" class="muted">No line items are linked to this invoice.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </AppCard>
+      </section>
     </template>
 
     <AppModal :open="paymentOpen" title="Record payment" description="Add a payment against this invoice." @close="paymentOpen = false">
@@ -64,6 +85,7 @@
 import { computed, ref } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
 import { useQuery, useQueryClient } from '@/vue-query-wrapper'
+import AppBadge from '@/components/ui/AppBadge.vue'
 import AppButton from '@/components/ui/AppButton.vue'
 import AppCard from '@/components/ui/AppCard.vue'
 import AppInput from '@/components/ui/AppInput.vue'
@@ -84,7 +106,9 @@ const app = useAppStore()
 const client = useQueryClient()
 const id = computed(() => String(route.params.id))
 const query = useQuery({ queryKey: ['invoice', id], queryFn: () => invoiceService.get(id.value) })
+const lineItemsQuery = useQuery({ queryKey: ['invoice-lineitems', id], queryFn: () => invoiceService.listLineItems() })
 const invoice = computed(() => query.data.value)
+const lineItems = computed(() => (lineItemsQuery.data.value?.items ?? []).filter((line) => relationshipId(line, 'invoice') === id.value))
 const paymentOpen = ref(false)
 const paymentAmount = ref(0)
 const paymentError = ref<string | undefined>()
@@ -93,6 +117,18 @@ const customerRelationship = computed(() => {
   if (!data || Array.isArray(data)) return ''
   return data.id
 })
+function relationshipId(resource: { relationships?: Record<string, { data?: unknown }> }, relationshipName: string) {
+  const data = resource.relationships?.[relationshipName]?.data
+  if (!data || Array.isArray(data) || typeof data !== 'object') return ''
+  return 'id' in data ? String(data.id) : ''
+}
+function billableLabel(resource: { relationships?: Record<string, { data?: unknown }> }) {
+  const data = resource.relationships?.billable?.data
+  if (!data || Array.isArray(data) || typeof data !== 'object') return 'Not selected'
+  const type = 'type' in data ? String(data.type) : 'unknown'
+  const id = 'id' in data ? String(data.id) : ''
+  return `${type}:${id}`
+}
 async function updateStatus(status: string) {
   await invoiceService.updateStatus(id.value, status)
   app.toast('Invoice updated', `Status changed to ${status}.`, 'success')

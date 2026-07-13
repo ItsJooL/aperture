@@ -21,13 +21,14 @@ type SeedFile struct {
 }
 
 type TenantSeed struct {
-	Name      string     `yaml:"name"`
-	Admin     Credential `yaml:"admin"`
-	Users     []UserSeed `yaml:"users"`
-	Suppliers []Supplier `yaml:"suppliers"`
-	Products  []Product  `yaml:"products"`
-	Customers []Customer `yaml:"customers"`
-	Invoices  []Invoice  `yaml:"invoices"`
+	Name            string           `yaml:"name"`
+	Admin           Credential       `yaml:"admin"`
+	Users           []UserSeed       `yaml:"users"`
+	Suppliers       []Supplier       `yaml:"suppliers"`
+	Products        []Product        `yaml:"products"`
+	ServicePackages []ServicePackage `yaml:"servicePackages"`
+	Customers       []Customer       `yaml:"customers"`
+	Invoices        []Invoice        `yaml:"invoices"`
 }
 
 type Credential struct {
@@ -50,6 +51,13 @@ type Product struct {
 	Name        string  `yaml:"name"`
 	SKU         string  `yaml:"sku"`
 	Category    string  `yaml:"category"`
+	UnitPrice   float64 `yaml:"unitPrice"`
+	Description string  `yaml:"description"`
+}
+
+type ServicePackage struct {
+	Name        string  `yaml:"name"`
+	SKU         string  `yaml:"sku"`
 	UnitPrice   float64 `yaml:"unitPrice"`
 	Description string  `yaml:"description"`
 }
@@ -352,6 +360,34 @@ func (s *seeder) seedTenant(t TenantSeed, superToken string) error {
 			return fmt.Errorf("create product %s: status %d", p.Name, status)
 		}
 		_ = productIDByName
+	}
+
+	// Seed service packages
+	for _, servicePackage := range t.ServicePackages {
+		s.logger.Info("creating service package", "name", servicePackage.Name, "sku", servicePackage.SKU)
+		body := map[string]interface{}{
+			"data": map[string]interface{}{
+				"type": "servicepackages",
+				"attributes": map[string]interface{}{
+					"name":        servicePackage.Name,
+					"sku":         servicePackage.SKU,
+					"unit_price":  servicePackage.UnitPrice,
+					"description": servicePackage.Description,
+					"active":      true,
+				},
+			},
+		}
+		_, status, err := s.postJSONAPI("/api/v3/servicepackages", adminToken, body)
+		if err != nil {
+			return fmt.Errorf("create service package %s: %w", servicePackage.Name, err)
+		}
+		if status == 201 {
+			continue
+		} else if status == 409 || status == 422 {
+			s.logger.Info("service package already exists or duplicate", "name", servicePackage.Name)
+		} else {
+			return fmt.Errorf("create service package %s: status %d", servicePackage.Name, status)
+		}
 	}
 
 	// Seed customers

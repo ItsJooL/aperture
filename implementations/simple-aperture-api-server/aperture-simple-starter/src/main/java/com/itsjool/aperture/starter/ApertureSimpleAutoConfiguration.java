@@ -293,6 +293,14 @@ public class ApertureSimpleAutoConfiguration {
         return new com.itsjool.aperture.starter.filter.OptimisticLockingFilter(jdbcTemplate, apertureRuntimeMetadata);
     }
 
+    @Bean
+    public com.itsjool.aperture.starter.filter.OneOfRelationshipValidationFilter oneOfRelationshipValidationFilter(
+            com.itsjool.aperture.runtime.config.ApertureRuntimeMetadata apertureRuntimeMetadata,
+            com.fasterxml.jackson.databind.ObjectMapper objectMapper) {
+        return new com.itsjool.aperture.starter.filter.OneOfRelationshipValidationFilter(
+                apertureRuntimeMetadata, objectMapper);
+    }
+
     // ── Active only when simple (JWT) auth is not disabled ───────────────────
     // Set aperture.auth.simple.enabled=false to use a custom CredentialValidator
     // (e.g. Keycloak). When disabled, no JWT secret or AuthController is needed.

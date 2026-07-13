@@ -39,6 +39,29 @@ public class OneOfComponentTest extends DemoApplicationTestSupport {
         assertBillableColumns(serviceLineId, "ServicePackage", servicePackageId);
     }
 
+    @Test
+    void rejectsBillableTypeOutsideDeclaredOneOfMembers() throws Exception {
+        String token = getAcmeAdminToken();
+        Integer lineItemsBefore = jdbcTemplate.queryForObject("SELECT count(*) FROM aperture_lineitems", Integer.class);
+
+        performElideRequest(post("/api/v1/lineitems")
+                .header("Authorization", token)
+                .contentType(JSON_API)
+                .content("""
+                    {"data":{"type":"lineitems","attributes":{
+                      "description":"Invalid billable",
+                      "quantity":1,
+                      "unit_price":99
+                    },"relationships":{
+                      "billable":{"data":{"type":"customers","id":"00000000-0000-0000-0000-000000000001"}}
+                    }}}
+                    """))
+            .andExpect(status().is4xxClientError());
+
+        Integer lineItemsAfter = jdbcTemplate.queryForObject("SELECT count(*) FROM aperture_lineitems", Integer.class);
+        assertThat(lineItemsAfter).isEqualTo(lineItemsBefore);
+    }
+
     private String createProduct(String token) throws Exception {
         var result = performElideRequest(post("/api/v1/products")
                 .header("Authorization", token)

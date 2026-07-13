@@ -16,7 +16,7 @@
 
 <script setup lang="ts">
 const steps = [
-  { status: 'draft', label: 'Draft', description: 'Build an invoice from a customer and product line items.' },
+  { status: 'draft', label: 'Draft', description: 'Build an invoice from a customer and billable line items.' },
   { status: 'issued', label: 'Issued', description: 'Send or publish it to the customer workspace.' },
   { status: 'paid', label: 'Paid', description: 'Record payments and reconcile outstanding amounts.' },
 ]

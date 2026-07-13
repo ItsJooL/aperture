@@ -50,7 +50,7 @@
                   <td data-label="Status"><StatusBadge :status="invoice.status" /></td>
                   <td data-label="Amount">{{ currency(invoice.amount) }}</td>
                 </tr>
-                <tr v-if="!invoices.length"><td colspan="3"><EmptyState title="No invoices yet" description="Create an invoice once you have a customer and billable product ready." /></td></tr>
+                <tr v-if="!invoices.length"><td colspan="3"><EmptyState title="No invoices yet" description="Create an invoice once you have a customer and billable item ready." /></td></tr>
               </tbody>
             </table>
           </div>

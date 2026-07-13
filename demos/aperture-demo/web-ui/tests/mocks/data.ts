@@ -37,7 +37,18 @@ function seed() {
   ]
 
   lineItems = [
-    { id: 'line-001', type: 'lineitems', description: 'Integration Starter Plan', quantity: 1, unit_price: 249, price: 249 },
+    {
+      id: 'line-001',
+      type: 'lineitems',
+      description: 'Integration Starter Plan',
+      quantity: 1,
+      unit_price: 249,
+      price: 249,
+      relationships: {
+        invoice: { data: { type: 'invoices', id: 'invo-001' } },
+        billable: { data: { type: 'products', id: 'prod-001' } },
+      },
+    },
   ]
 
   invites = [

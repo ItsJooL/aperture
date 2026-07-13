@@ -116,7 +116,7 @@
     "Review revenue, receivables and operational health",
     "Manage customers and customer profiles",
     "Manage products, currencies and supplier records",
-    "Create invoices from customers and product line items",
+    "Create invoices from customers and billable line items",
     "Record payments and monitor outstanding balances",
     "Invite users, assign roles, manage service accounts and API keys"
   ]

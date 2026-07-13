@@ -34,6 +34,15 @@ tenants:
         category: HARDWARE
         unitPrice: 2499.00
         description: "Pre-configured developer hardware bundle"
+    servicePackages:
+      - name: Priority Onboarding
+        sku: SVC-ONBOARD-001
+        unitPrice: 750.00
+        description: "Guided launch package with setup workshops"
+      - name: Quarterly Architecture Review
+        sku: SVC-ARCH-001
+        unitPrice: 1200.00
+        description: "Recurring advisory review for technical teams"
     customers:
       - name: Acme Corp HQ
         email: hq@acme.com
@@ -74,6 +83,11 @@ tenants:
         category: SUBSCRIPTION
         unitPrice: 199.00
         description: "Monthly subscription — unlimited seats"
+    servicePackages:
+      - name: Launch Readiness
+        sku: SVC-LAUNCH-001
+        unitPrice: 500.00
+        description: "Checklist and operational review before launch"
     customers:
       - name: DevCorp Ltd
         email: billing@devcorp.io

@@ -129,7 +129,8 @@ manifest name:
 
 Generated OpenAPI includes a relationship-data schema for each one-of field. For example,
 `LineItemBillableRelationshipData` lists the allowed `type` enum values such as `products` and
-`servicepackages`.
+`servicepackages`. Writes that use a resource type outside that enum are rejected with `400`
+before the relationship is applied.
 
 ### Atomic operations
 

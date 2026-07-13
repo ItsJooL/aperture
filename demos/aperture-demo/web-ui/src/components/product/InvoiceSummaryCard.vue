@@ -17,7 +17,7 @@
             <td>{{ currency(line.unit_price) }}</td>
             <td><strong>{{ currency(line.quantity * line.unit_price) }}</strong></td>
           </tr>
-          <tr v-if="!lines.length"><td colspan="4" class="muted">Add products to start building the invoice.</td></tr>
+          <tr v-if="!lines.length"><td colspan="4" class="muted">Add billable items to start building the invoice.</td></tr>
         </tbody>
       </table>
     </div>
