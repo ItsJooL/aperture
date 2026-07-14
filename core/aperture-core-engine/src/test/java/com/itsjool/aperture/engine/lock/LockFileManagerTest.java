@@ -61,6 +61,30 @@ class LockFileManagerTest {
     }
 
     @Test
+    void writesAndReadsDomainModelLockFileWithThreeMemberOneOf() throws Exception {
+        ResolvedDomainModel model = ResolvedDomainModel.builder()
+            .oneOfs(List.of(new OneOfDef("Billable", List.of("Product", "ServicePackage", "SubscriptionPlan"))))
+            .build();
+        LockFileManager lockManager = new LockFileManager();
+
+        lockManager.writeDomainModelLockFile("1", model, tempDir);
+
+        Path lockFile = tempDir.resolve("1-domain-model.json");
+        assertThat(Files.readString(lockFile))
+            .contains("\"oneOfs\"")
+            .contains("\"Billable\"")
+            .contains("\"Product\"")
+            .contains("\"ServicePackage\"")
+            .contains("\"SubscriptionPlan\"");
+        assertThat(lockManager.readDomainModelLockFile(lockFile).oneOfs())
+            .singleElement()
+            .satisfies(oneOf -> {
+                assertThat(oneOf.name()).isEqualTo("Billable");
+                assertThat(oneOf.members()).containsExactly("Product", "ServicePackage", "SubscriptionPlan");
+            });
+    }
+
+    @Test
     void writesDomainModelOneOfsSortedByNameWhilePreservingMemberOrder() throws Exception {
         ResolvedDomainModel model = new ResolvedDomainModel(
             List.of(), List.of(), null, List.of(), List.of(), List.of(), List.of(),

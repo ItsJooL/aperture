@@ -120,6 +120,41 @@ class DomainModelValidatorTest {
     }
 
     @Test
+    void oneOfWithThreeMembersRejectsUnknownThirdMember_throws() {
+        EntityDef product = entity("Product", Map.of("name", stringField()));
+        EntityDef servicePackage = entity("ServicePackage", Map.of("name", stringField()));
+        OneOfDef billable = new OneOfDef("Billable", List.of("Product", "ServicePackage", "SubscriptionPlan"));
+
+        assertThatThrownBy(() -> validator.validate(
+            ResolvedDomainModel.builder()
+                .entities(List.of(product, servicePackage))
+                .oneOfs(List.of(billable))
+                .build(),
+            Map.of(billable, "billable.yaml")))
+            .isInstanceOf(ManifestValidationException.class)
+            .hasMessageContaining("Unknown oneof member")
+            .hasMessageContaining("SubscriptionPlan")
+            .hasMessageContaining("billable.yaml");
+    }
+
+    @Test
+    void oneOfWithThreeValidMembersPasses() {
+        EntityDef product = entity("Product", Map.of("name", stringField()));
+        EntityDef servicePackage = entity("ServicePackage", Map.of("name", stringField()));
+        EntityDef subscriptionPlan = entity("SubscriptionPlan", Map.of("name", stringField()));
+        EntityDef lineItem = entity("LineItem", Map.of("billable", oneOfField("Billable")));
+        OneOfDef billable = new OneOfDef("Billable", List.of("Product", "ServicePackage", "SubscriptionPlan"));
+
+        assertThatCode(() -> validator.validate(
+            ResolvedDomainModel.builder()
+                .entities(List.of(product, servicePackage, subscriptionPlan, lineItem))
+                .oneOfs(List.of(billable))
+                .build(),
+            Map.of()))
+            .doesNotThrowAnyException();
+    }
+
+    @Test
     void oneOfMembersMustShareTenantShape_throws() {
         EntityDef product = tenantScopedEntity("Product", Map.of("name", stringField()));
         EntityDef servicePackage = entity("ServicePackage", Map.of("name", stringField()));

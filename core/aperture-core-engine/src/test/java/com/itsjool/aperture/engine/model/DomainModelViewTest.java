@@ -48,6 +48,27 @@ class DomainModelViewTest {
     }
 
     @Test
+    void resolvesAllThreeMembersForThreeMemberOneOf() {
+        EntityDef product = entity("Product", Map.of("name", stringField()));
+        EntityDef servicePackage = entity("ServicePackage", Map.of("name", stringField()));
+        EntityDef subscriptionPlan = entity("SubscriptionPlan", Map.of("name", stringField()));
+        EntityDef lineItem = entity("LineItem", Map.of("billable", oneOfField("Billable")));
+        OneOfDef billable = new OneOfDef("Billable", List.of("Product", "ServicePackage", "SubscriptionPlan"));
+        ResolvedDomainModel model = ResolvedDomainModel.builder()
+            .entities(List.of(product, servicePackage, subscriptionPlan, lineItem))
+            .oneOfs(List.of(billable))
+            .build();
+
+        DomainModelView view = DomainModelView.of(model);
+
+        ResolvedField billableField = view.field("LineItem", "billable");
+        assertThat(billableField.kind()).isEqualTo(FieldKind.ONEOF);
+        assertThat(billableField).isInstanceOfSatisfying(ResolvedOneOfField.class, oneOf ->
+            assertThat(oneOf.members()).extracting(EntityDef::name)
+                .containsExactly("Product", "ServicePackage", "SubscriptionPlan"));
+    }
+
+    @Test
     void exposesResolvedFieldsInManifestOrder() {
         EntityDef product = entity("Product", Map.of("name", stringField()));
         EntityDef servicePackage = entity("ServicePackage", Map.of("name", stringField()));

@@ -7,6 +7,7 @@ import com.itsjool.aperture.engine.diff.DiffEngine;
 import com.itsjool.aperture.engine.model.EntityDef;
 import com.itsjool.aperture.engine.model.FieldDef;
 import com.itsjool.aperture.engine.model.MigrationDef;
+import com.itsjool.aperture.engine.model.OneOfDef;
 import com.itsjool.aperture.engine.model.ResolvedDomainModel;
 import org.junit.jupiter.api.Test;
 
@@ -307,6 +308,30 @@ class ChangesetGeneratorTest {
         assertThat(xml).contains("<column name=\"billable_id\"/>");
         assertThat(xml).doesNotContain("fk_aperture_lineitems_billable_id");
         assertThat(xml).doesNotContain("<column name=\"billable\" type=");
+    }
+
+    @Test
+    void schemaSnapshotStaysMemberCountAgnosticForThreeMemberOneOf() {
+        EntityDef lineItem = tenantEntity("LineItem", "lineitems", fields(
+            "billable", oneOf("Billable", true, false)
+        ));
+        OneOfDef billable = new OneOfDef("Billable", List.of("Product", "ServicePackage", "SubscriptionPlan"));
+        ResolvedDomainModel model = ResolvedDomainModel.builder()
+            .entities(List.of(lineItem))
+            .oneOfs(List.of(billable))
+            .build();
+
+        String xml = new ChangesetGenerator().generateSchemaSnapshot(model, TenancyMode.POOL);
+
+        assertThat(xml).contains("<column name=\"billable_type\" type=\"VARCHAR(255)\">");
+        assertThat(xml).contains("<column name=\"billable_id\" type=\"UUID\">");
+        assertThat(xml).contains("CREATE CONSTRAINT TRIGGER require_aperture_lineitems_billable");
+        assertThat(xml).contains(
+            "<createIndex indexName=\"idx_aperture_lineitems_billable\" tableName=\"aperture_lineitems\" unique=\"false\">");
+        // The pointer-pair storage strategy is deliberately member-count-agnostic: growing Billable from
+        // two members to three must not change the generated schema, and no member discriminator value is
+        // ever baked into a CHECK/FK, so none of the three member names appear in the generated SQL/XML.
+        assertThat(xml).doesNotContain("Product").doesNotContain("ServicePackage").doesNotContain("SubscriptionPlan");
     }
 
     @Test
