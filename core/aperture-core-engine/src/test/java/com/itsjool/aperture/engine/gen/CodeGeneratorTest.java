@@ -275,7 +275,7 @@ class CodeGeneratorTest {
         EntityDef supplier = new EntityDef("Supplier", "suppliers", null, null, false, false, false,
             Map.of(), Map.of(), Map.of(), List.of(), Map.of(),
             Map.of("NotifySupplier", new HookDef("trigger", List.of("create", "update", "delete"),
-                null, "http://hook")));
+                null, "http://hook", 5)));
 
         List<String> classes = new CodeGenerator().generateForEntity(supplier, TenancyMode.NONE, List.of("1"));
         String joined = String.join("\n\n", classes);
@@ -285,8 +285,26 @@ class CodeGeneratorTest {
             .contains("operation = Operation.UPDATE")
             .contains("operation = Operation.DELETE")
             .contains("phase = TransactionPhase.POSTCOMMIT")
-            .contains("executeHook(\"NotifySupplier\", \"Supplier\", \"POSTCOMMIT\", \"http://hook\", payload, req, \"warn\", 0, true)")
+            // 5 (trigger's cap), not the pre-plan-032 hardcoded 0 — proves the manifest's retries
+            // value now reaches the generated call instead of being dropped on the floor.
+            .contains("executeHook(\"NotifySupplier\", \"Supplier\", \"POSTCOMMIT\", \"http://hook\", payload, req, \"warn\", 5, true)")
             .doesNotContain("if (!true)");
+    }
+
+    @Test
+    void hookRetriesDefaultToZeroWhenOmittedFromManifest() {
+        // Backward compatibility: a hook with no `retries` field (the 4-arg HookDef constructor,
+        // matching every pre-plan-032 manifest) must still emit a literal 0, unchanged.
+        EntityDef invoice = new EntityDef("Invoice", "invoices", null, null, false, false, false,
+            Map.of(), Map.of(), Map.of(), List.of(), Map.of(),
+            Map.of("ValidateInvoice", new HookDef("validate", List.of("create", "update"),
+                "reject", "http://hook")));
+
+        List<String> classes = new CodeGenerator().generateForEntity(invoice, TenancyMode.NONE, List.of("1"));
+        String joined = String.join("\n\n", classes);
+
+        assertThat(joined)
+            .contains("executeHook(\"ValidateInvoice\", \"Invoice\", \"PRECOMMIT\", \"http://hook\", payload, req, \"reject\", 0, false)");
     }
 
     @Test
@@ -326,14 +344,15 @@ class CodeGeneratorTest {
         EntityDef account = new EntityDef("Account", "accounts", null, null, false, false, false,
             Map.of(), Map.of(), Map.of(), List.of(), Map.of(),
             Map.of("IpAllowlist", new HookDef("guard", List.of("create", "update", "delete"),
-                "reject", "http://hook")));
+                "reject", "http://hook", 2)));
 
         List<String> classes = new CodeGenerator().generateForEntity(account, TenancyMode.NONE, List.of("1"));
         String joined = String.join("\n\n", classes);
 
         assertThat(joined)
             .contains("phase = TransactionPhase.PRESECURITY")
-            .contains("java.util.concurrent.CompletableFuture<Boolean> future = hookExecutor.executeHook(\"IpAllowlist\", \"Account\", \"PRESECURITY\", \"http://hook\", payload, req, \"reject\", 0, false)")
+            // 2 (guard/validate's synchronous cap), not the pre-plan-032 hardcoded 0.
+            .contains("java.util.concurrent.CompletableFuture<Boolean> future = hookExecutor.executeHook(\"IpAllowlist\", \"Account\", \"PRESECURITY\", \"http://hook\", payload, req, \"reject\", 2, false)")
             .contains("future.join()")
             .doesNotContain("executeHookWithResponse");
     }
@@ -343,14 +362,14 @@ class CodeGeneratorTest {
         EntityDef invoice = new EntityDef("Invoice", "invoices", null, null, false, false, false,
             Map.of(), Map.of(), Map.of(), List.of(), Map.of(),
             Map.of("ValidateInvoice", new HookDef("validate", List.of("create", "update"),
-                "reject", "http://hook")));
+                "reject", "http://hook", 2)));
 
         List<String> classes = new CodeGenerator().generateForEntity(invoice, TenancyMode.NONE, List.of("1"));
         String joined = String.join("\n\n", classes);
 
         assertThat(joined)
             .contains("phase = TransactionPhase.PRECOMMIT")
-            .contains("java.util.concurrent.CompletableFuture<Boolean> future = hookExecutor.executeHook(\"ValidateInvoice\", \"Invoice\", \"PRECOMMIT\", \"http://hook\", payload, req, \"reject\", 0, false)")
+            .contains("java.util.concurrent.CompletableFuture<Boolean> future = hookExecutor.executeHook(\"ValidateInvoice\", \"Invoice\", \"PRECOMMIT\", \"http://hook\", payload, req, \"reject\", 2, false)")
             .contains("future.join()")
             .doesNotContain("executeHookWithResponse");
     }

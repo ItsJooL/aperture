@@ -100,7 +100,14 @@
                       "type": "string",
                       "enum": ["reject", "passthrough", "warn"]
                     },
-                    "url": { "type": "string" }
+                    "url": { "type": "string" },
+                    "retries": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 5,
+                      "default": 0,
+                      "description": "Number of retry attempts on a failed hook call, opt-in (default 0 = today's behavior). This is the loosest structural ceiling across all hook types (trigger's cap); guard/validate are capped tighter (2) and mutate does not support retries at all — both enforced semantically, not by this schema, since JSON Schema cannot express a per-`type` conditional cleanly here. See docs/guide/hooks.md."
+                    }
                   },
                   "required": ["type", "url"],
                   "additionalProperties": false

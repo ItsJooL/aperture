@@ -8,5 +8,6 @@ public record HookSemantics(
     boolean async,
     String onFailure,
     List<String> operations,
-    boolean enrichment
+    boolean enrichment,
+    int retries
 ) {}

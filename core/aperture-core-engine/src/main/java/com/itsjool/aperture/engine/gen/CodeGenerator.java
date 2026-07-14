@@ -621,11 +621,11 @@ public class CodeGenerator {
             if (semantics.async()) {
                 executeBuilder
                     .addStatement("hookExecutor.executeHook($S, $S, $S, $S, payload, req, $S, $L, true)",
-                        hookName, entityDef.name(), semantics.phase(), hookDef.url(), semantics.onFailure(), 0);
+                        hookName, entityDef.name(), semantics.phase(), hookDef.url(), semantics.onFailure(), semantics.retries());
             } else {
                 executeBuilder
                     .addStatement("java.util.concurrent.CompletableFuture<Boolean> future = hookExecutor.executeHook($S, $S, $S, $S, payload, req, $S, $L, false)",
-                        hookName, entityDef.name(), semantics.phase(), hookDef.url(), semantics.onFailure(), 0)
+                        hookName, entityDef.name(), semantics.phase(), hookDef.url(), semantics.onFailure(), semantics.retries())
                     .addStatement("future.join()");
             }
         }

@@ -133,6 +133,32 @@ class DomainModelValidatorTest {
             .doesNotThrowAnyException();
     }
 
+    @Test
+    void semanticMutateHookWithRetries_throws() {
+        // Plan 032, Decisions (2026-07-14): mutate is excluded from retries — no per-invocation
+        // idempotency key exists for a hook service to dedupe a retried enrichment call safely.
+        EntityDef entity = new EntityDef("Order", "orders", null, null, false, false, false,
+            Map.of(), null, null, null, Map.of(),
+            Map.of("Enrich", new HookDef("mutate", List.of("create"), "passthrough", "http://hook", 2)));
+
+        assertThatThrownBy(() -> validator.validate(
+            new ResolvedDomainModel(List.of(entity)), Map.of()))
+            .isInstanceOf(ManifestValidationException.class)
+            .hasMessageContaining("retries is not supported for mutate hooks");
+    }
+
+    @Test
+    void semanticGuardHookWithRetriesAboveSyncCap_throws() {
+        EntityDef entity = new EntityDef("Order", "orders", null, null, false, false, false,
+            Map.of(), null, null, null, Map.of(),
+            Map.of("Guard", new HookDef("guard", List.of("create"), "reject", "http://hook", 3)));
+
+        assertThatThrownBy(() -> validator.validate(
+            new ResolvedDomainModel(List.of(entity)), Map.of()))
+            .isInstanceOf(ManifestValidationException.class)
+            .hasMessageContaining("retries (3) exceeds the maximum of 2");
+    }
+
     // ---------- MCP config validation ----------
 
     @Test
