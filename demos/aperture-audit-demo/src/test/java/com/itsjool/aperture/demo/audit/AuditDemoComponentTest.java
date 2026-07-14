@@ -155,8 +155,12 @@ class AuditDemoComponentTest {
                 "SELECT supplier_secret FROM aperture_products WHERE id = ?::uuid", String.class, productId);
         assertThat(rawSupplierSecret).isNotBlank().doesNotContain("contract floor 42");
 
+        // Change both a plain field (name) and the encrypted field (supplier_secret) in the same
+        // PATCH: Elide's per-field UPDATE lifecycle hook fires once per changed field, so this
+        // produces two separate audit rows below — one proving real before/after values still flow
+        // for ordinary fields, the other proving the encrypted field's values arrive redacted.
         String updateBody = "{\"data\":{\"type\":\"products\",\"id\":\"" + productId
-                + "\",\"attributes\":{\"name\":\"Audit Widget Updated\"}}}";
+                + "\",\"attributes\":{\"name\":\"Audit Widget Updated\",\"supplier_secret\":\"contract floor 42 v2\"}}}";
         elide(patch("/api/v1/products/" + productId)
                         .header("Authorization", token)
                         .contentType(vnd)
@@ -208,6 +212,58 @@ class AuditDemoComponentTest {
             }
         }
         assertThat(siemDetails).as("SIEM sink should receive the same UPDATE before/after details").isNotNull();
+
+        // Poll the JDBC audit log for the SAME PATCH's supplier_secret field change: it must show
+        // the redaction sentinel end-to-end, not the plaintext "contract floor 42 v2" (or the prior
+        // value) — proving default encrypted-field redaction (plan 033 / finding 1J) actually reaches
+        // both the JDBC audit log and the downstream SIEM sink, not just one of them.
+        JsonNode jdbcSecretDetails = null;
+        for (int i = 0; i < 30 && jdbcSecretDetails == null; i++) {
+            String auditBody = elide(get("/manage/audit?entity=Product&entityId=" + productId)
+                            .header("Authorization", token))
+                    .andExpect(status().isOk())
+                    .andReturn().getResponse().getContentAsString();
+            for (JsonNode row : MAPPER.readTree(auditBody)) {
+                if ("UPDATE".equals(row.path("operation").asText())) {
+                    JsonNode details = detailsOf(row);
+                    if ("supplier_secret".equals(details.path("fieldPath").asText())) {
+                        jdbcSecretDetails = details;
+                    }
+                }
+            }
+            if (jdbcSecretDetails == null) {
+                Thread.sleep(200);
+            }
+        }
+        assertThat(jdbcSecretDetails)
+                .as("JDBC audit log should contain the encrypted-field UPDATE row")
+                .isNotNull();
+        assertThat(jdbcSecretDetails.path("before").asText()).isEqualTo("[REDACTED]");
+        assertThat(jdbcSecretDetails.path("after").asText()).isEqualTo("[REDACTED]");
+
+        JsonNode siemSecretDetails = null;
+        for (int i = 0; i < 30 && siemSecretDetails == null; i++) {
+            for (String rawBody : siemRequestBodies) {
+                for (JsonNode event : MAPPER.readTree(rawBody)) {
+                    if ("Product".equals(event.path("entity").asText())
+                            && "UPDATE".equals(event.path("operation").asText())
+                            && productId.equals(event.path("entityId").asText())) {
+                        JsonNode details = event.path("details");
+                        if ("supplier_secret".equals(details.path("fieldPath").asText())) {
+                            siemSecretDetails = details;
+                        }
+                    }
+                }
+            }
+            if (siemSecretDetails == null) {
+                Thread.sleep(200);
+            }
+        }
+        assertThat(siemSecretDetails)
+                .as("SIEM sink should also receive the encrypted-field UPDATE row redacted, not plaintext")
+                .isNotNull();
+        assertThat(siemSecretDetails.path("before").asText()).isEqualTo("[REDACTED]");
+        assertThat(siemSecretDetails.path("after").asText()).isEqualTo("[REDACTED]");
     }
 
     /**

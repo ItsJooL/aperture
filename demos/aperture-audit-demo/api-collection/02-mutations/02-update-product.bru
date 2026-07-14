@@ -25,10 +25,19 @@ body:json {
       "type": "products",
       "id": "{{productId}}",
       "attributes": {
-        "name": "Audit Widget Updated"
+        "name": "Audit Widget Updated",
+        "supplier_secret": "contract floor 42 v2"
       }
     }
   }
+}
+
+docs {
+  Changes both a plain field (name) and the encrypted field (supplier_secret).
+  Elide's per-field UPDATE lifecycle hook fires once per changed field, so this
+  produces two separate audit rows: one with the real before/after name values,
+  and one for supplier_secret redacted to "[REDACTED]" by default — see
+  03-audit-query for how to tell them apart.
 }
 
 assert {

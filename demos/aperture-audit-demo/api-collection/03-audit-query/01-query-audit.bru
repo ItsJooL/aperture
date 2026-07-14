@@ -13,6 +13,15 @@ auth:bearer {
   token: {{accessToken}}
 }
 
+docs {
+  Look for two UPDATE rows from the previous request's PATCH: one with
+  fieldPath "name" showing the real before/after values, and one with
+  fieldPath "supplier_secret" (the manifest's encrypted: true field) showing
+  before and after both as the literal string "[REDACTED]" — Aperture's
+  default encrypted-field redaction in the audit trail (aperture.audit.
+  redaction.enabled, on by default).
+}
+
 assert {
   res.status: eq 200
   res.body: isArray
