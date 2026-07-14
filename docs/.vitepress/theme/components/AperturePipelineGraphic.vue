@@ -1,5 +1,5 @@
 <template>
-<svg class="pipeline" viewBox="0 0 1857 672" xmlns="http://www.w3.org/2000/svg"
+<svg class="pipeline" viewBox="-293.2 -106.1 2443.4 884.2" xmlns="http://www.w3.org/2000/svg"
      role="img" aria-label="Aperture workflow: YAML manifests → Aperture engine → REST API, database, MCP tools">
 
   <defs>
@@ -324,11 +324,11 @@
     <path d="M164,496 L490,496 L490,452 L668,452" marker-end="url(#ah)"/>
 
     <!-- Orbital top-right → MCP -->
-    <path d="M1159,172 L1345,172 L1345,130 L1520,130" marker-end="url(#ah)"/>
+    <path d="M1159,172 L1345,172 L1345,130 L1500,130" marker-end="url(#ah)"/>
     <!-- Orbital center-right → Database -->
-    <path d="M1197,314 L1375,314 L1375,345 L1519,345" marker-end="url(#ah)"/>
+    <path d="M1197,314 L1375,314 L1375,345 L1499,345" marker-end="url(#ah)"/>
     <!-- Orbital bottom-right → JSON:API logo -->
-    <path d="M1159,452 L1345,452 L1345,536 L1385,536" marker-end="url(#ah)"/>
+    <path d="M1159,452 L1345,452 L1345,536 L1365,536" marker-end="url(#ah)"/>
   </g>
 
 </svg>
