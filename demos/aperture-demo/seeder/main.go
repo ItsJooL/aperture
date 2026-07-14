@@ -90,6 +90,44 @@ type seeder struct {
 	logger  *slog.Logger
 }
 
+type catalogResource struct {
+	kind         string
+	resourceType string
+	path         string
+	name         string
+	sku          string
+	attributes   map[string]interface{}
+}
+
+func (s *seeder) seedCatalogResource(token string, resource catalogResource) error {
+	s.logger.Info("creating "+resource.kind, "name", resource.name, "sku", resource.sku)
+	attributes := make(map[string]interface{}, len(resource.attributes)+2)
+	for key, value := range resource.attributes {
+		attributes[key] = value
+	}
+	attributes["name"] = resource.name
+	attributes["sku"] = resource.sku
+	body := map[string]interface{}{
+		"data": map[string]interface{}{
+			"type":       resource.resourceType,
+			"attributes": attributes,
+		},
+	}
+
+	_, status, err := s.postJSONAPI(resource.path, token, body)
+	if err != nil {
+		return fmt.Errorf("create %s %s: %w", resource.kind, resource.name, err)
+	}
+	if status == http.StatusCreated {
+		return nil
+	}
+	if status == http.StatusConflict || status == http.StatusUnprocessableEntity {
+		s.logger.Info(resource.kind+" already exists or duplicate", "name", resource.name)
+		return nil
+	}
+	return fmt.Errorf("create %s %s: status %d", resource.kind, resource.name, status)
+}
+
 func (s *seeder) post(path, token string, body interface{}) (map[string]interface{}, int, error) {
 	b, _ := json.Marshal(body)
 	req, _ := http.NewRequest(http.MethodPost, s.baseURL+path, bytes.NewReader(b))
@@ -373,58 +411,38 @@ func (s *seeder) seedTenant(t TenantSeed, superToken string) error {
 
 	// Seed service packages
 	for _, servicePackage := range t.ServicePackages {
-		s.logger.Info("creating service package", "name", servicePackage.Name, "sku", servicePackage.SKU)
-		body := map[string]interface{}{
-			"data": map[string]interface{}{
-				"type": "servicepackages",
-				"attributes": map[string]interface{}{
-					"name":        servicePackage.Name,
-					"sku":         servicePackage.SKU,
-					"unit_price":  servicePackage.UnitPrice,
-					"description": servicePackage.Description,
-					"active":      true,
-				},
+		if err := s.seedCatalogResource(adminToken, catalogResource{
+			kind:         "service package",
+			resourceType: "servicepackages",
+			path:         "/api/v3/servicepackages",
+			name:         servicePackage.Name,
+			sku:          servicePackage.SKU,
+			attributes: map[string]interface{}{
+				"unit_price":  servicePackage.UnitPrice,
+				"description": servicePackage.Description,
+				"active":      true,
 			},
-		}
-		_, status, err := s.postJSONAPI("/api/v3/servicepackages", adminToken, body)
-		if err != nil {
-			return fmt.Errorf("create service package %s: %w", servicePackage.Name, err)
-		}
-		if status == 201 {
-			continue
-		} else if status == 409 || status == 422 {
-			s.logger.Info("service package already exists or duplicate", "name", servicePackage.Name)
-		} else {
-			return fmt.Errorf("create service package %s: status %d", servicePackage.Name, status)
+		}); err != nil {
+			return err
 		}
 	}
 
 	// Seed subscription plans
 	for _, plan := range t.SubscriptionPlans {
-		s.logger.Info("creating subscription plan", "name", plan.Name, "sku", plan.SKU)
-		body := map[string]interface{}{
-			"data": map[string]interface{}{
-				"type": "subscriptionplans",
-				"attributes": map[string]interface{}{
-					"name":             plan.Name,
-					"sku":              plan.SKU,
-					"unit_price":       plan.UnitPrice,
-					"billing_interval": plan.BillingInterval,
-					"description":      plan.Description,
-					"active":           true,
-				},
+		if err := s.seedCatalogResource(adminToken, catalogResource{
+			kind:         "subscription plan",
+			resourceType: "subscriptionplans",
+			path:         "/api/v3/subscriptionplans",
+			name:         plan.Name,
+			sku:          plan.SKU,
+			attributes: map[string]interface{}{
+				"unit_price":       plan.UnitPrice,
+				"billing_interval": plan.BillingInterval,
+				"description":      plan.Description,
+				"active":           true,
 			},
-		}
-		_, status, err := s.postJSONAPI("/api/v3/subscriptionplans", adminToken, body)
-		if err != nil {
-			return fmt.Errorf("create subscription plan %s: %w", plan.Name, err)
-		}
-		if status == 201 {
-			continue
-		} else if status == 409 || status == 422 {
-			s.logger.Info("subscription plan already exists or duplicate", "name", plan.Name)
-		} else {
-			return fmt.Errorf("create subscription plan %s: status %d", plan.Name, status)
+		}); err != nil {
+			return err
 		}
 	}
 

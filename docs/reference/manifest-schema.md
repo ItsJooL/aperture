@@ -72,10 +72,11 @@ concrete member resource type. `relation` and `mappedBy` do not apply to `oneof`
 rejected. Aperture always creates a composite lookup index over the type and ID columns (unique
 when `unique: true`, non-unique otherwise). In POOL mode for a tenant-scoped owner, the tenant
 column is the leading index column. For `required: true`, Aperture validates JSON:API resource and
-relationship writes and generates a deferred database constraint. The pointer columns remain
-transaction-staging nullable so JSON:API Atomic Operations can insert a resource and attach its
-relationship later in the same transaction; the transaction cannot commit while either pointer is
-null.
+relationship writes and generates a deferred database constraint. The generated Hibernate
+association remains nullable only for transaction staging, so JSON:API Atomic Operations can insert
+a resource and attach its relationship later in the same transaction. This is not optional domain
+state: request validation rejects missing or cleared relationships, and the transaction cannot
+commit while either pointer column is null.
 
 ## OneOf
 

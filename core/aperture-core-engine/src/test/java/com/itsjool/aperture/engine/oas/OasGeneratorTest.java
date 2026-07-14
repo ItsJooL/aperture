@@ -77,20 +77,17 @@ class OasGeneratorTest {
     void emitsOneOfRelationshipDataSchemaWithMemberResourceTypes() throws Exception {
         EntityDef product = entity("Product", null, Map.of());
         EntityDef servicePackage = entity("ServicePackage", "ServicePackages", Map.of());
+        EntityDef subscriptionPlan = entity("SubscriptionPlan", "SubscriptionPlans", Map.of());
         EntityDef lineItem = entity("LineItem", null, Map.of(
             "billable", new FieldDef("oneof", false, false, false, false,
                 null, null, null, null, "Billable", null, null),
             "primaryBillable", new FieldDef("oneof", true, false, false, false,
                 null, null, null, null, "Billable", null, null)));
-        ResolvedDomainModel model = new ResolvedDomainModel(
-            List.of(product, servicePackage, lineItem),
-            List.of(),
-            null,
-            List.of(),
-            List.of(),
-            List.of(),
-            List.of(),
-            List.of(new OneOfDef("Billable", List.of("Product", "ServicePackage"))));
+        ResolvedDomainModel model = ResolvedDomainModel.builder()
+            .entities(List.of(product, servicePackage, subscriptionPlan, lineItem))
+            .oneOfs(List.of(new OneOfDef(
+                "Billable", List.of("Product", "ServicePackage", "SubscriptionPlan"))))
+            .build();
 
         String yaml = new OasGenerator().generate(model, TenancyMode.POOL, List.of("1"));
 
@@ -104,7 +101,8 @@ class OasGeneratorTest {
 
         assertThat(schema.get("description").toString()).contains("Billable");
         assertThat(schema.get("type")).isEqualTo(List.of("object", "null"));
-        assertThat((List<String>) type.get("enum")).containsExactly("products", "servicepackages");
+        assertThat((List<String>) type.get("enum"))
+            .containsExactly("products", "servicepackages", "subscriptionplans");
         assertThat(((Map<String, Object>) schemas.get("LineItemPrimaryBillableRelationshipData")).get("type"))
             .isEqualTo("object");
 

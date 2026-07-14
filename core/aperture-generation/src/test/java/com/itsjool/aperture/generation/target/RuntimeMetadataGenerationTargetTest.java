@@ -26,18 +26,16 @@ class RuntimeMetadataGenerationTargetTest {
     void emitsOneOfSetsMembersResourceTypesAndTargetingFields() throws Exception {
         EntityDef product = entity("Product", null, Map.of());
         EntityDef servicePackage = entity("ServicePackage", "ServicePackages", Map.of());
+        EntityDef subscriptionPlan = entity("SubscriptionPlan", "SubscriptionPlans", Map.of());
         EntityDef lineItem = entity("LineItem", null, Map.of(
             "billable", new FieldDef("oneof", false, false, false, false,
                 null, null, null, null, "Billable", null, null)));
-        ResolvedDomainModel model = new ResolvedDomainModel(
-            List.of(product, servicePackage, lineItem),
-            List.of(),
-            new FrameworkConfigDef(List.of("TenantAdmin"), TenancyMode.POOL, null, null),
-            List.of(),
-            List.of(),
-            List.of(),
-            List.of(),
-            List.of(new OneOfDef("Billable", List.of("Product", "ServicePackage"))));
+        ResolvedDomainModel model = ResolvedDomainModel.builder()
+            .entities(List.of(product, servicePackage, subscriptionPlan, lineItem))
+            .frameworkConfig(new FrameworkConfigDef(List.of("TenantAdmin"), TenancyMode.POOL, null, null))
+            .oneOfs(List.of(new OneOfDef(
+                "Billable", List.of("Product", "ServicePackage", "SubscriptionPlan"))))
+            .build();
         ApertureGenerationRequest request = new ApertureGenerationRequest(
             model, null, null, List.of("1"), TenancyMode.POOL, null);
         StagingGenerationContext context = new StagingGenerationContext(
@@ -50,8 +48,10 @@ class RuntimeMetadataGenerationTargetTest {
         Map<String, Object> oneOfs = (Map<String, Object>) metadata.get("oneOfs");
         Map<String, Object> billable = (Map<String, Object>) oneOfs.get("Billable");
 
-        assertThat((List<String>) billable.get("members")).containsExactly("Product", "ServicePackage");
-        assertThat((List<String>) billable.get("memberResourceTypes")).containsExactly("products", "servicepackages");
+        assertThat((List<String>) billable.get("members"))
+            .containsExactly("Product", "ServicePackage", "SubscriptionPlan");
+        assertThat((List<String>) billable.get("memberResourceTypes"))
+            .containsExactly("products", "servicepackages", "subscriptionplans");
         assertThat((List<Map<String, Object>>) billable.get("fields")).containsExactly(
             Map.of("resource", "lineitems", "field", "billable", "required", false));
     }

@@ -20,3 +20,8 @@ for (const file of files) {
   assert(!/\b(polymorph\w*|inheritance|discriminator)\b/i.test(content),
     `${file} uses internal inheritance vocabulary for the public OneOf model`);
 }
+
+const manifestReference = readFileSync(resolve(docsRoot, 'reference/manifest-schema.md'), 'utf8');
+assert.match(manifestReference,
+  /Hibernate\s+association remains nullable only for transaction staging/i,
+  'manifest reference must explain the intentional ORM staging nullability for required OneOf fields');

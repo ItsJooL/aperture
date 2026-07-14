@@ -86,15 +86,10 @@ public class LockFileManager {
         if (!Files.exists(lockDir)) {
             return new ResolvedDomainModel(List.of());
         }
-        return new ResolvedDomainModel(
-            readAllLockFiles(lockDir),
-            List.of(),
-            null,
-            List.of(),
-            List.of(),
-            List.of(),
-            List.of(),
-            readDomainModelLock(lockDir).oneOfs());
+        return ResolvedDomainModel.builder()
+            .entities(readAllLockFiles(lockDir))
+            .oneOfs(readDomainModelLock(lockDir).oneOfs())
+            .build();
     }
 
     private DomainModelLock readDomainModelLock(Path lockDir) {

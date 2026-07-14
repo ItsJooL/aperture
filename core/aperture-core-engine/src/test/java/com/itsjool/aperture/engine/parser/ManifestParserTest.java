@@ -911,6 +911,15 @@ class ManifestParserTest {
               fields:
                 name: { type: String }
             """);
+        Files.writeString(new File(tempDir, "subscription-plan.yaml").toPath(), """
+            apiVersion: aperture.itsjool.com/v1
+            kind: Entity
+            metadata:
+              name: SubscriptionPlan
+            spec:
+              fields:
+                name: { type: String }
+            """);
         Files.writeString(new File(tempDir, "billable.yaml").toPath(), """
             apiVersion: aperture.itsjool.com/v1
             kind: OneOf
@@ -920,13 +929,14 @@ class ManifestParserTest {
               members:
                 - Product
                 - ServicePackage
+                - SubscriptionPlan
             """);
 
         ResolvedDomainModel model = new ManifestParser().parseDirectory(tempDir);
 
         assertThat(model.oneOfs()).singleElement().satisfies(oneOf -> {
             assertThat(oneOf.name()).isEqualTo("Billable");
-            assertThat(oneOf.members()).containsExactly("Product", "ServicePackage");
+            assertThat(oneOf.members()).containsExactly("Product", "ServicePackage", "SubscriptionPlan");
         });
     }
 }

@@ -231,9 +231,10 @@ retain tenant locality. JSON:API clients send the concrete resource type in the 
 
 Set `required: true` when every owner must select a member. Aperture rejects ordinary and atomic
 resource writes that omit the relationship, rejects attempts to clear it, and enforces the same
-invariant at transaction commit. The database check is deferred deliberately: Atomic Operations
-stages new resources before wiring their relationships, so a valid batch may temporarily contain
-an unset pointer but can never commit one.
+invariant at transaction commit. The generated Hibernate association remains nullable only for
+transaction staging; it does not make the domain relationship optional. The database check is
+deferred deliberately because Atomic Operations stages new resources before wiring their
+relationships, so a valid batch may temporarily contain an unset pointer but can never commit one.
 
 Adding a member to a `OneOf` is treated as a compatible model expansion. Removing a member or
 deleting a `OneOf` is a breaking model change because existing rows may still point at that member.

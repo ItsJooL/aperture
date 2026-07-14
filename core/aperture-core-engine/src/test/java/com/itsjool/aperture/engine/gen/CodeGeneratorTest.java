@@ -186,19 +186,32 @@ class CodeGeneratorTest {
 
     @Test
     void oneOfGeneratesVersionedInterfaceAndAnyAssociation() {
-        OneOfDef billable = new OneOfDef("Billable", List.of("Product", "ServicePackage"));
+        OneOfDef billable = new OneOfDef("Billable", List.of("Product", "ServicePackage", "SubscriptionPlan"));
         EntityDef product = new EntityDef("Product", "products", null, null, false, false, true, Map.of(),
             null, null, null, Map.of(), Map.of());
+        EntityDef servicePackage = new EntityDef("ServicePackage", "servicepackages", null, null,
+            false, false, true, Map.of(), null, null, null, Map.of(), Map.of());
+        EntityDef subscriptionPlan = new EntityDef("SubscriptionPlan", "subscriptionplans", null, null,
+            false, false, true, Map.of(), null, null, null, Map.of(), Map.of());
         EntityDef lineItem = new EntityDef("LineItem", "lineitems", null, null, false, false, true, Map.of(
             "billable", new FieldDef("oneof", true, false, false, false, null, null, null, null, "Billable", null, null)
         ), null, null, null, Map.of(), Map.of());
 
         CodeGenerator generator = new CodeGenerator();
         List<String> interfaces = generator.generateOneOfInterfaces(List.of(billable), List.of("1"));
+        Map<String, EntityDef> entities = Map.of(
+            "Product", product,
+            "ServicePackage", servicePackage,
+            "SubscriptionPlan", subscriptionPlan,
+            "LineItem", lineItem);
         String productSource = String.join("\n", generator.generateForEntity(product, TenancyMode.POOL, List.of("1"),
-            Map.of("Product", product, "LineItem", lineItem), List.of(billable)));
+            entities, List.of(billable)));
+        String servicePackageSource = String.join("\n", generator.generateForEntity(
+            servicePackage, TenancyMode.POOL, List.of("1"), entities, List.of(billable)));
+        String subscriptionPlanSource = String.join("\n", generator.generateForEntity(
+            subscriptionPlan, TenancyMode.POOL, List.of("1"), entities, List.of(billable)));
         String lineItemSource = String.join("\n", generator.generateForEntity(lineItem, TenancyMode.POOL, List.of("1"),
-            Map.of("Product", product, "LineItem", lineItem), List.of(billable)));
+            entities, List.of(billable)));
 
         assertThat(String.join("\n", interfaces))
             .contains("@MappedInterface")
@@ -215,6 +228,10 @@ class CodeGeneratorTest {
             .contains("default void setApertureOneOf(String apertureOneOf)");
         assertThat(productSource)
             .contains("public class ProductV1 implements BillableV1");
+        assertThat(servicePackageSource)
+            .contains("public class ServicePackageV1 implements BillableV1");
+        assertThat(subscriptionPlanSource)
+            .contains("public class SubscriptionPlanV1 implements BillableV1");
         assertThat(lineItemSource)
             .contains("@ToOne")
             .contains("@Any(\n      optional = true\n  )")
@@ -223,6 +240,7 @@ class CodeGeneratorTest {
             .contains("@JoinColumn(\n      name = \"billable_id\"")
             .contains("@AnyDiscriminatorValue(\n      discriminator = \"Product\",\n      entity = ProductV1.class\n  )")
             .contains("@AnyDiscriminatorValue(\n      discriminator = \"ServicePackage\",\n      entity = ServicePackageV1.class\n  )")
+            .contains("@AnyDiscriminatorValue(\n      discriminator = \"SubscriptionPlan\",\n      entity = SubscriptionPlanV1.class\n  )")
             .contains("private BillableV1 billable;")
             .doesNotContain("@NotNull\n  private BillableV1 billable;")
             .doesNotContain("BillableV1V1");

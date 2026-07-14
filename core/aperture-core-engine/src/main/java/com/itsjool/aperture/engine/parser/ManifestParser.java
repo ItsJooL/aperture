@@ -57,10 +57,18 @@ public class ManifestParser {
             throw new RuntimeException("Failed to read directory", e);
         }
 
-            if (files.isEmpty()) {
-                return new ResolvedDomainModel(entities, migrations, new FrameworkConfigDef(List.of(), null, null, null),
-                    roleDefinitions, abacPolicies, apiVersionConfigs, principalAttributeDefinitions, oneOfs);
-            }
+        if (files.isEmpty()) {
+            return ResolvedDomainModel.builder()
+                .entities(entities)
+                .migrations(migrations)
+                .frameworkConfig(new FrameworkConfigDef(List.of(), null, null, null))
+                .roleDefinitions(roleDefinitions)
+                .abacPolicies(abacPolicies)
+                .apiVersionConfigs(apiVersionConfigs)
+                .principalAttributeDefinitions(principalAttributeDefinitions)
+                .oneOfs(oneOfs)
+                .build();
+        }
 
         for (File f : files) {
             try {
@@ -132,9 +140,16 @@ public class ManifestParser {
             }
         }
         
-        ResolvedDomainModel model = new ResolvedDomainModel(entities, migrations,
-            config != null ? config : new FrameworkConfigDef(List.of(), null, null, null),
-            roleDefinitions, abacPolicies, apiVersionConfigs, principalAttributeDefinitions, oneOfs);
+        ResolvedDomainModel model = ResolvedDomainModel.builder()
+            .entities(entities)
+            .migrations(migrations)
+            .frameworkConfig(config != null ? config : new FrameworkConfigDef(List.of(), null, null, null))
+            .roleDefinitions(roleDefinitions)
+            .abacPolicies(abacPolicies)
+            .apiVersionConfigs(apiVersionConfigs)
+            .principalAttributeDefinitions(principalAttributeDefinitions)
+            .oneOfs(oneOfs)
+            .build();
             
         new com.itsjool.aperture.engine.validator.DomainModelValidator().validate(model, locationMap);
         
