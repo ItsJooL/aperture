@@ -77,8 +77,10 @@ class DomainModelValidatorTest {
         OneOfDef billable = new OneOfDef("Billable", List.of("Product", "ServicePackage"));
 
         assertThatCode(() -> validator.validate(
-            new ResolvedDomainModel(List.of(product, servicePackage, lineItem), List.of(), null,
-                List.of(), List.of(), List.of(), List.of(), List.of(billable)),
+            ResolvedDomainModel.builder()
+                .entities(List.of(product, servicePackage, lineItem))
+                .oneOfs(List.of(billable))
+                .build(),
             Map.of()))
             .doesNotThrowAnyException();
     }
@@ -90,8 +92,10 @@ class DomainModelValidatorTest {
         OneOfDef billable = new OneOfDef("Billable", List.of("Product", "LineItem"));
 
         assertThatThrownBy(() -> validator.validate(
-            new ResolvedDomainModel(List.of(product, lineItem), List.of(), null,
-                List.of(), List.of(), List.of(), List.of(), List.of(billable)),
+            ResolvedDomainModel.builder()
+                .entities(List.of(product, lineItem))
+                .oneOfs(List.of(billable))
+                .build(),
             Map.of()))
             .isInstanceOf(ManifestValidationException.class)
             .hasMessageContaining("Unknown oneof target")
@@ -104,8 +108,10 @@ class DomainModelValidatorTest {
         OneOfDef billable = new OneOfDef("Billable", List.of("Product", "Ghost"));
 
         assertThatThrownBy(() -> validator.validate(
-            new ResolvedDomainModel(List.of(product), List.of(), null,
-                List.of(), List.of(), List.of(), List.of(), List.of(billable)),
+            ResolvedDomainModel.builder()
+                .entities(List.of(product))
+                .oneOfs(List.of(billable))
+                .build(),
             Map.of(billable, "billable.yaml")))
             .isInstanceOf(ManifestValidationException.class)
             .hasMessageContaining("Unknown oneof member")
@@ -120,8 +126,10 @@ class DomainModelValidatorTest {
         OneOfDef billable = new OneOfDef("Billable", List.of("Product", "ServicePackage"));
 
         assertThatThrownBy(() -> validator.validate(
-            new ResolvedDomainModel(List.of(product, servicePackage), List.of(), null,
-                List.of(), List.of(), List.of(), List.of(), List.of(billable)),
+            ResolvedDomainModel.builder()
+                .entities(List.of(product, servicePackage))
+                .oneOfs(List.of(billable))
+                .build(),
             Map.of(billable, "billable.yaml")))
             .isInstanceOf(ManifestValidationException.class)
             .hasMessageContaining("same tenant shape")
@@ -136,8 +144,10 @@ class DomainModelValidatorTest {
         OneOfDef billable = new OneOfDef("Billable", List.of("Product", "ServicePackage"));
 
         assertThatThrownBy(() -> validator.validate(
-            new ResolvedDomainModel(List.of(product, servicePackage, lineItem), List.of(), null,
-                List.of(), List.of(), List.of(), List.of(), List.of(billable)),
+            ResolvedDomainModel.builder()
+                .entities(List.of(product, servicePackage, lineItem))
+                .oneOfs(List.of(billable))
+                .build(),
             Map.of(lineItem, "line-item.yaml")))
             .isInstanceOf(ManifestValidationException.class)
             .hasMessageContaining("Global entity LineItem cannot reference tenant-scoped OneOf Billable")
@@ -152,8 +162,10 @@ class DomainModelValidatorTest {
         OneOfDef billable = new OneOfDef("Billable", List.of("Product", "ServicePackage"));
 
         assertThatCode(() -> validator.validate(
-            new ResolvedDomainModel(List.of(product, servicePackage, lineItem), List.of(), null,
-                List.of(), List.of(), List.of(), List.of(), List.of(billable)),
+            ResolvedDomainModel.builder()
+                .entities(List.of(product, servicePackage, lineItem))
+                .oneOfs(List.of(billable))
+                .build(),
             Map.of()))
             .doesNotThrowAnyException();
     }
@@ -168,8 +180,10 @@ class DomainModelValidatorTest {
         OneOfDef billable = new OneOfDef("Billable", List.of("Product", "ServicePackage"));
 
         assertThatThrownBy(() -> validator.validate(
-            new ResolvedDomainModel(List.of(product, servicePackage, lineItem), List.of(), null,
-                List.of(), List.of(), List.of(), List.of(), List.of(billable)),
+            ResolvedDomainModel.builder()
+                .entities(List.of(product, servicePackage, lineItem))
+                .oneOfs(List.of(billable))
+                .build(),
             Map.of(lineItem, "line-item.yaml")))
             .isInstanceOf(ManifestValidationException.class)
             .hasMessageContaining("oneof field LineItem.billable")
@@ -186,8 +200,10 @@ class DomainModelValidatorTest {
         OneOfDef billable = new OneOfDef("Billable", List.of("Product", "ServicePackage"));
 
         assertThatThrownBy(() -> validator.validate(
-            new ResolvedDomainModel(List.of(product, servicePackage, lineItem), List.of(), null,
-                List.of(), List.of(), List.of(), List.of(), List.of(billable)),
+            ResolvedDomainModel.builder()
+                .entities(List.of(product, servicePackage, lineItem))
+                .oneOfs(List.of(billable))
+                .build(),
             Map.of(lineItem, "line-item.yaml")))
             .isInstanceOf(ManifestValidationException.class)
             .hasMessageContaining("oneof field LineItem.billable")

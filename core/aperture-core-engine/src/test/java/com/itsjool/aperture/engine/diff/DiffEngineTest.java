@@ -267,8 +267,8 @@ class DiffEngineTest {
         OneOfDef newBillable = new OneOfDef("Billable", List.of("Product", "ServicePackage", "Subscription"));
 
         DiffResult diff = new DiffEngine().computeDiff(
-            new ResolvedDomainModel(List.of(), List.of(), null, List.of(), List.of(), List.of(), List.of(), List.of(oldBillable)),
-            new ResolvedDomainModel(List.of(), List.of(), null, List.of(), List.of(), List.of(), List.of(), List.of(newBillable)),
+            ResolvedDomainModel.builder().oneOfs(List.of(oldBillable)).build(),
+            ResolvedDomainModel.builder().oneOfs(List.of(newBillable)).build(),
             List.of("1"));
 
         assertThat(diff.hasBreakingChanges()).isFalse();
@@ -281,8 +281,8 @@ class DiffEngineTest {
         OneOfDef newBillable = new OneOfDef("Billable", List.of("Product"));
 
         DiffResult diff = new DiffEngine().computeDiff(
-            new ResolvedDomainModel(List.of(), List.of(), null, List.of(), List.of(), List.of(), List.of(), List.of(oldBillable)),
-            new ResolvedDomainModel(List.of(), List.of(), null, List.of(), List.of(), List.of(), List.of(), List.of(newBillable)),
+            ResolvedDomainModel.builder().oneOfs(List.of(oldBillable)).build(),
+            ResolvedDomainModel.builder().oneOfs(List.of(newBillable)).build(),
             List.of("1"));
 
         assertThat(diff.hasBreakingChanges()).isTrue();
