@@ -1,22 +1,32 @@
 package com.itsjool.aperture.runtime.audit;
 
+import com.itsjool.aperture.runtime.config.ApertureAuditProperties;
+import com.itsjool.aperture.runtime.util.SpringContextHelper;
 import com.itsjool.aperture.spi.AuditEvent;
 import com.itsjool.aperture.spi.AuditWriter;
+import com.itsjool.aperture.spi.Encrypted;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import com.yahoo.elide.annotation.Include;
 import com.yahoo.elide.annotation.LifeCycleHookBinding.Operation;
 import com.yahoo.elide.annotation.LifeCycleHookBinding.TransactionPhase;
+import com.yahoo.elide.core.dictionary.EntityDictionary;
 import com.yahoo.elide.core.security.ChangeSpec;
 import com.yahoo.elide.core.security.RequestScope;
+import jakarta.persistence.Id;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
+import org.springframework.context.support.GenericApplicationContext;
 
+import java.time.Instant;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 
@@ -34,6 +44,15 @@ class AuditBridgeTest {
     void setUp() {
         MockitoAnnotations.openMocks(this);
         auditBridge = new AuditBridge(auditWriter);
+        clearAuditProperties();
+    }
+
+    @AfterEach
+    void tearDown() {
+        // SpringContextHelper's ApplicationContext is a static field shared across every test in
+        // this JVM fork — reset it so a context registered by one test (e.g. the redaction tests
+        // below) can't leak into another test class run in the same fork.
+        clearAuditProperties();
     }
 
     @Test
@@ -169,6 +188,109 @@ class AuditBridgeTest {
         assertThat(details.get("fieldPath").asText()).isEqualTo("occurredAt");
     }
 
+    @Test
+    void occurredAtIsCapturedSynchronouslyAtExecuteTimeNotAtWriterDrainTime() throws Exception {
+        // execute() must fix occurredAt itself, before fire-and-forgetting to the async executor —
+        // that is the entire point of 1I: the value represents when the change happened, not
+        // whatever later moment the (possibly queued/batched) AuditWriter gets around to it.
+        Instant callStart = Instant.now();
+        auditBridge.execute(Operation.CREATE, TransactionPhase.POSTCOMMIT, new Item("occurred-at-1"), null, Optional.empty());
+        Instant callEnd = Instant.now();
+
+        ArgumentCaptor<AuditEvent> captor = ArgumentCaptor.forClass(AuditEvent.class);
+        verify(auditWriter, timeout(500)).write(captor.capture());
+
+        Instant occurredAt = captor.getValue().occurredAt();
+        assertThat(occurredAt).isNotNull();
+        assertThat(occurredAt).isBetween(callStart, callEnd);
+    }
+
+    @Test
+    void encryptedFieldIsRedactedByDefault() throws Exception {
+        AuditBridge bridge = new AuditBridge(auditWriter, OBJECT_MAPPER, entityDictionaryWithEncryptedField());
+        ChangeSpec changeSpec = new ChangeSpec(null, "secret", "old-secret", "new-secret");
+
+        bridge.execute(Operation.UPDATE, TransactionPhase.POSTCOMMIT, new RedactionTestEntity("redact-1"), null, Optional.of(changeSpec));
+
+        ArgumentCaptor<AuditEvent> captor = ArgumentCaptor.forClass(AuditEvent.class);
+        verify(auditWriter, timeout(500)).write(captor.capture());
+        JsonNode details = OBJECT_MAPPER.readTree(captor.getValue().detailsJson());
+        assertThat(details.get("before").asText()).isEqualTo("[REDACTED]");
+        assertThat(details.get("after").asText()).isEqualTo("[REDACTED]");
+    }
+
+    @Test
+    void nonEncryptedFieldOnTheSameEntityIsNotRedacted() throws Exception {
+        AuditBridge bridge = new AuditBridge(auditWriter, OBJECT_MAPPER, entityDictionaryWithEncryptedField());
+        ChangeSpec changeSpec = new ChangeSpec(null, "plain", "old-plain", "new-plain");
+
+        bridge.execute(Operation.UPDATE, TransactionPhase.POSTCOMMIT, new RedactionTestEntity("redact-2"), null, Optional.of(changeSpec));
+
+        ArgumentCaptor<AuditEvent> captor = ArgumentCaptor.forClass(AuditEvent.class);
+        verify(auditWriter, timeout(500)).write(captor.capture());
+        JsonNode details = OBJECT_MAPPER.readTree(captor.getValue().detailsJson());
+        assertThat(details.get("before").asText()).isEqualTo("old-plain");
+        assertThat(details.get("after").asText()).isEqualTo("new-plain");
+    }
+
+    @Test
+    void exemptedEntityFieldPairIsNotRedactedDespiteBeingEncrypted() throws Exception {
+        ApertureAuditProperties properties = new ApertureAuditProperties();
+        ApertureAuditProperties.Exemption exemption = new ApertureAuditProperties.Exemption();
+        exemption.setEntity("RedactionTestEntity");
+        exemption.setField("secret");
+        properties.getRedaction().setExemptions(List.of(exemption));
+        registerAuditProperties(properties);
+
+        AuditBridge bridge = new AuditBridge(auditWriter, OBJECT_MAPPER, entityDictionaryWithEncryptedField());
+        ChangeSpec changeSpec = new ChangeSpec(null, "secret", "old-secret", "new-secret");
+
+        bridge.execute(Operation.UPDATE, TransactionPhase.POSTCOMMIT, new RedactionTestEntity("redact-3"), null, Optional.of(changeSpec));
+
+        ArgumentCaptor<AuditEvent> captor = ArgumentCaptor.forClass(AuditEvent.class);
+        verify(auditWriter, timeout(500)).write(captor.capture());
+        JsonNode details = OBJECT_MAPPER.readTree(captor.getValue().detailsJson());
+        assertThat(details.get("before").asText()).isEqualTo("old-secret");
+        assertThat(details.get("after").asText()).isEqualTo("new-secret");
+    }
+
+    @Test
+    void redactionDisabledGloballySkipsRedactionEvenForEncryptedFields() throws Exception {
+        ApertureAuditProperties properties = new ApertureAuditProperties();
+        properties.getRedaction().setEnabled(false);
+        registerAuditProperties(properties);
+
+        AuditBridge bridge = new AuditBridge(auditWriter, OBJECT_MAPPER, entityDictionaryWithEncryptedField());
+        ChangeSpec changeSpec = new ChangeSpec(null, "secret", "old-secret", "new-secret");
+
+        bridge.execute(Operation.UPDATE, TransactionPhase.POSTCOMMIT, new RedactionTestEntity("redact-4"), null, Optional.of(changeSpec));
+
+        ArgumentCaptor<AuditEvent> captor = ArgumentCaptor.forClass(AuditEvent.class);
+        verify(auditWriter, timeout(500)).write(captor.capture());
+        JsonNode details = OBJECT_MAPPER.readTree(captor.getValue().detailsJson());
+        assertThat(details.get("before").asText()).isEqualTo("old-secret");
+        assertThat(details.get("after").asText()).isEqualTo("new-secret");
+    }
+
+    private static EntityDictionary entityDictionaryWithEncryptedField() {
+        EntityDictionary dictionary = EntityDictionary.builder().build();
+        dictionary.bindEntity(RedactionTestEntity.class);
+        return dictionary;
+    }
+
+    private static void registerAuditProperties(ApertureAuditProperties properties) {
+        GenericApplicationContext context = new GenericApplicationContext();
+        context.registerBean(ApertureAuditProperties.class, () -> properties);
+        context.refresh();
+        new SpringContextHelper().setApplicationContext(context);
+    }
+
+    private static void clearAuditProperties() {
+        GenericApplicationContext context = new GenericApplicationContext();
+        context.refresh();
+        new SpringContextHelper().setApplicationContext(context);
+    }
+
     /**
      * Retries {@code assertion} until it stops throwing {@link AssertionError} or a two-second
      * deadline elapses, then rethrows the last failure. Mirrors the bounded poll-until pattern
@@ -237,6 +359,30 @@ class AuditBridgeTest {
         private String id;
 
         Item(String id) {
+            this.id = id;
+        }
+
+        public String getId() {
+            return id;
+        }
+    }
+
+    // Must be @Include-annotated and bound to a real EntityDictionary (see
+    // entityDictionaryWithEncryptedField()) for the @Encrypted reflective lookup in
+    // AuditBridge#isRedacted to resolve — an unbound class makes that lookup throw, which
+    // AuditBridge deliberately treats as "no signal, don't redact" (see the tests above that use
+    // the plain Item/ProductV1/etc. classes, which are never bound to any dictionary).
+    @Include(name = "redactionTestEntities")
+    static class RedactionTestEntity {
+        @Id
+        private String id;
+
+        @Encrypted
+        private String secret;
+
+        private String plain;
+
+        RedactionTestEntity(String id) {
             this.id = id;
         }
 

@@ -203,11 +203,12 @@ public class ApertureSimpleAutoConfiguration {
     @Bean
     public com.itsjool.aperture.runtime.audit.AuditBridge auditBridge(
             com.itsjool.aperture.spi.AuditWriter auditWriter,
-            com.fasterxml.jackson.databind.ObjectMapper objectMapper) {
+            com.fasterxml.jackson.databind.ObjectMapper objectMapper,
+            EntityDictionary entityDictionary) {
         // Use the Spring-managed ObjectMapper (Spring Boot registers JavaTimeModule on it) rather
         // than the bridge's own no-arg-constructor default, which cannot serialize java.time types
         // (e.g. LocalDateTime datetime fields) and would silently fall back on every such update.
-        return new com.itsjool.aperture.runtime.audit.AuditBridge(auditWriter, objectMapper);
+        return new com.itsjool.aperture.runtime.audit.AuditBridge(auditWriter, objectMapper, entityDictionary);
     }
 
     @Bean

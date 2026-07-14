@@ -47,6 +47,12 @@ class CodeGeneratorTest {
         assertThat(joined).contains("private UUID apertureTenantId;");
         assertThat(joined).contains("@Convert(\n      converter = CustomerSsnConverter.class\n  )");
         assertThat(joined).contains("public class CustomerSsnConverter implements AttributeConverter<String, String>");
+        // The @Encrypted marker is purely additive metadata (no encryption-mechanism change): it
+        // must land on the encrypted "ssn" field (alongside the @Convert converter it already
+        // carries) only, never on the non-encrypted "email" field. Both versions (V1, V2) generate
+        // an ssn field, so @Encrypted must appear exactly twice — not on "email" in either version.
+        assertThat(joined).contains("@Convert(\n      converter = CustomerSsnConverter.class\n  )\n  @Encrypted\n");
+        assertThat(joined.split("@Encrypted", -1).length - 1).isEqualTo(2);
         assertThat(joined).contains("public class CustomerV2TenantFilter extends FilterExpressionCheck<CustomerV2>");
         assertThat(joined).contains("public class CustomerV2SoftDeleteFilter extends FilterExpressionCheck<CustomerV2>");
         assertThat(joined).contains("@Component");

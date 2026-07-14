@@ -13,7 +13,7 @@ import org.springframework.core.Ordered;
 
 @Configuration
 @ComponentScan(basePackages = "com.itsjool.aperture.runtime")
-@EnableConfigurationProperties({CorsProperties.class, ApertureRateLimitProperties.class})
+@EnableConfigurationProperties({CorsProperties.class, ApertureRateLimitProperties.class, ApertureAuditProperties.class})
 public class ApertureRuntimeAutoConfiguration {
     @Bean
     public ApertureRuntimeMetadata apertureRuntimeMetadata(ObjectMapper objectMapper) {

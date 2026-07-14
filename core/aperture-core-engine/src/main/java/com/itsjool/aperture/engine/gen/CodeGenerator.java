@@ -314,6 +314,10 @@ public class CodeGenerator {
                 if (field.encrypted()) {
                     String converterName = entityDef.name() + capitalize(fieldName) + "Converter";
                     fieldBuilder.addAnnotation(com.palantir.javapoet.AnnotationSpec.builder(ClassName.get("jakarta.persistence", "Convert")).addMember("converter", "$T.class", ClassName.get("com.itsjool.aperture.generated", converterName)).build());
+                    // Purely additive runtime signal (no effect on the encryption mechanism itself):
+                    // AuditBridge looks this up via EntityDictionary to redact this field's before/after
+                    // values in the audit trail by default.
+                    fieldBuilder.addAnnotation(ClassName.bestGuess(ApertureRuntimeClassNames.ENCRYPTED));
                 }
                 
                 if (field.required()) {
