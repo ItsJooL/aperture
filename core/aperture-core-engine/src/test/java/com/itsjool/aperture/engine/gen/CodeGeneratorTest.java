@@ -52,6 +52,12 @@ class CodeGeneratorTest {
             .contains("if (tenantId != null) this.apertureTenantId = java.util.UUID.fromString(tenantId)");
         assertThat(joined).contains("@Convert(\n      converter = CustomerSsnConverter.class\n  )");
         assertThat(joined).contains("public class CustomerSsnConverter implements AttributeConverter<String, String>");
+        // The @Encrypted marker is purely additive metadata (no encryption-mechanism change): it
+        // must land on the encrypted "ssn" field (alongside the @Convert converter it already
+        // carries) only, never on the non-encrypted "email" field. Both versions (V1, V2) generate
+        // an ssn field, so @Encrypted must appear exactly twice — not on "email" in either version.
+        assertThat(joined).contains("@Convert(\n      converter = CustomerSsnConverter.class\n  )\n  @Encrypted\n");
+        assertThat(joined.split("@Encrypted", -1).length - 1).isEqualTo(2);
         assertThat(joined).contains("public class CustomerV2TenantFilter extends FilterExpressionCheck<CustomerV2>");
         assertThat(joined).contains("public class CustomerV2SoftDeleteFilter extends FilterExpressionCheck<CustomerV2>");
         assertThat(joined).contains("@Component");
@@ -324,7 +330,7 @@ class CodeGeneratorTest {
         EntityDef supplier = new EntityDef("Supplier", "suppliers", null, null, false, false, false,
             Map.of(), Map.of(), Map.of(), List.of(), Map.of(),
             Map.of("NotifySupplier", new HookDef("trigger", List.of("create", "update", "delete"),
-                null, "http://hook")));
+                null, "http://hook", 5)));
 
         List<String> classes = new CodeGenerator().generateForEntity(supplier, TenancyMode.NONE, List.of("1"));
         String joined = String.join("\n\n", classes);
@@ -334,8 +340,42 @@ class CodeGeneratorTest {
             .contains("operation = Operation.UPDATE")
             .contains("operation = Operation.DELETE")
             .contains("phase = TransactionPhase.POSTCOMMIT")
-            .contains("executeHook(\"NotifySupplier\", \"Supplier\", \"POSTCOMMIT\", \"http://hook\", payload, req, \"warn\", 0, true)")
+            // 5 (trigger's cap), not the pre-plan-032 hardcoded 0 — proves the manifest's retries
+            // value now reaches the generated call instead of being dropped on the floor.
+            .contains("executeHook(\"NotifySupplier\", \"Supplier\", \"POSTCOMMIT\", \"http://hook\", payload, req, \"warn\", 5, true)")
             .doesNotContain("if (!true)");
+    }
+
+    @Test
+    void hookRetriesDefaultToZeroWhenOmittedFromManifest() {
+        // Backward compatibility: a hook with no `retries` field (the 4-arg HookDef constructor,
+        // matching every pre-plan-032 manifest) must still emit a literal 0, unchanged.
+        EntityDef invoice = new EntityDef("Invoice", "invoices", null, null, false, false, false,
+            Map.of(), Map.of(), Map.of(), List.of(), Map.of(),
+            Map.of("ValidateInvoice", new HookDef("validate", List.of("create", "update"),
+                "reject", "http://hook")));
+
+        List<String> classes = new CodeGenerator().generateForEntity(invoice, TenancyMode.NONE, List.of("1"));
+        String joined = String.join("\n\n", classes);
+
+        assertThat(joined)
+            .contains("executeHook(\"ValidateInvoice\", \"Invoice\", \"PRECOMMIT\", \"http://hook\", payload, req, \"reject\", 0, false)");
+    }
+
+    @Test
+    void unreachableOperation_stillEmitsPrefabRoleNone() {
+        // Pins CodeGenerator's delegation to EntityOperations.reachableOperations (plan 016): an
+        // entity that declares a role for "read" only must still collapse "delete" to
+        // Prefab.Role.None, exactly as before the refactor that introduced the shared predicate.
+        EntityDef entity = new EntityDef("Widget", "widgets", null, null, false, false, false,
+            Map.of(), Map.of("Viewer", List.of("read")), Map.of(), List.of(), Map.of(), Map.of());
+
+        List<String> classes = new CodeGenerator().generateForEntity(entity, TenancyMode.NONE, List.of("1"));
+        String joined = String.join("\n\n", classes);
+
+        // SuperAdminCheck is always OR'd in separately, on top of the per-op expression; the
+        // op-level expression itself — what EntityOperations decides — is Prefab.Role.None.
+        assertThat(joined).contains("expression = \"SuperAdminCheck OR Prefab.Role.None\"");
     }
 
     @Test
@@ -352,5 +392,40 @@ class CodeGeneratorTest {
             .contains("phase = TransactionPhase.PRECOMMIT")
             .contains("executeHookWithResponse(\"NormalizeCustomer\", \"Customer\", \"PRECOMMIT\", \"http://hook\", payload, req, \"passthrough\")")
             .contains("HookPayloadBuilder.applyEnrichmentOverrides");
+    }
+
+    @Test
+    void semanticGuardUsesPresecurityAndSynchronousJoin() {
+        EntityDef account = new EntityDef("Account", "accounts", null, null, false, false, false,
+            Map.of(), Map.of(), Map.of(), List.of(), Map.of(),
+            Map.of("IpAllowlist", new HookDef("guard", List.of("create", "update", "delete"),
+                "reject", "http://hook", 2)));
+
+        List<String> classes = new CodeGenerator().generateForEntity(account, TenancyMode.NONE, List.of("1"));
+        String joined = String.join("\n\n", classes);
+
+        assertThat(joined)
+            .contains("phase = TransactionPhase.PRESECURITY")
+            // 2 (guard/validate's synchronous cap), not the pre-plan-032 hardcoded 0.
+            .contains("java.util.concurrent.CompletableFuture<Boolean> future = hookExecutor.executeHook(\"IpAllowlist\", \"Account\", \"PRESECURITY\", \"http://hook\", payload, req, \"reject\", 2, false)")
+            .contains("future.join()")
+            .doesNotContain("executeHookWithResponse");
+    }
+
+    @Test
+    void semanticValidateUsesPrecommitAndSynchronousJoin() {
+        EntityDef invoice = new EntityDef("Invoice", "invoices", null, null, false, false, false,
+            Map.of(), Map.of(), Map.of(), List.of(), Map.of(),
+            Map.of("ValidateInvoice", new HookDef("validate", List.of("create", "update"),
+                "reject", "http://hook", 2)));
+
+        List<String> classes = new CodeGenerator().generateForEntity(invoice, TenancyMode.NONE, List.of("1"));
+        String joined = String.join("\n\n", classes);
+
+        assertThat(joined)
+            .contains("phase = TransactionPhase.PRECOMMIT")
+            .contains("java.util.concurrent.CompletableFuture<Boolean> future = hookExecutor.executeHook(\"ValidateInvoice\", \"Invoice\", \"PRECOMMIT\", \"http://hook\", payload, req, \"reject\", 2, false)")
+            .contains("future.join()")
+            .doesNotContain("executeHookWithResponse");
     }
 }

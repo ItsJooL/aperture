@@ -23,6 +23,24 @@ wait_healthy() {
     pass "Service healthy"
 }
 
+# The API reports healthy before the seeder has run, so every assertion about seeded data
+# races the seeder unless we wait for it. A stale volume masks this: the previous run's data
+# is already there. Poll until the seeder's project shows up.
+wait_for_seed() {
+    local token="$1"
+    local deadline=$((SECONDS + TIMEOUT))
+    echo "Waiting for the seeder to finish (timeout ${TIMEOUT}s) ..."
+    while :; do
+        local body count
+        body=$(curl -s "$BASE_URL/api/v1/projects" -H "Authorization: Bearer $token" \
+            -H "Accept: application/vnd.api+json")
+        count=$(echo "$body" | jq -r '.data | length' 2>/dev/null || echo 0)
+        [ -n "$count" ] && [ "$count" -ge 1 ] && { pass "Seeder finished"; return 0; }
+        [ $SECONDS -lt $deadline ] || { fail "Seeder did not seed within ${TIMEOUT}s"; exit 1; }
+        sleep 2
+    done
+}
+
 req() {
     local method="$1" url="$2" body="${3:-}" token="${4:-}" accept="${5:-application/json}"
     local args=(-s -w "\n%{http_code}" -X "$method" "$url" -H "Content-Type: application/json" -H "Accept: $accept")
@@ -56,6 +74,9 @@ main() {
     [ "$status" = "200" ] && [ -n "$TOKEN" ] \
         && pass "Superadmin login" \
         || { fail "Superadmin login: status=$status"; echo "$body"; exit 1; }
+
+    echo ""
+    wait_for_seed "$TOKEN"
 
     echo ""
     echo "Testing: Seeded project visible over JSON:API"
@@ -94,6 +115,46 @@ main() {
         || fail "MCP tools/list: status=$status missing=[$missing] tools=$tool_names"
 
     echo ""
+    echo "Testing: Principal-scoped tools/list (plan 016 phase 2) - ReadOnly key sees only reads"
+    response=$(req POST "$BASE_URL/auth/login" \
+        '{"username":"agent-admin@mcp-demo.local","password":"changeme-local-only"}')
+    status=$(echo "$response" | tail -n1)
+    body=$(echo "$response" | sed '$d')
+    AGENT_ADMIN_TOKEN=$(extract "$body" ".accessToken")
+    [ "$status" = "200" ] && [ -n "$AGENT_ADMIN_TOKEN" ] \
+        || { fail "agent-admin login: status=$status"; exit 1; }
+
+    response=$(req POST "$BASE_URL/auth/me/api-keys" \
+        '{"name":"Smoke test ReadOnly key","domainRoles":["ReadOnly"],"securityAttributes":{}}' \
+        "$AGENT_ADMIN_TOKEN")
+    status=$(echo "$response" | tail -n1)
+    body=$(echo "$response" | sed '$d')
+    READONLY_KEY=$(extract "$body" ".secret")
+    [ "$status" = "201" ] && [ -n "$READONLY_KEY" ] \
+        || { fail "Mint ReadOnly API key: status=$status body=$body"; exit 1; }
+
+    # req()/mcp_call() send an Authorization: Bearer header, but MCP demo keys authenticate via
+    # X-API-Key, so build this request manually.
+    response=$(curl -s -w "\n%{http_code}" -X POST "$BASE_URL/mcp" \
+        -H "Content-Type: application/json" -H "Accept: application/json, text/event-stream" \
+        -H "X-API-Key: $READONLY_KEY" \
+        -d '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}')
+    status=$(echo "$response" | tail -n1)
+    body=$(echo "$response" | sed '$d')
+    readonly_tool_names=$(extract "$body" "[.result.tools[].name] | join(\",\")")
+    unexpected=""
+    for tool in create_project update_project delete_project create_task update_task delete_task; do
+        echo "$readonly_tool_names" | grep -q "$tool" && unexpected="$unexpected $tool"
+    done
+    missing=""
+    for tool in list_projects get_project list_tasks get_task; do
+        echo "$readonly_tool_names" | grep -q "$tool" || missing="$missing $tool"
+    done
+    [ "$status" = "200" ] && [ -z "$unexpected" ] && [ -z "$missing" ] \
+        && pass "ReadOnly API key sees only the four read tools: $readonly_tool_names" \
+        || fail "ReadOnly tools/list: status=$status unexpected=[$unexpected] missing=[$missing] tools=$readonly_tool_names"
+
+    echo ""
     echo "Testing: MCP tools/call list_tasks"
     response=$(mcp_call "$TOKEN" 2 "tools/call" '{"name":"list_tasks","arguments":{}}')
     status=$(echo "$response" | tail -n1)
@@ -124,7 +185,7 @@ main() {
 
     echo ""
     echo "Testing: MCP tools/call create_task links a ManyToOne relationship by raw id"
-    [ -n "$SEEDED_PROJECT_ID" ] || fail "No seeded project id to link a task to"
+    [ -n "$SEEDED_PROJECT_ID" ] || { fail "No seeded project id to link a task to"; exit 1; }
     response=$(mcp_call "$TOKEN" 4 "tools/call" \
         "{\"name\":\"create_task\",\"arguments\":{\"title\":\"Smoke Test Task\",\"project_id\":\"$SEEDED_PROJECT_ID\"}}")
     status=$(echo "$response" | tail -n1)
@@ -139,9 +200,10 @@ main() {
     body=$(echo "$response" | sed '$d')
     linked_project_id=$(extract "$body" \
         '[.data[] | select(.attributes.title == "Smoke Test Task")][0].relationships.project.data.id')
-    [ "$status" = "200" ] && [ "$linked_project_id" = "$SEEDED_PROJECT_ID" ] \
+    # Require a non-empty id: without this, an unseeded stack compares "" to "" and passes.
+    [ "$status" = "200" ] && [ -n "$linked_project_id" ] && [ "$linked_project_id" = "$SEEDED_PROJECT_ID" ] \
         && pass "MCP-created task is linked to project $SEEDED_PROJECT_ID" \
-        || { fail "MCP-created task relationship: expected project $SEEDED_PROJECT_ID, got '$linked_project_id'"; }
+        || { fail "MCP-created task relationship: expected project '$SEEDED_PROJECT_ID', got '$linked_project_id'"; }
 
     echo ""
     echo "Testing: Unauthenticated MCP request is rejected"

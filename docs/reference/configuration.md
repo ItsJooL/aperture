@@ -142,10 +142,10 @@ aperture:
 
 | Property | Type | Default | Description |
 |---|---|---|---|
-| `aperture.hooks.secret` | string | `default-secret` | Shared secret sent in `X-Hook-Secret` header |
+| `aperture.hooks.secret` | string | `default-hook-secret` | Shared secret sent in `X-Hook-Secret` header |
 | `aperture.hooks.base-url` | string | (empty) | Override the host portion of all hook URLs |
-| `aperture.hooks.timeout.commit` | duration string | `5s` | Timeout for synchronous guard, validate, and mutate hooks |
-| `aperture.hooks.timeout.async` | duration string | `5s` | Timeout for asynchronous trigger hooks |
+| `aperture.hooks.timeout.commit` | duration string | `5s` | Timeout for the phase-gated `validate` (PRECOMMIT) and `trigger` (POSTCOMMIT) hook calls |
+| `aperture.hooks.timeout.async` | duration string | `30s` | Timeout for `guard` (PRESECURITY) hook calls, and — hardcoded regardless of phase — every `mutate` call |
 | `aperture.hooks.timeout.connect` | duration string | `2s` | TCP connect timeout |
 
 ```yaml
@@ -162,8 +162,8 @@ aperture:
 
 | Property | Type | Default | Description |
 |---|---|---|---|
-| `aperture.mcp.enabled` | boolean | `false` | Activates `ApertureMcpAutoConfiguration`. With this unset or `false`, no MCP beans (adapter, tool callback provider, sanitization filter) are registered at all, regardless of what else is on the classpath |
-| `aperture.mcp.transport` | string | — | Bound for parity with the manifest's `spec.mcp.transport`, but not read by any runtime code path today — the active transport is controlled entirely by `spring.ai.mcp.server.protocol` below. Setting it has no effect |
+| `aperture.mcp.enabled` | boolean | `false` | Activates `ApertureMcpAutoConfiguration`. With this unset or `false`, no MCP beans (adapter, tool callback provider, sanitization filter, tools/list filter) are registered at all, regardless of what else is on the classpath |
+| `aperture.mcp.tool-list-scope` | `PRINCIPAL` \| `STATIC` | `PRINCIPAL` | `PRINCIPAL` scopes `tools/list` to the calling principal's roles and principal-only ABAC policies. `STATIC` restores the pre-phase-2 behavior: every generated tool is listed to every caller regardless of role |
 | `spring.ai.mcp.server.protocol` | string | `STATELESS` | MCP server mode. Aperture currently supports stateless HTTP |
 | `spring.ai.mcp.server.streamable-http.mcp-endpoint` | string | `/mcp` | HTTP endpoint for MCP JSON-RPC requests |
 | `spring.ai.mcp.server.name` | string | — | MCP server name shown to clients |
@@ -174,10 +174,15 @@ Spring AI's `spring.ai.mcp.server.*` properties control the transport. For
 the current stateless HTTP transport, direct HTTP clients should send both
 `Content-Type: application/json` and `Accept: application/json, text/event-stream`.
 
+There is no `aperture.mcp.transport` property. The manifest's `spec.mcp.transport`
+records intent and is validated during generation, but the transport the server
+actually speaks comes from `spring.ai.mcp.server.protocol`.
+
 ```yaml
 aperture:
   mcp:
     enabled: true
+    tool-list-scope: PRINCIPAL # or STATIC
 
 spring:
   ai:
@@ -189,6 +194,32 @@ spring:
         streamable-http:
           mcp-endpoint: /mcp
 ```
+
+### Principal-scoped `tools/list`
+
+With `tool-list-scope: PRINCIPAL` (the default), a caller only sees the generated tools their
+`domainRoles` and principal-only ABAC policies (expressions referencing only `#user`, decidable
+with no row in hand) could plausibly succeed at — e.g. a `ReadOnly`-role API key sees `list_*`/`get_*`
+tools but not `create_*`/`update_*`/`delete_*`. Superadmin principals always see every tool, and a
+TenantAdmin principal sees every tool of a tenant-scoped (or `scopedBy`) entity regardless of their
+own `domainRoles` — mirroring the `TenantAdminCheck` bypass Elide already grants those entities.
+
+**This is not an authorization boundary.** It exists purely so an agent-facing tool list — which
+functions like a prompt on every conversation — doesn't tempt a model with tools its principal
+would never actually succeed at calling. `tools/call` is still authorized for real by Elide on
+every invocation, completely independent of what `tools/list` returned; a bug in this filtering can
+leak a tool *name* to a caller who shouldn't see it, but it can never leak data and can never let a
+call through that Elide would otherwise reject. See `McpToolListFilter`'s javadoc in
+`aperture-simple-mcp`.
+
+An ABAC policy expression referencing `#record` or `#input` is row-scoped and cannot be decided
+without a row in hand; such policies never participate in `tools/list` filtering. If a role also
+grants the same operation, the tool they apply to stays listed for that role, unfiltered by the
+row-scoped policy — Elide alone enforces it on the actual call. But if the operation is granted
+*only* by a row-scoped policy (no role grants it), the tool has no role to be listed under, so it
+is hidden from every caller except SuperAdmin and (for tenant-scoped/`scopedBy` entities)
+TenantAdmin. `McpToolContribution` tools have no entity or operation and are never
+registry-governed — they are always listed, regardless of `tool-list-scope`.
 
 See [Extending MCP](/guide/manifests#extending-mcp) for the two ways to add behavior beyond
 the generated per-entity tools: build-time tool contributions (`McpToolContribution`) and the
@@ -217,6 +248,27 @@ owning entities and ordinary relationships remain available. Use JSON:API, the g
 generated MCP tools to read and write the selected one-of member.
 
 To disable GraphQL entirely, omit the `elide.graphql` block or set `elide.graphql.enabled: false` — this is also the default if the block is absent.
+
+## Tracing (`management.tracing`)
+
+These are standard Spring Boot / Micrometer Tracing properties, not `aperture.*` ones — Aperture only supplies a default for the sampling probability.
+
+| Property | Type | Default | Description |
+|---|---|---|---|
+| `management.tracing.sampling.probability` | double | `0.1` | Fraction of requests traced. The `0.1` default is set by `ApertureDefaultsEnvironmentPostProcessor`; override to sample more (e.g. `1.0`, as `demos/aperture-demo` does, for full tracing in a demo/test environment) |
+| `management.otlp.tracing.endpoint` | string | — | OTLP/HTTP trace exporter endpoint, e.g. `http://jaeger:4318/v1/traces`. Requires the OTel exporter dependency on the classpath |
+
+```yaml
+management:
+  tracing:
+    sampling:
+      probability: 1.0
+  otlp:
+    tracing:
+      endpoint: "http://jaeger:4318/v1/traces"
+```
+
+See [Observability](/guide/observability#configuration) for the full tracing/metrics picture, including the spans and metrics Aperture emits once tracing is configured.
 
 ## Security (`aperture.server`)
 

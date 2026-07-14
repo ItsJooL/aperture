@@ -7,7 +7,7 @@ import org.springframework.boot.autoconfigure.domain.EntityScan;
 
 import org.springframework.boot.autoconfigure.domain.EntityScan;
 
-@SpringBootApplication(scanBasePackages = {"com.itsjool.aperture"})
+@SpringBootApplication(scanBasePackages = {"com.itsjool.aperture.demo"})
 @EntityScan(basePackages = {"com.itsjool.aperture"})
 public class DemoApplication {
     public static void main(String[] args) {

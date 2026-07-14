@@ -11,4 +11,3 @@ spec:
   mcp:
     enabled: true
     transport: stateless
-    tools: [list, get, create, update, delete]

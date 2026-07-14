@@ -2,6 +2,7 @@ package com.itsjool.aperture.mcp;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.itsjool.apertureautoconfigure.mcp.ApertureMcpAutoConfiguration;
 import com.yahoo.elide.spring.controllers.JsonApiController;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.HttpHeaders;

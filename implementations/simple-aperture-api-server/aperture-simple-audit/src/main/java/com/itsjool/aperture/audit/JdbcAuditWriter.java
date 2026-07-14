@@ -73,7 +73,7 @@ public class JdbcAuditWriter implements AuditWriter {
 
                     try {
                         jdbcTemplate.batchUpdate(
-                            "INSERT INTO aperture_audit_log (id, user_id, tenant_id, entity, entity_id, operation, timestamp, details) VALUES (?, ?, ?, ?, ?, ?, NOW(), ?::jsonb)",
+                            "INSERT INTO aperture_audit_log (id, user_id, tenant_id, entity, entity_id, operation, timestamp, details) VALUES (?, ?, ?, ?, ?, ?, ?, ?::jsonb)",
                             batch,
                             batch.size(),
                             (ps, qe) -> {
@@ -83,7 +83,12 @@ public class JdbcAuditWriter implements AuditWriter {
                                 ps.setString(4, qe.event().entity());
                                 ps.setString(5, qe.event().entityId());
                                 ps.setString(6, qe.event().operation());
-                                ps.setString(7, qe.event().detailsJson());
+                                // event.occurredAt() — the moment the audited change actually
+                                // happened (captured by AuditBridge at hook-fire/commit time) — not
+                                // NOW(), which would instead stamp the moment this batch drained
+                                // off the queue, lagging behind by up to the flush interval.
+                                ps.setTimestamp(7, java.sql.Timestamp.from(qe.event().occurredAt()));
+                                ps.setString(8, qe.event().detailsJson());
                             }
                         );
                         for (Observation obs : observations) {

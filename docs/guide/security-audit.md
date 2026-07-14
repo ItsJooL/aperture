@@ -148,6 +148,8 @@ aperture:
       port: 6379
 ```
 
+**The ip bucket has no trusted-proxy support today.** The ip key is taken directly from `HttpServletRequest.getRemoteAddr()` — there is no `X-Forwarded-For` / `Forwarded` header handling and no `ForwardedHeaderFilter` configured. Behind any reverse proxy or load balancer, `getRemoteAddr()` returns the proxy's address for every request, so all clients behind that proxy share one ip-keyed bucket. Because the ip bucket is checked before the user and tenant buckets, one noisy client can exhaust it and cause every other client sharing that proxy to receive `429`s. If you deploy behind a reverse proxy or load balancer, be aware that ip-based rate limiting is effectively shared across all clients until this gets trusted-proxy support.
+
 When a request is rate-limited, Aperture returns `429 Too Many Requests` with headers:
 
 ```
@@ -157,6 +159,8 @@ X-RateLimit-Reset: 1750000000
 ```
 
 The `RateLimitProvider` SPI allows swapping the implementation. The reference implementation keeps state in memory — suitable for single-instance deployments. The demo uses a Valkey-backed provider that loads a small Lua function library once and then executes `FCALL` on each request. For distributed/multi-instance deployments, implement `RateLimitProvider` backed by a shared store. Valkey is a good Redis-compatible option; to keep request overhead low, prefer no persistence or RDB-only snapshots instead of AOF.
+
+**Fail-open on backend errors:** `RateLimitFilter` runs ahead of every request in the app (`HIGHEST_PRECEDENCE + 20`). If the configured `RateLimitProvider` throws — for example a dropped Valkey connection — the filter does not propagate the exception. It logs a single WARN and allows the request through, as if the limit were not exceeded. This is deliberate: letting the exception escape would turn a transient backend outage into a 500 for the entire application. Real limit breaches (the provider returning normally with `allowed=false`) are unaffected and still produce a 429. Each fail-open increments the `aperture.ratelimit.failopen` counter (tagged `type=ip|user|tenant`), so a sustained backend outage that disables rate limiting is alertable. Rejections are likewise counted on `aperture.ratelimit.rejections` (same `type` tag) by both the in-memory and Valkey-backed providers.
 
 ## The audit trail
 
@@ -174,7 +178,7 @@ timestamp  TIMESTAMPTZ NOT NULL
 details    JSONB                 -- changed field path plus before/after values
 ```
 
-Each `AuditEvent` carries: `userId`, `tenantId`, `entity` (entity type name), `entityId`, `operation`, and `detailsJson`. For Elide change events, `detailsJson` is valid JSON with the changed field path and before/after values:
+Each `AuditEvent` carries: `userId`, `tenantId`, `entity` (entity type name), `entityId`, `operation`, `detailsJson`, and `occurredAt`. `occurredAt` is the moment the audited change actually happened — captured by `AuditBridge` when the Elide lifecycle hook fires (i.e. when the transaction committed) — not the moment a downstream `AuditWriter` gets around to persisting or shipping it. The pipeline is asynchronous (`AuditBridge` dispatches on an executor; `WebhookAuditWriter` batches and flushes on an interval), so the two instants can legitimately differ; `occurredAt` is the one that matters for correlating events across systems. It's an `Instant`, serialized by Jackson as an ISO-8601 UTC string (the `...Z` suffix) — parseable natively by essentially every mainstream language's standard library, which matters because the audit trail is typically consumed cross-language by whatever webhook/SIEM sink is on the other end. For Elide change events, `detailsJson` is valid JSON with the changed field path and before/after values:
 
 ```json
 {
@@ -190,6 +194,24 @@ Update details are captured from field-level Elide change events. Create and del
 
 **Querying audit logs:** `GET /manage/audit` (requires `SuperAdmin` or same-tenant `TenantAdmin`). Supports filtering by `tenantId`, `entity`, `entityId`, `userId`, `from`, and `to`. `from` and `to` are ISO timestamp values compared against the audit event timestamp. Tenant admins are always scoped to their own tenant, even if they pass a different `tenantId`.
 
+**Encrypted fields are redacted in the audit trail by default.** `AuditBridge.buildDetailsJson` builds `details` from Elide's `ChangeSpec.getOriginal()`/`getModified()` values — the in-memory Java entity-attribute values Elide's change tracking captures before Hibernate's JPA `AttributeConverter` runs the field's `EncryptionService` conversion at the JDBC boundary. Left alone, that would mean a field marked `encrypted: true` in the manifest appears in **plaintext** in `details`, both in the JDBC audit log and in whatever any custom `AuditWriter` forwards downstream (e.g. `WebhookAuditWriter` posting to an external SIEM). To close that gap, `CodeGenerator` emits a runtime-queryable `@Encrypted` marker annotation on every generated field where the manifest declares `encrypted: true` (purely additive — it has no effect on the encryption mechanism itself). `AuditBridge` looks this up per change via `EntityDictionary` and, when a changed field carries the marker, replaces both `before` and `after` with the sentinel `"[REDACTED]"` rather than the real value — same JSON shape, same keys, just a redacted value.
+
+This is on by default; it is configured via `aperture.audit.redaction.*`:
+
+```yaml
+aperture:
+  audit:
+    redaction:
+      enabled: true          # default true — redact encrypted fields by default
+      exemptions:
+        - entity: Customer
+          field: taxId
+```
+
+`redaction.enabled: false` is an explicit, global opt-out — every `encrypted: true` field then appears in plaintext in the audit trail again, same as before this feature existed. `exemptions` is a precise, auditable allowlist of individual entity/field pairs that should **not** be redacted despite being encrypted, for cases where you specifically need the real before/after value in the audit trail for a given field. Prefer a narrow exemption over the global switch wherever possible — it documents exactly which fields were deliberately left in plaintext, rather than turning redaction off everywhere.
+
+**Relationship-only updates produce no audit row:** the generated `UPDATE` audit hook is bound per scalar field (`CodeGenerator`, gated on `field.targetClass() == null`), deliberately excluding relationship fields — their `ChangeSpec` before/after values are entity references or collections, and serializing those risks a `LazyInitializationException`, unbounded/circular serialization, or leaking a whole related entity into the audit trail. There is also no class-level `UPDATE` binding to fall back to (only `CREATE` and `DELETE` are bound at the class level). The result: an `UPDATE` that changes *only* a relationship — for example, reassigning `Invoice.customer` or `Task.assignee` — fires no audit hook at all, so **zero** audit rows are written for that change, in JDBC and in any downstream `AuditWriter`. This is a real gap in the "every CREATE, UPDATE, and DELETE operation is written" guarantee above: it holds for scalar-field changes, but not for relationship-only changes. If your compliance requirements need a row for every UPDATE regardless of which fields changed, you currently need a custom lifecycle hook bound at the class level for `UPDATE`/`POSTCOMMIT`.
+
 **Custom audit destinations:** implement the `AuditWriter` SPI to route audit events to Kafka, S3, a SIEM, or any other destination. The `demos/aperture-audit-demo` project shows a composite writer that keeps JDBC audit queries available while also POSTing audit batches to a WireMock SIEM-style HTTP sink.
 
 ```java
@@ -197,3 +219,39 @@ public interface AuditWriter {
     void write(AuditEvent event);
 }
 ```
+
+### aperture-audit-webhook
+
+`aperture-audit-webhook` is a reusable `AuditWriter` implementation that batches audit events and POSTs them to an HTTP endpoint — the module used by `demos/aperture-audit-demo` to ship events to a SIEM-style sink.
+
+Maven coordinates:
+
+```xml
+<dependency>
+  <groupId>com.itsjool</groupId>
+  <artifactId>aperture-audit-webhook</artifactId>
+  <version>1.0.0-SNAPSHOT</version>
+</dependency>
+```
+
+`WebhookAuditWriter` takes a required `URI endpoint` and three optional tuning parameters, defaulting to:
+
+| Parameter | Default | Description |
+|---|---|---|
+| `batchSize` | `100` | Events are flushed once a batch reaches this size |
+| `flushInterval` | `Duration.ofSeconds(1)` | Events are also flushed on this interval, whichever comes first |
+| `queueCapacity` | `10_000` | In-memory queue bound; once full, `write(event)` drops the event and logs a WARN rather than blocking |
+
+Wire it as a Spring bean:
+
+```java
+@Configuration
+class AuditWebhookConfig {
+    @Bean
+    WebhookAuditWriter webhookAuditWriter(@Value("${aperture.audit.webhook.url}") URI url) {
+        return new WebhookAuditWriter(url); // batchSize=100, flushInterval=1s, queueCapacity=10000
+    }
+}
+```
+
+To combine it with the JDBC writer instead of replacing it (so a webhook outage doesn't lose the queryable audit trail), fan out from a composite `AuditWriter` bean — see `demos/aperture-audit-demo`'s `AuditDemoAuditConfiguration` for the full pattern, including per-sink failure isolation.

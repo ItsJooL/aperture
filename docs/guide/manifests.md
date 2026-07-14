@@ -382,10 +382,30 @@ spec:
   mcp:
     enabled: true
     transport: stateless
-    tools: [list, get, create, update, delete]
 ```
 
-Turns on MCP tool generation for every entity, project-wide. An individual entity can narrow or opt out of this via an entity-level `mcp` override — see [`spec.mcp`](/reference/manifest-schema#spec-mcp-entity-level-override) in the reference for the shape, including the gotcha where an entity-level `mcp:` block that omits `enabled` defaults to excluded.
+Turns on MCP tool generation project-wide. That's it in the common case — the MCP tool surface is
+**derived from the model**, not hand-declared. An entity's own `permissions`, `policies`, and
+`publicOperations` already say which CRUD operations it permits; MCP maps those onto tool names
+(`read → list, get`; `create → create`; `update → update`; `delete → delete`) and exposes exactly
+that set. Most entities need no `mcp:` block of their own at all.
+
+**Every MCP knob is subtractive.** Configuration can only restrict this derived projection of the
+model — never extend it. There are two knobs, both optional, and both narrowing:
+
+- `spec.mcp.tools` on `FrameworkConfig` is a **ceiling**: a project-wide upper bound on which tools
+  any entity may expose, applied on top of what each entity already derives. Omit it and there is
+  no ceiling.
+- `spec.mcp` on an `Entity` **narrows further**, and can exclude the entity from MCP entirely with
+  `enabled: false`. See [`spec.mcp`](/reference/manifest-schema#spec-mcp-entity-level-override) in
+  the reference for the full resolution rule and the entity-level knob's tri-state `enabled`
+  semantics (absent means inherit, not excluded).
+
+The effective tool set for an entity is `derived(entity) ∩ ceiling ∩ narrowing`. Declaring a tool
+that the entity's own access rules don't reach, or that the ceiling excludes, fails manifest
+validation rather than silently producing a tool nobody could ever call — an agent-facing tool
+list functions like a prompt on every conversation, so the framework prefers a validation error at
+build time over quietly showing an agent something it's tempted to try and can never do.
 
 `stateless` is the only supported MCP transport today. Valid tool names are
 `list`, `get`, `create`, `update`, and `delete`; invalid names fail manifest
@@ -455,6 +475,10 @@ implementations therefore act as **source emitters**, exactly like the CLI's
 writes into the generated project's `com.itsjool.aperture.generated.mcp` package alongside the
 entity tool classes. The result is an ordinary generated-project class — no reflection or
 ServiceLoader machinery involved at generation time, and fully native-image friendly.
+
+Contributed tools have no entity or manifest operation, so they are never governed by the
+principal-scoped `tools/list` registry (see [MCP configuration](/reference/configuration#mcp-aperture-mcp-spring-ai-mcp)):
+they are always listed to every caller, regardless of `aperture.mcp.tool-list-scope`.
 
 ```java
 public interface McpToolContribution {

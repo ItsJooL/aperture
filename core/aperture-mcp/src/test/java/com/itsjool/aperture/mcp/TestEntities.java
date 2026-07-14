@@ -3,12 +3,24 @@ package com.itsjool.aperture.mcp;
 import com.itsjool.aperture.engine.model.EntityDef;
 import com.itsjool.aperture.engine.model.FieldDef;
 
+import java.util.List;
 import java.util.Map;
 
 /**
  * Reusable EntityDef/FieldDef fixtures for McpToolGenerator tests.
+ *
+ * <p>Under plan 016, the effective MCP tool set is {@code derived(entity) ∩ ceiling ∩ narrowing},
+ * where {@code derived(entity)} comes from the entity's own {@code permissions}/{@code policies}/
+ * {@code publicOperations}. These fixtures grant a role full CRUD so tests that exercise the
+ * generator's other behavior (descriptions, params, relationships) aren't incidentally testing
+ * the derivation itself — the ceiling and narrowing parameters passed into each test still do the
+ * work of restricting which of those fully-derived tools actually get generated.
  */
 final class TestEntities {
+
+    /** Grants a single role full CRUD, so every manifest operation is reachable. */
+    static final Map<String, List<String>> FULL_CRUD_PERMISSIONS =
+        Map.of("Admin", List.of("read", "create", "update", "delete"));
 
     private TestEntities() {}
 
@@ -40,7 +52,7 @@ final class TestEntities {
                 "name", requiredStringField("Legal name"),
                 "email", stringField("Contact email")
             ),
-            null, null, null, null, null
+            FULL_CRUD_PERMISSIONS, null, null, null, null
         );
     }
 
@@ -49,7 +61,7 @@ final class TestEntities {
             "Widget", "widgets", null, null,
             false, false, false,
             Map.of("name", requiredStringField(null)),
-            null, null, null, null, null
+            FULL_CRUD_PERMISSIONS, null, null, null, null
         );
     }
 
@@ -61,7 +73,7 @@ final class TestEntities {
                 "title", requiredStringField(null),
                 "project", requiredManyToOneField("Project")
             ),
-            null, null, null, null, null
+            FULL_CRUD_PERMISSIONS, null, null, null, null
         );
     }
 }

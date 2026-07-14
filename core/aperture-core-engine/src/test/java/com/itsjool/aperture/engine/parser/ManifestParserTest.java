@@ -172,6 +172,84 @@ class ManifestParserTest {
     }
 
     @Test
+    void hookRetriesFlowsThroughFromYaml() throws Exception {
+        Files.writeString(new File(tempDir, "entity.yaml").toPath(), """
+            apiVersion: aperture.itsjool.com/v1
+            kind: Entity
+            metadata:
+              name: Invoice
+            spec:
+              fields:
+                amount:
+                  type: decimal
+              hooks:
+                ValidateInvoice:
+                  type: validate
+                  on: [create, update]
+                  url: http://hook
+                  retries: 2
+            """);
+
+        ResolvedDomainModel model = new ManifestParser().parseDirectory(tempDir);
+
+        assertThat(model.entities()).singleElement().satisfies(entity ->
+            assertThat(entity.hooks().get("ValidateInvoice").retries()).isEqualTo(2));
+    }
+
+    @Test
+    void hookRetriesAboveSchemaCeilingFailsSchemaValidation() throws Exception {
+        // The schema's flat maximum (5) is the loosest per-type cap (trigger's); this only proves
+        // the structural ceiling. The tighter guard/validate cap (2) is enforced semantically by
+        // HookSemanticsResolver, exercised separately in HookSemanticsResolverTest/DomainModelValidatorTest.
+        Files.writeString(new File(tempDir, "entity.yaml").toPath(), """
+            apiVersion: aperture.itsjool.com/v1
+            kind: Entity
+            metadata:
+              name: Invoice
+            spec:
+              fields:
+                amount:
+                  type: decimal
+              hooks:
+                ValidateInvoice:
+                  type: validate
+                  on: [create, update]
+                  url: http://hook
+                  retries: 6
+            """);
+
+        assertThatThrownBy(() -> new ManifestParser().parseDirectory(tempDir))
+            .hasMessageContaining("entity.yaml")
+            .rootCause()
+            .hasMessageContaining("Schema validation failed");
+    }
+
+    @Test
+    void hookRetriesOnMutateFailsSemanticValidation() throws Exception {
+        Files.writeString(new File(tempDir, "entity.yaml").toPath(), """
+            apiVersion: aperture.itsjool.com/v1
+            kind: Entity
+            metadata:
+              name: Customer
+            spec:
+              fields:
+                name:
+                  type: String
+              hooks:
+                EnrichCustomer:
+                  type: mutate
+                  on: [create]
+                  onFailure: passthrough
+                  url: http://hook
+                  retries: 1
+            """);
+
+        assertThatThrownBy(() -> new ManifestParser().parseDirectory(tempDir))
+            .hasMessageContaining("entity.yaml")
+            .hasMessageContaining("retries is not supported for mutate hooks");
+    }
+
+    @Test
     void rejectsDuplicateRoleNames() throws Exception {
         Files.writeString(new File(tempDir, "roles.yaml").toPath(), """
             apiVersion: aperture.itsjool.com/v1
@@ -689,6 +767,44 @@ class ManifestParserTest {
         ResolvedDomainModel model = parser.parseDirectory(tempDir);
 
         assertThat(model.frameworkConfig().mcp()).isNull();
+    }
+
+    @Test
+    void entityMcpToolsWithoutEnabledKey_parsesEnabledAsNullAndEntityIsExposed() throws Exception {
+        // The bug this plan fixes: an entity mcp block with only `tools` set (no `enabled` key)
+        // must parse enabled() as null — meaning "inherit" — not false. Before McpEntityConfig
+        // became tri-state, this silently produced enabled=false and dropped the entity from MCP.
+        Files.writeString(new File(tempDir, "roles.yaml").toPath(), """
+            apiVersion: aperture.itsjool.com/v1
+            kind: RoleDefinition
+            metadata:
+              name: roles
+            spec:
+              roles:
+                Admin: { description: Full access }
+            """);
+        Files.writeString(new File(tempDir, "entity.yaml").toPath(), """
+            apiVersion: aperture.itsjool.com/v1
+            kind: Entity
+            metadata:
+              name: Customer
+            spec:
+              mcp:
+                tools: [list, get]
+              fields:
+                name: { type: String }
+              permissions:
+                Admin: [read]
+            """);
+
+        ManifestParser parser = new ManifestParser();
+        ResolvedDomainModel model = parser.parseDirectory(tempDir);
+
+        assertThat(model.entities()).singleElement().satisfies(entity -> {
+            assertThat(entity.mcpConfig()).isNotNull();
+            assertThat(entity.mcpConfig().enabled()).isNull();
+            assertThat(entity.mcpConfig().tools()).containsExactly("list", "get");
+        });
     }
 
     @Test

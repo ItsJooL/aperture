@@ -117,4 +117,75 @@ class HookSemanticsResolverTest {
             .isInstanceOf(HookSemanticException.class)
             .hasMessageContaining("duplicate operation 'create'");
     }
+
+    // ---------- retries ----------
+
+    @Test
+    void validateAcceptsRetriesUpToTheSynchronousCap() {
+        HookSemantics semantics = resolver.resolve("Invoice", "ValidateInvoice",
+            new HookDef("validate", null, null, "http://hook", 2));
+
+        assertThat(semantics.retries()).isEqualTo(2);
+    }
+
+    @Test
+    void guardRejectsRetriesAboveTheSynchronousCap() {
+        assertThatThrownBy(() -> resolver.resolve("LineItem", "CheckLineItem",
+            new HookDef("guard", null, null, "http://hook", 3)))
+            .isInstanceOf(HookSemanticException.class)
+            .hasMessageContaining("retries (3) exceeds the maximum of 2")
+            .hasMessageContaining("guard");
+    }
+
+    @Test
+    void validateRejectsRetriesAboveTheSynchronousCap() {
+        assertThatThrownBy(() -> resolver.resolve("Invoice", "ValidateInvoice",
+            new HookDef("validate", null, null, "http://hook", 3)))
+            .isInstanceOf(HookSemanticException.class)
+            .hasMessageContaining("retries (3) exceeds the maximum of 2")
+            .hasMessageContaining("validate");
+    }
+
+    @Test
+    void triggerAcceptsRetriesUpToItsOwnHigherCap() {
+        HookSemantics semantics = resolver.resolve("Supplier", "NotifySupplier",
+            new HookDef("trigger", null, null, "http://hook", 5));
+
+        assertThat(semantics.retries()).isEqualTo(5);
+    }
+
+    @Test
+    void triggerRejectsRetriesAboveItsCap() {
+        assertThatThrownBy(() -> resolver.resolve("Supplier", "NotifySupplier",
+            new HookDef("trigger", null, null, "http://hook", 6)))
+            .isInstanceOf(HookSemanticException.class)
+            .hasMessageContaining("retries (6) exceeds the maximum of 5")
+            .hasMessageContaining("trigger");
+    }
+
+    @Test
+    void mutateRejectsAnyRetriesAtAll() {
+        assertThatThrownBy(() -> resolver.resolve("Customer", "NormalizeCustomer",
+            new HookDef("mutate", List.of("create"), "passthrough", "http://hook", 1)))
+            .isInstanceOf(HookSemanticException.class)
+            .hasMessageContaining("retries is not supported for mutate hooks")
+            .hasMessageContaining("idempotency key");
+    }
+
+    @Test
+    void mutateWithZeroRetriesIsUnaffected() {
+        // retries: 0 is the same as omitting the field entirely — not an error.
+        HookSemantics semantics = resolver.resolve("Customer", "NormalizeCustomer",
+            new HookDef("mutate", List.of("create"), "passthrough", "http://hook", 0));
+
+        assertThat(semantics.retries()).isEqualTo(0);
+    }
+
+    @Test
+    void negativeRetriesIsRejected() {
+        assertThatThrownBy(() -> resolver.resolve("Invoice", "ValidateInvoice",
+            new HookDef("validate", null, null, "http://hook", -1)))
+            .isInstanceOf(HookSemanticException.class)
+            .hasMessageContaining("retries must not be negative");
+    }
 }

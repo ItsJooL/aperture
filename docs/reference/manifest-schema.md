@@ -143,6 +143,7 @@ Hook name → hook definition. Hooks use semantic intent; Aperture maps that int
 | `on` | array | `create`, `update`, `delete` | Optional write operations. Defaults depend on `type` |
 | `onFailure` | string | `reject`, `warn`, `passthrough` | Optional behaviour on non-2xx or error. Valid values depend on `type` |
 | `url` | string | HTTP/HTTPS URL | Endpoint Aperture calls |
+| `retries` | integer | `0`–`5`, default `0` | Optional, opt-in retry count on a failed call. The schema's own ceiling (5) is the loosest per-type cap (`trigger`'s); `guard`/`validate` are capped tighter at `2`, and `mutate` does not support it at all — both enforced by manifest validation, not this schema, since a per-`type` maximum isn't expressible here. See [Hooks & Lifecycle → Retries And Timeouts](../guide/hooks.md#retries-and-timeouts) for the backoff formula and the latency this adds to synchronous hook types. |
 
 ```yaml
 hooks:
@@ -150,16 +151,29 @@ hooks:
     type: validate
     on: [create, update]
     url: http://hook-service:8080/hooks/validate-invoice
+    retries: 2
 ```
 
 ### `spec.mcp` (entity-level override)
 
-Narrow which tools are generated for one entity, while still participating in MCP:
+The MCP tool surface is **derived from the model**, not hand-declared: an operation is exposed as
+an MCP tool only if the entity's own `permissions`, `policies`, or `publicOperations` already
+grant it. This block can only *restrict* that derived surface further — it can never widen it.
+
+The effective tool set for an entity is:
+
+```
+derived(entity) ∩ ceiling(FrameworkConfig.spec.mcp.tools) ∩ narrowing(entity.spec.mcp.tools)
+```
+
+where `derived(entity)` maps `read → list, get`, `create → create`, `update → update`, and
+`delete → delete`, and an operation counts as derived iff some role in `permissions`, some policy
+in `policies`, or an entry in `publicOperations` grants it. Most entities need no `mcp:` block at
+all — the full block collapses to nothing to configure:
 
 ```yaml
 mcp:
-  enabled: true       # required — see the note below
-  tools: [list, get]  # override which tools to generate for this entity
+  tools: [list, get]  # narrow this entity's tools beyond what it already derives
 ```
 
 Exclude the entity from MCP entirely — no tool class is generated for it, regardless of `tools`:
@@ -169,16 +183,17 @@ mcp:
   enabled: false
 ```
 
-Valid tool names are `list`, `get`, `create`, `update`, and `delete`.
-An entity with no `mcp` block at all inherits the framework-level default tool set
-(`spec.mcp.tools` from `FrameworkConfig`, or all five operations if that is also unset).
-Supplying `tools` on an entity replaces the inherited list for that entity — it does not merge
-with it.
+Valid tool names are `list`, `get`, `create`, `update`, and `delete`. `enabled` absent (or the
+`mcp:` block absent entirely) means **inherit**: the entity participates in MCP. Only an explicit
+`enabled: false` excludes it — there is no implicit-`false` trap here, because `enabled` is a
+tri-state field (`null` means unset, not "off"). `enabled: false` together with a non-empty
+`tools` list is a validation error: it's contradictory, and Aperture rejects the manifest rather
+than silently picking one interpretation.
 
-**`enabled` has no implicit default of `true`** once you write an entity-level `mcp:` block — it
-is a plain boolean field, so an `mcp:` block that supplies `tools` but omits `enabled` defaults to
-`enabled: false` and the entity is silently excluded. Always set `enabled: true` explicitly
-alongside `tools`, as in the first example above.
+Listing a tool the entity's own access rules don't reach, or one outside the framework ceiling, is
+also a validation error — `tools: [delete]` on an entity where nothing grants `delete` describes a
+tool that could never succeed for anyone but a superadmin, and Aperture rejects it at parse time
+rather than generating it.
 
 ### Boolean spec fields
 
@@ -217,11 +232,15 @@ spec:
   mcp:
     enabled: true
     transport: stateless      # stateless (HTTP) is the only supported transport
-    tools: [list, get, create, update, delete]
+    tools: [list, get]        # optional ceiling — see below
 ```
 
-`transport` is optional and currently accepts only `stateless`. Valid tool
-names are `list`, `get`, `create`, `update`, and `delete`.
+`transport` is optional and currently accepts only `stateless`. `tools` is a **ceiling, not a
+default**: the framework-wide upper bound on MCP tools any entity may expose, applied on top of
+whatever each entity's own `permissions`/`policies`/`publicOperations` already derive (see
+`Entity.spec.mcp` above for the full derive/ceiling/narrow resolution rule). Omitting it means no
+ceiling — every entity's derived tools remain possible, subject only to entity-level narrowing.
+Valid tool names are `list`, `get`, `create`, `update`, and `delete`.
 
 ---
 

@@ -1,0 +1,23 @@
+meta {
+  name: Hook Retries
+  type: folder
+  seq: 15
+}
+
+docs {
+  Demonstrates plan 032's configurable per-hook `retries` field recovering from a transient
+  hook-service failure, live — not just that the value flows through code generation.
+
+  ValidateInvoice (demos/aperture-demo/manifests/domain/billing/invoice.yaml) declares
+  `retries: 2`. This folder arms the hook-service's /admin/simulate-failures endpoint to fail
+  the next 2 calls to /hooks/validate-invoice with a 503, then creates an invoice: Aperture's
+  generated hook wiring retries automatically (500ms, then 1000ms backoff) and the 3rd attempt
+  succeeds, so the invoice is created despite the hook failing twice.
+
+  Requires 06-entities/01-create-customer to have populated {{customerId}}. Talks directly to
+  the hook-service on its published port (8081) — see docker-compose.yml — not through the
+  Aperture API.
+
+  See docs/guide/hooks.md#retries-and-timeouts for the backoff formula and the latency caveat on
+  synchronous hook types (validate's cap of 2 adds ~16.5s worst case if the hook never recovers).
+}

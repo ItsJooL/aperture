@@ -289,6 +289,9 @@ curl -s http://localhost:8080/mcp \
 ```
 
 The MCP tools respect the same auth, tenancy, and RBAC rules as the REST API.
+For a walkthrough of how `tools/list` itself is scoped to the caller's role
+(principal-scoped tool lists), see the
+[MCP demo's "Principal-scoped tools/list" section](/examples/mcp-demo#principal-scoped-tools-list).
 
 ### 11. Distributed tracing
 

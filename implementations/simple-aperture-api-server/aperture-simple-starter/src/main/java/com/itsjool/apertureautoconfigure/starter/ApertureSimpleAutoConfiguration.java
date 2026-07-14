@@ -1,4 +1,4 @@
-package com.itsjool.aperture.starter;
+package com.itsjool.apertureautoconfigure.starter;
 
 import com.itsjool.aperture.audit.AuditQueryController;
 import com.itsjool.aperture.audit.JdbcAuditWriter;
@@ -20,6 +20,7 @@ import com.itsjool.aperture.spi.CredentialValidator;
 import com.itsjool.aperture.spi.PrincipalMapper;
 import com.itsjool.aperture.spi.RateLimitProvider;
 import com.itsjool.aperture.spi.ServiceAccountIssuer;
+import com.itsjool.aperture.starter.ApertureObservationFilter;
 import com.yahoo.elide.ElideSettingsBuilderCustomizer;
 import com.yahoo.elide.core.dictionary.EntityBinding;
 import com.yahoo.elide.core.dictionary.EntityDictionary;
@@ -32,6 +33,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.boot.autoconfigure.domain.EntityScan;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.event.EventListener;
 import org.springframework.core.env.Environment;
@@ -49,6 +51,7 @@ import java.util.Locale;
 @Configuration
 @EntityScan("com.itsjool.aperture.generated")
 @org.springframework.context.annotation.Import(com.itsjool.aperture.runtime.tenant.TenantWebMvcConfiguration.class)
+@ComponentScan(basePackages = "com.itsjool.aperture.generated.security")
 public class ApertureSimpleAutoConfiguration {
 
     static {
@@ -103,10 +106,14 @@ public class ApertureSimpleAutoConfiguration {
     @ConditionalOnMissingBean(RateLimitProvider.class)
     public RateLimitProvider rateLimitProvider(
             ObjectProvider<ApertureRateLimitProperties> rateLimitPropertiesProvider,
-            ObjectProvider<io.micrometer.core.instrument.MeterRegistry> meterRegistryProvider) {
+            ObjectProvider<io.micrometer.core.instrument.MeterRegistry> meterRegistryProvider,
+            ObjectProvider<io.micrometer.observation.ObservationRegistry> observationRegistryProvider) {
         ApertureRateLimitProperties rateLimitProperties = rateLimitPropertiesProvider.getIfAvailable();
         if (rateLimitProperties != null && "valkey".equalsIgnoreCase(rateLimitProperties.getBackend())) {
-            return new ValkeyRateLimitProvider(rateLimitProperties.getValkey());
+            return new ValkeyRateLimitProvider(
+                    rateLimitProperties.getValkey(),
+                    meterRegistryProvider.getIfAvailable(),
+                    observationRegistryProvider.getIfAvailable());
         }
         return new InMemoryRateLimitProvider(meterRegistryProvider.getIfAvailable());
     }
@@ -193,18 +200,19 @@ public class ApertureSimpleAutoConfiguration {
     }
 
     @Bean
-    public ApertureObservationFilter apertureObservationFilter() {
-        return new ApertureObservationFilter();
+    public ApertureObservationFilter apertureObservationFilter(EntityDictionary entityDictionary) {
+        return new ApertureObservationFilter(entityDictionary);
     }
 
     @Bean
     public com.itsjool.aperture.runtime.audit.AuditBridge auditBridge(
             com.itsjool.aperture.spi.AuditWriter auditWriter,
-            com.fasterxml.jackson.databind.ObjectMapper objectMapper) {
+            com.fasterxml.jackson.databind.ObjectMapper objectMapper,
+            EntityDictionary entityDictionary) {
         // Use the Spring-managed ObjectMapper (Spring Boot registers JavaTimeModule on it) rather
         // than the bridge's own no-arg-constructor default, which cannot serialize java.time types
         // (e.g. LocalDateTime datetime fields) and would silently fall back on every such update.
-        return new com.itsjool.aperture.runtime.audit.AuditBridge(auditWriter, objectMapper);
+        return new com.itsjool.aperture.runtime.audit.AuditBridge(auditWriter, objectMapper, entityDictionary);
     }
 
     @Bean

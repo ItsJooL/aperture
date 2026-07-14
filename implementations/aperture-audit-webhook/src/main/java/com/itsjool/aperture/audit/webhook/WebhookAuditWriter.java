@@ -2,6 +2,8 @@ package com.itsjool.aperture.audit.webhook;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.itsjool.aperture.spi.AuditEvent;
 import com.itsjool.aperture.spi.AuditWriter;
 import jakarta.annotation.PreDestroy;
@@ -41,7 +43,19 @@ public class WebhookAuditWriter implements AuditWriter {
     }
 
     public WebhookAuditWriter(URI endpoint, int batchSize, Duration flushInterval, int queueCapacity) {
-        this(endpoint, batchSize, flushInterval, queueCapacity, HttpClient.newHttpClient(), new ObjectMapper());
+        this(endpoint, batchSize, flushInterval, queueCapacity, HttpClient.newHttpClient(), defaultObjectMapper());
+    }
+
+    // AuditEvent.occurredAt is a java.time.Instant. Without JavaTimeModule registered, Jackson
+    // cannot serialize it at all (postBatch would throw for every batch, dropping events rather
+    // than shipping them). This writer is constructed directly by callers (e.g.
+    // AuditDemoAuditConfiguration) rather than through Spring/Elide's injector, so — unlike
+    // AuditBridge's equivalent fix — there is no autowiring path to hand it a JavaTimeModule-aware
+    // ObjectMapper; it must be self-sufficient regardless of the caller.
+    private static ObjectMapper defaultObjectMapper() {
+        return new ObjectMapper()
+            .registerModule(new JavaTimeModule())
+            .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
     }
 
     WebhookAuditWriter(URI endpoint, int batchSize, Duration flushInterval, int queueCapacity, HttpClient httpClient, ObjectMapper objectMapper) {
@@ -140,6 +154,10 @@ public class WebhookAuditWriter implements AuditWriter {
         payload.put("entityId", event.entityId());
         payload.put("operation", event.operation());
         payload.put("details", parseDetails(event.detailsJson()));
+        // Serialized by the JavaTimeModule-registered ObjectMapper as an ISO-8601 UTC string (the
+        // "...Z" suffix), parseable natively by essentially every mainstream language's standard
+        // library — the whole point of occurredAt for a cross-language SIEM/webhook consumer.
+        payload.put("occurredAt", event.occurredAt());
         return payload;
     }
 

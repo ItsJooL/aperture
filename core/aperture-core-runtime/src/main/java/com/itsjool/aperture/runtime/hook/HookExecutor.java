@@ -217,6 +217,23 @@ public class HookExecutor {
 
         // Trace-context propagation is handled by the SenderContext above (see executeHookWithResponse).
         observation.start();
+        // handle(...) + thenCompose(identity()) — not thenCompose(...).exceptionallyCompose(...) — is
+        // deliberate: handle() sees this attempt's outcome (success, non-2xx, or thrown exception)
+        // exactly once and calls handleRetry() exactly once. A prior version chained
+        // .thenCompose(response -> ... handleRetry(...) ...).exceptionallyCompose(e -> handleRetry(...))
+        // instead; exceptionallyCompose there does not only catch a failed sendAsync() — it also
+        // catches the *nested* retry chain's eventual failure (handleRetry's own returned future,
+        // once retries are exhausted with failBehavior=reject), because that failure is exactly what
+        // thenCompose's result completes with. That silently called handleRetry a second time per
+        // attempt with the same (already-consumed) attempt number, which re-passed the `attempt <
+        // retries` check and scheduled a genuinely duplicate retry — cascading through every nested
+        // level of the recursion. Confirmed empirically while adding plan 032's first-ever retry-count
+        // tests (HookExecutorTest): retries=2 with an always-failing server and onFailure=reject
+        // produced 7 actual HTTP attempts instead of the intended 3. guard/validate can only use
+        // onFailure=reject, so this bug would have made every guard/validate retries configuration
+        // silently multiply real attempts (and latency) well beyond the configured cap. Not previously
+        // caught because retries was hardcoded to 0 in production until this plan, and no prior test
+        // drove a reject-onFailure hook through actual retry exhaustion.
         return httpClient.sendAsync(requestBuilder.build(), HttpResponse.BodyHandlers.ofString())
             .whenComplete((res, ex) -> {
                 if (ex != null) {
@@ -229,13 +246,16 @@ public class HookExecutor {
                 }
                 observation.stop();
             })
-            .thenCompose(response -> {
+            .handle((response, ex) -> {
+                if (ex != null) {
+                    return handleRetry(ex, hookName, entity, hookUrl, payload, inboundRequest, failBehavior, retries, timeout, attempt, phase, isAsync, parentObservation);
+                }
                 if (response.statusCode() >= 200 && response.statusCode() < 300) {
                     return CompletableFuture.completedFuture(true);
                 }
                 return handleRetry(new RuntimeException("Hook returned HTTP " + response.statusCode()), hookName, entity, hookUrl, payload, inboundRequest, failBehavior, retries, timeout, attempt, phase, isAsync, parentObservation);
             })
-            .exceptionallyCompose(e -> handleRetry(e, hookName, entity, hookUrl, payload, inboundRequest, failBehavior, retries, timeout, attempt, phase, isAsync, parentObservation));
+            .thenCompose(java.util.function.Function.identity());
     }
 
     private CompletableFuture<Boolean> handleRetry(Throwable error, String hookName, String entity, String hookUrl, String payload, HttpServletRequest inboundRequest, String failBehavior, int retries, Duration timeout, int attempt, String phase, boolean isAsync, Observation parentObservation) {

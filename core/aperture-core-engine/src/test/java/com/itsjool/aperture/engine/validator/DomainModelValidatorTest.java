@@ -268,6 +268,32 @@ class DomainModelValidatorTest {
             .doesNotThrowAnyException();
     }
 
+    @Test
+    void semanticMutateHookWithRetries_throws() {
+        // Plan 032, Decisions (2026-07-14): mutate is excluded from retries — no per-invocation
+        // idempotency key exists for a hook service to dedupe a retried enrichment call safely.
+        EntityDef entity = new EntityDef("Order", "orders", null, null, false, false, false,
+            Map.of(), null, null, null, Map.of(),
+            Map.of("Enrich", new HookDef("mutate", List.of("create"), "passthrough", "http://hook", 2)));
+
+        assertThatThrownBy(() -> validator.validate(
+            new ResolvedDomainModel(List.of(entity)), Map.of()))
+            .isInstanceOf(ManifestValidationException.class)
+            .hasMessageContaining("retries is not supported for mutate hooks");
+    }
+
+    @Test
+    void semanticGuardHookWithRetriesAboveSyncCap_throws() {
+        EntityDef entity = new EntityDef("Order", "orders", null, null, false, false, false,
+            Map.of(), null, null, null, Map.of(),
+            Map.of("Guard", new HookDef("guard", List.of("create"), "reject", "http://hook", 3)));
+
+        assertThatThrownBy(() -> validator.validate(
+            new ResolvedDomainModel(List.of(entity)), Map.of()))
+            .isInstanceOf(ManifestValidationException.class)
+            .hasMessageContaining("retries (3) exceeds the maximum of 2");
+    }
+
     // ---------- MCP config validation ----------
 
     @Test
@@ -307,6 +333,59 @@ class DomainModelValidatorTest {
             .hasMessageContaining("Invalid MCP tool")
             .hasMessageContaining("archive")
             .hasMessageContaining("order.yaml");
+    }
+
+    @Test
+    void entityMcpToolNotGrantedByAnyRolePolicyOrPublicOperation_throws() {
+        // "delete" is a syntactically valid MCP tool, but nothing on this entity reaches the
+        // delete operation: no permissions, no policies, no publicOperations. Plan 016 requires
+        // this to be rejected rather than silently producing a tool that can never succeed for
+        // anyone but a superadmin.
+        EntityDef entity = new EntityDef("Order", "orders", null, new McpEntityConfig(true, List.of("delete")),
+            false, false, false, Map.of("name", stringField()),
+            Map.of("Viewer", List.of("read")), null, null, Map.of(), Map.of());
+
+        assertThatThrownBy(() -> validator.validate(
+            new ResolvedDomainModel(List.of(entity)), Map.of(entity, "order.yaml")))
+            .isInstanceOf(ManifestValidationException.class)
+            .hasMessageContaining("Order")
+            .hasMessageContaining("delete")
+            .hasMessageContaining("order.yaml");
+    }
+
+    @Test
+    void entityMcpToolExceedsFrameworkCeiling_throws() {
+        // The framework declares a ceiling of list/get only. Order's own permissions grant full
+        // CRUD, but the entity still cannot list "delete" as an MCP tool: the ceiling is a hard
+        // upper bound, not a default an entity can widen past.
+        FrameworkConfigDef framework = new FrameworkConfigDef(
+            List.of(), null, new McpConfig(true, "stateless", List.of("list", "get")), null);
+        EntityDef entity = new EntityDef("Order", "orders", null, new McpEntityConfig(true, List.of("delete")),
+            false, false, false, Map.of("name", stringField()),
+            Map.of("Admin", List.of("read", "create", "update", "delete")), null, null, Map.of(), Map.of());
+
+        assertThatThrownBy(() -> validator.validate(
+            new ResolvedDomainModel(List.of(entity), List.of(), framework, List.of(), List.of(), List.of()),
+            Map.of(entity, "order.yaml", framework, "framework.yaml")))
+            .isInstanceOf(ManifestValidationException.class)
+            .hasMessageContaining("Order")
+            .hasMessageContaining("delete")
+            .hasMessageContaining("ceiling");
+    }
+
+    @Test
+    void entityMcpDisabledWithNonEmptyTools_throws() {
+        // enabled: false together with a non-empty tools list is contradictory; the plan requires
+        // this to be a hard error rather than silently picking one interpretation over the other.
+        EntityDef entity = new EntityDef("Order", "orders", null, new McpEntityConfig(false, List.of("get")),
+            false, false, false, Map.of("name", stringField()),
+            Map.of("Viewer", List.of("read")), null, null, Map.of(), Map.of());
+
+        assertThatThrownBy(() -> validator.validate(
+            new ResolvedDomainModel(List.of(entity)), Map.of(entity, "order.yaml")))
+            .isInstanceOf(ManifestValidationException.class)
+            .hasMessageContaining("Order")
+            .hasMessageContaining("contradictory");
     }
 
     // ---------- role and policy validation ----------

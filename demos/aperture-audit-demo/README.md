@@ -26,9 +26,9 @@ The stack uses distinct host ports so it can run beside the main demo:
 - `JdbcAuditWriter`, preserving `/manage/audit`
 - `WebhookAuditWriter`, POSTing JSON batches to `POST /siem/audit`
 
-WireMock stands in for the SIEM. The smoke script creates and updates a product, then asserts that both the JDBC audit endpoint and WireMock's request journal contain the UPDATE audit details with `fieldPath`, `before`, and `after`.
+WireMock stands in for the SIEM. The smoke script creates a product, then PATCHes both a plain field (`name`) and the encrypted `supplier_secret` field in one request, and asserts that both the JDBC audit endpoint and WireMock's request journal contain: the `name` UPDATE with its real `fieldPath`/`before`/`after` values, and a separate `supplier_secret` UPDATE with `before`/`after` both redacted to the literal string `"[REDACTED]"`.
 
-The product manifest includes an encrypted `supplier_secret` field so the demo makes the audit redaction question visible. Today, audit details record the changed field values that Elide reports. If a sensitive field is changed, review whether your `AuditWriter` should redact or transform those values before export.
+The product manifest declares `supplier_secret: encrypted: true`, so this demo also proves Aperture's default audit-trail redaction end-to-end: `CodeGenerator` emits a runtime `@Encrypted` marker on that field, and `AuditBridge` looks it up per change to substitute the sentinel instead of the plaintext value — on by default, configurable via `aperture.audit.redaction.*` (a global `enabled` switch and a per-entity/per-field `exemptions` allowlist). See `docs/guide/security-audit.md`'s "The audit trail" section for the full config shape.
 
 ## Bruno
 

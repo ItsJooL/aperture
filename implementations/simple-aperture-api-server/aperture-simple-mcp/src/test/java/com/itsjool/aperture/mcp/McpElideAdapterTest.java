@@ -17,7 +17,7 @@ import org.springframework.web.context.request.ServletRequestAttributes;
 import java.util.concurrent.Callable;
 import java.util.Map;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
@@ -42,18 +42,15 @@ class McpElideAdapterTest {
             "desc", "test\\value"
         ));
 
-        // Parse the JSON to ensure it's valid
         var root = objectMapper.readTree(json);
-        assertNotNull(root);
+        assertThat(root).isNotNull();
 
-        // Verify structure
         var data = root.get("data");
-        assertEquals("product", data.get("type").asText());
+        assertThat(data.get("type").asText()).isEqualTo("product");
 
-        // Verify attributes
         var attrs = data.get("attributes");
-        assertEquals("foo\"bar", attrs.get("name").asText());
-        assertEquals("test\\value", attrs.get("desc").asText());
+        assertThat(attrs.get("name").asText()).isEqualTo("foo\"bar");
+        assertThat(attrs.get("desc").asText()).isEqualTo("test\\value");
     }
 
     @Test
@@ -62,23 +59,23 @@ class McpElideAdapterTest {
 
         var root = objectMapper.readTree(json);
         var data = root.get("data");
-        assertEquals("customer", data.get("type").asText());
-        assertEquals("123", data.get("id").asText());
-        assertEquals("test@example.com", data.get("attributes").get("email").asText());
+        assertThat(data.get("type").asText()).isEqualTo("customer");
+        assertThat(data.get("id").asText()).isEqualTo("123");
+        assertThat(data.get("attributes").get("email").asText()).isEqualTo("test@example.com");
     }
 
     @Test
     void buildBodyFilteredNullValues() throws Exception {
-        var attrs_map = new java.util.HashMap<String, Object>();
-        attrs_map.put("price", 99.99);
-        attrs_map.put("notes", null);
+        var attributes = new java.util.HashMap<String, Object>();
+        attributes.put("price", 99.99);
+        attributes.put("notes", null);
 
-        String json = adapter.buildBody("order", null, attrs_map);
+        String json = adapter.buildBody("order", null, attributes);
 
         var root = objectMapper.readTree(json);
         var attrs = root.get("data").get("attributes");
-        assertEquals(99.99, attrs.get("price").asDouble());
-        assertFalse(attrs.has("notes"));
+        assertThat(attrs.get("price").asDouble()).isEqualTo(99.99);
+        assertThat(attrs.has("notes")).isFalse();
     }
 
     @Test
@@ -90,18 +87,18 @@ class McpElideAdapterTest {
 
         var root = objectMapper.readTree(json);
         var data = root.get("data");
-        assertEquals("tasks", data.get("type").asText());
-        assertEquals("Write the report", data.get("attributes").get("title").asText());
+        assertThat(data.get("type").asText()).isEqualTo("tasks");
+        assertThat(data.get("attributes").get("title").asText()).isEqualTo("Write the report");
 
         var relationship = data.get("relationships").get("project").get("data");
-        assertEquals("projects", relationship.get("type").asText());
-        assertEquals("project-123", relationship.get("id").asText());
+        assertThat(relationship.get("type").asText()).isEqualTo("projects");
+        assertThat(relationship.get("id").asText()).isEqualTo("project-123");
     }
 
     @Test
     void buildBodyWithRelationships_nullRelationshipIdOmitted() throws Exception {
         Object nullRef = adapter.relationshipRef("owners", null);
-        assertNull(nullRef);
+        assertThat(nullRef).isNull();
 
         var relationships = new java.util.HashMap<String, Object>();
         relationships.put("owner", nullRef);
@@ -109,7 +106,7 @@ class McpElideAdapterTest {
 
         var root = objectMapper.readTree(json);
         var data = root.get("data");
-        assertFalse(data.has("relationships"));
+        assertThat(data.has("relationships")).isFalse();
     }
 
     @Test
@@ -118,19 +115,19 @@ class McpElideAdapterTest {
 
         var root = objectMapper.readTree(json);
         var data = root.get("data");
-        assertEquals("Demo", data.get("attributes").get("name").asText());
-        assertFalse(data.has("relationships"));
+        assertThat(data.get("attributes").get("name").asText()).isEqualTo("Demo");
+        assertThat(data.has("relationships")).isFalse();
     }
 
     @Test
     void relationshipRef_nonNullId_returnsTypeAndId() {
         Object ref = adapter.relationshipRef("projects", "abc-123");
 
-        assertTrue(ref instanceof Map);
+        assertThat(ref).isInstanceOf(Map.class);
         @SuppressWarnings("unchecked")
         Map<String, Object> refMap = (Map<String, Object>) ref;
-        assertEquals("projects", refMap.get("type"));
-        assertEquals("abc-123", refMap.get("id"));
+        assertThat(refMap.get("type")).isEqualTo("projects");
+        assertThat(refMap.get("id")).isEqualTo("abc-123");
     }
 
     @Test
@@ -150,8 +147,8 @@ class McpElideAdapterTest {
         }
 
         HttpServletRequest synthetic = requestCaptor.getValue();
-        assertEquals("Bearer token", synthetic.getHeader("Authorization"));
-        assertEquals("project-123", synthetic.getHeader("X-Aperture-Scope-Project"));
+        assertThat(synthetic.getHeader("Authorization")).isEqualTo("Bearer token");
+        assertThat(synthetic.getHeader("X-Aperture-Scope-Project")).isEqualTo("project-123");
     }
 
 }

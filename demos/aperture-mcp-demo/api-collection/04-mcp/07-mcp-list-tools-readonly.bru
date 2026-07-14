@@ -1,0 +1,60 @@
+meta {
+  name: MCP List Tools (ReadOnly key)
+  type: http
+  seq: 7
+}
+
+post {
+  url: {{baseUrl}}/mcp
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+  Accept: application/json, text/event-stream
+  X-API-Key: {{readOnlyApiKey}}
+}
+
+body:json {
+  {
+    "jsonrpc": "2.0",
+    "id": 7,
+    "method": "tools/list",
+    "params": {}
+  }
+}
+
+docs {
+  Compare this response to "MCP List Tools" above (run with the superadmin
+  bearer token, which bypasses tools/list scoping entirely and always shows
+  all ten tools). This request uses the ReadOnly key minted just above, and
+  shows only the four read tools — tools/list is scoped to the calling
+  principal's roles (plan 016 phase 2). This is presentation only:
+  tools/call is still authorized for real by Elide on every invocation,
+  independent of what tools/list returned.
+}
+
+script:post-response {
+  if (res.status === 200) {
+    var names = res.body.result.tools.map(function (t) { return t.name; });
+    console.log("ReadOnly key MCP tools (expect exactly 4): " + names.join(", "));
+    var writeTools = ["create_project", "update_project", "delete_project",
+                       "create_task", "update_task", "delete_task"];
+    var leaked = writeTools.filter(function (t) { return names.indexOf(t) !== -1; });
+    if (leaked.length > 0) {
+      throw new Error("ReadOnly key must not see write tools, but saw: " + leaked.join(", "));
+    }
+    var expected = ["list_projects", "get_project", "list_tasks", "get_task"];
+    var missing = expected.filter(function (t) { return names.indexOf(t) === -1; });
+    if (missing.length > 0) {
+      throw new Error("ReadOnly key is missing expected read tools: " + missing.join(", "));
+    }
+  }
+}
+
+assert {
+  res.status: eq 200
+  res.body.result.tools: isDefined
+  res.body.result.tools.length: eq 4
+}

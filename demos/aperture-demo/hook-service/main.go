@@ -10,6 +10,7 @@ import (
 	"os"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
@@ -104,6 +105,86 @@ func requireHookSecret(expected string, h http.HandlerFunc) http.HandlerFunc {
 			return
 		}
 		h(w, r)
+	}
+}
+
+// failureSimulator lets a demo run arm a hook path to fail its next N calls (e.g. with 503),
+// then fall through to normal behavior — proof that a retries-configured hook (plan 032) actually
+// recovers from a transient failure, not just that the manifest value flows through code
+// generation. Armed and inspected only via /admin/simulate-failures below.
+type failureSimulator struct {
+	mu        sync.Mutex
+	remaining map[string]int
+	status    map[string]int
+}
+
+func newFailureSimulator() *failureSimulator {
+	return &failureSimulator{remaining: make(map[string]int), status: make(map[string]int)}
+}
+
+func (f *failureSimulator) arm(path string, count int, status int) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if count <= 0 {
+		delete(f.remaining, path)
+		delete(f.status, path)
+		return
+	}
+	f.remaining[path] = count
+	f.status[path] = status
+}
+
+// shouldFail reports whether the next call to path should be failed, consuming one simulated
+// failure if so. Once the armed count is exhausted, calls fall through to normal behavior.
+func (f *failureSimulator) shouldFail(path string) (bool, int) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	remaining, armed := f.remaining[path]
+	if !armed || remaining <= 0 {
+		return false, 0
+	}
+	f.remaining[path] = remaining - 1
+	return true, f.status[path]
+}
+
+func withFailureSimulation(sim *failureSimulator, path string, h http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if fail, status := sim.shouldFail(path); fail {
+			reject(w, "simulated transient failure", status)
+			return
+		}
+		h(w, r)
+	}
+}
+
+type simulateFailuresRequest struct {
+	Path   string `json:"path"`
+	Count  int    `json:"count"`
+	Status int    `json:"status"`
+}
+
+// adminSimulateFailures arms (count > 0) or clears (count <= 0) transient-failure simulation for
+// a hook path. Guarded by the same X-Hook-Secret as every hook endpoint (see requireHookSecret).
+func adminSimulateFailures(sim *failureSimulator, logger *slog.Logger) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var req simulateFailuresRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			reject(w, "invalid request body", http.StatusBadRequest)
+			return
+		}
+		if req.Path == "" {
+			reject(w, "path is required", http.StatusBadRequest)
+			return
+		}
+		status := req.Status
+		if status == 0 {
+			status = http.StatusServiceUnavailable
+		}
+		sim.arm(req.Path, req.Count, status)
+		logger.Info("simulate-failures armed", "path", req.Path, "count", req.Count, "status", status)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]interface{}{"path": req.Path, "armed": req.Count, "status": status})
 	}
 }
 
@@ -313,6 +394,8 @@ func main() {
 		defer func() { _ = tp.Shutdown(context.Background()) }()
 	}
 
+	sim := newFailureSimulator()
+
 	mux := http.NewServeMux()
 	mux.HandleFunc("/health", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -321,19 +404,25 @@ func main() {
 	protected := func(h http.HandlerFunc) http.HandlerFunc {
 		return withLogging(logger, requireHookSecret(hookSecret, h))
 	}
-	mux.HandleFunc("/hooks/validate-invoice", protected(validateInvoice))
-	mux.HandleFunc("/hooks/validate-payment", protected(validatePayment))
-	mux.HandleFunc("/hooks/validate-product", protected(validateProduct))
-	mux.HandleFunc("/hooks/validate-service-package", protected(validateServicePackage))
-	mux.HandleFunc("/hooks/validate-subscription-plan", protected(validateSubscriptionPlan))
-	mux.HandleFunc("/hooks/validate-customer-email", protected(validateCustomerEmail))
-	mux.HandleFunc("/hooks/enrich-customer", protected(enrichCustomer(logger)))
-	mux.HandleFunc("/hooks/notify-supplier", protected(notifySupplier(logger)))
-	mux.HandleFunc("/hooks/product-changed", protected(productChanged(logger)))
-	mux.HandleFunc("/hooks/sync-currency", protected(syncCurrency(logger)))
-	mux.HandleFunc("/hooks/tenant-provisioned", protected(tenantProvisioned(logger)))
-	mux.HandleFunc("/hooks/check-line-item", protected(checkLineItem))
-	mux.HandleFunc("/hooks/audit-country", protected(checkCountry))
+	// simulated wraps a hook handler with failureSimulator so /admin/simulate-failures can arm it
+	// to fail its next N calls — used to demonstrate a retries-configured hook actually recovering.
+	simulated := func(path string, h http.HandlerFunc) http.HandlerFunc {
+		return protected(withFailureSimulation(sim, path, h))
+	}
+	mux.HandleFunc("/hooks/validate-invoice", simulated("/hooks/validate-invoice", validateInvoice))
+	mux.HandleFunc("/hooks/validate-payment", simulated("/hooks/validate-payment", validatePayment))
+	mux.HandleFunc("/hooks/validate-product", simulated("/hooks/validate-product", validateProduct))
+	mux.HandleFunc("/hooks/validate-service-package", simulated("/hooks/validate-service-package", validateServicePackage))
+	mux.HandleFunc("/hooks/validate-subscription-plan", simulated("/hooks/validate-subscription-plan", validateSubscriptionPlan))
+	mux.HandleFunc("/hooks/validate-customer-email", simulated("/hooks/validate-customer-email", validateCustomerEmail))
+	mux.HandleFunc("/hooks/enrich-customer", simulated("/hooks/enrich-customer", enrichCustomer(logger)))
+	mux.HandleFunc("/hooks/notify-supplier", simulated("/hooks/notify-supplier", notifySupplier(logger)))
+	mux.HandleFunc("/hooks/product-changed", simulated("/hooks/product-changed", productChanged(logger)))
+	mux.HandleFunc("/hooks/sync-currency", simulated("/hooks/sync-currency", syncCurrency(logger)))
+	mux.HandleFunc("/hooks/tenant-provisioned", simulated("/hooks/tenant-provisioned", tenantProvisioned(logger)))
+	mux.HandleFunc("/hooks/check-line-item", simulated("/hooks/check-line-item", checkLineItem))
+	mux.HandleFunc("/hooks/audit-country", simulated("/hooks/audit-country", checkCountry))
+	mux.HandleFunc("/admin/simulate-failures", protected(adminSimulateFailures(sim, logger)))
 
 	logger.Info("hook service starting", "port", 8080)
 	handler := otelhttp.NewHandler(mux, "hook-service")

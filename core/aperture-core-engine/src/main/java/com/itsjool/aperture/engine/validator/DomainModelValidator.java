@@ -9,6 +9,7 @@ import com.itsjool.aperture.engine.model.HookDef;
 import com.itsjool.aperture.engine.model.RoleDefinitionDef;
 import com.itsjool.aperture.engine.model.FrameworkConfigDef;
 import com.itsjool.aperture.engine.model.FieldKind;
+import com.itsjool.aperture.engine.model.EntityOperations;
 import com.itsjool.aperture.engine.model.McpConfig;
 import com.itsjool.aperture.engine.model.McpEntityConfig;
 import com.itsjool.aperture.engine.model.AbacPolicyDef;
@@ -25,7 +26,7 @@ import java.util.regex.Pattern;
 public class DomainModelValidator {
 
     private static final Set<String> VALID_OPERATIONS = Set.of("read", "create", "update", "delete");
-    private static final List<String> VALID_MCP_TOOLS = List.of("list", "get", "create", "update", "delete");
+    private static final List<String> VALID_MCP_TOOLS = EntityOperations.MCP_TOOLS;
     private static final Set<String> VALID_ABAC_VARIABLES = Set.of("user", "record", "input");
     private static final Pattern SECURITY_ATTRIBUTE_PATTERN = Pattern.compile("#user\\.securityAttributes(?:\\[['\"]([^'\"]+)['\"]\\]|\\.([a-zA-Z0-9_]+))");
     private final HookSemanticsResolver hookSemanticsResolver = new HookSemanticsResolver();
@@ -151,11 +152,14 @@ public class DomainModelValidator {
 
         Set<String> usedPolicies = new HashSet<>();
 
+        List<String> frameworkMcpCeiling = (model.frameworkConfig() != null && model.frameworkConfig().mcp() != null)
+            ? model.frameworkConfig().mcp().tools() : null;
+
         for (EntityDef entity : model.entities()) {
             String loc = locationMap.getOrDefault(entity, "unknown file");
 
             if (entity.mcpConfig() != null) {
-                validateEntityMcpConfig(entity.mcpConfig(), loc, entity.name());
+                validateEntityMcpConfig(entity, frameworkMcpCeiling, loc);
             }
 
             Set<String> publicOps = new HashSet<>();
@@ -347,8 +351,45 @@ public class DomainModelValidator {
         }
     }
 
-    private void validateEntityMcpConfig(McpEntityConfig config, String loc, String entityName) {
+    private void validateEntityMcpConfig(EntityDef entity, List<String> frameworkMcpCeiling, String loc) {
+        McpEntityConfig config = entity.mcpConfig();
+        String entityName = entity.name();
         validateMcpTools(config.tools(), loc, "Entity " + entityName);
+
+        if (config.tools() != null && !config.tools().isEmpty()) {
+            // enabled: false together with a non-empty tools list is contradictory: silently
+            // picking one of the two is exactly the ambiguity this plan closes.
+            if (Boolean.FALSE.equals(config.enabled())) {
+                throw new ManifestValidationException(
+                    "Entity " + entityName + " declares mcp.enabled: false together with a "
+                        + "non-empty mcp.tools list in " + loc + ". This is contradictory: remove "
+                        + "the tools list, or remove enabled: false.");
+            }
+
+            Set<String> derived = EntityOperations.derivedMcpTools(entity);
+            // The ceiling comes straight from the manifest, where tool names are case-insensitive;
+            // it is compared below against a lower-cased tool name, so it must be normalized too.
+            Set<String> ceiling = (frameworkMcpCeiling != null && !frameworkMcpCeiling.isEmpty())
+                ? EntityOperations.normalizedOps(frameworkMcpCeiling) : new HashSet<>(EntityOperations.MCP_TOOLS);
+
+            for (String tool : config.tools()) {
+                String normalized = tool.toLowerCase();
+                if (!derived.contains(normalized)) {
+                    throw new ManifestValidationException(
+                        "Entity " + entityName + " declares MCP tool '" + tool + "' in " + loc
+                            + " but no role, policy, or publicOperations grants the operation "
+                            + "that tool requires. Configuration can only restrict the tools an "
+                            + "entity's own access rules already permit, never widen them.");
+                }
+                if (!ceiling.contains(normalized)) {
+                    throw new ManifestValidationException(
+                        "Entity " + entityName + " declares MCP tool '" + tool + "' in " + loc
+                            + " but the framework MCP ceiling (spec.mcp.tools) does not include "
+                            + "it. An entity's tools can only narrow the framework ceiling, never "
+                            + "exceed it.");
+                }
+            }
+        }
     }
 
     private void validateMcpTools(List<String> tools, String loc, String context) {

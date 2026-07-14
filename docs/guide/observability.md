@@ -11,7 +11,7 @@ Aperture exposes metrics for internal components, and also leverages Spring Boot
 - `aperture.audit.write`: Timer and counter for audit log background writes (see [Audit Log Spans](#audit-log-spans) below for its tags).
 - `aperture.audit.queue.size`: Gauge tracking the current size of the async audit event queue.
 - `aperture.audit.dropped`: Counter of audit events dropped when the queue overflows.
-- `aperture.ratelimit.rejections`: Counter of requests rejected by the rate limiter, tagged by `type` (e.g. `ip`).
+- `aperture.ratelimit.rejections`: Counter of requests rejected by the rate limiter, tagged by `type` (e.g. `ip`). This is currently only incremented by `InMemoryRateLimitProvider`. The Valkey-backed provider (the one used in `demos/aperture-demo`'s rate-limit walkthrough) has no equivalent counter today, and `RateLimitFilter`'s fail-open path (see [Rate limiting](/guide/security-audit#rate-limiting)) does not emit one either — a Valkey-backed deployment has no metric for either real rejections or fail-open events.
 - `aperture.hook`: Timer and counter for outbound hook dispatch calls (see [Hook Dispatch Spans](#hook-dispatch-spans) below for its tags).
 
 ## Distributed Tracing (OpenTelemetry)
@@ -39,7 +39,7 @@ This allows you to slice metrics dashboards by entity/operation and filter indiv
 When Aperture dispatches a webhook, it wraps the outbound HTTP call in an `aperture.hook` Observation. This observation includes the following low-cardinality tags:
 
 - `hook.name`: The name of the hook (from the manifest).
-- `hook.phase`: The phase of the hook (e.g., `PRECOMMIT`, `POSTCOMMIT`, `PREENRICH`).
+- `hook.phase`: The phase of the hook (e.g., `PRESECURITY`, `PRECOMMIT`, `POSTCOMMIT`).
 - `hook.async`: Boolean indicating if the hook was executed asynchronously.
 - `entity`: The entity triggering the hook.
 - `outcome`: Set once the call completes — `ok` (2xx response), `rejected` (non-2xx response), or `error` (the request itself failed, e.g. timeout/connection error).

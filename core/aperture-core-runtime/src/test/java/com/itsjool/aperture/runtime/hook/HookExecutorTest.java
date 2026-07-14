@@ -12,8 +12,11 @@ import org.springframework.mock.web.MockHttpServletRequest;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.assertThatCode;
 
 /**
  * Verifies that {@link HookExecutor#executeHookWithResponse} records an "aperture.hook"
@@ -153,5 +156,100 @@ class HookExecutorTest {
         });
         server.start();
         return "http://localhost:" + server.getAddress().getPort() + "/hook";
+    }
+
+    // ---------- executeHook retry counts (plan 032) ----------
+    //
+    // First time retry *counts* are asserted anywhere, not just observation tagging — the retry
+    // mechanism (handleRetry/doExecuteAsync) predates plan 032 but was unreachable in production
+    // (CodeGenerator always passed retries=0), so nothing previously exercised attempt < retries.
+
+    private final AtomicInteger requestCount = new AtomicInteger();
+
+    private String startServerFailingFirstNThenSucceeding(int failCount, int failStatus) throws Exception {
+        server = HttpServer.create(new InetSocketAddress("localhost", 0), 0);
+        server.createContext("/hook", exchange -> {
+            int attempt = requestCount.incrementAndGet();
+            boolean fail = attempt <= failCount;
+            byte[] bytes = (fail ? "{\"error\":\"transient\"}" : "{\"ok\":true}").getBytes(StandardCharsets.UTF_8);
+            exchange.sendResponseHeaders(fail ? failStatus : 200, bytes.length);
+            try (var os = exchange.getResponseBody()) {
+                os.write(bytes);
+            }
+            exchange.close();
+        });
+        server.start();
+        return "http://localhost:" + server.getAddress().getPort() + "/hook";
+    }
+
+    private String startAlwaysFailingCountingServer(int status) throws Exception {
+        server = HttpServer.create(new InetSocketAddress("localhost", 0), 0);
+        server.createContext("/hook", exchange -> {
+            requestCount.incrementAndGet();
+            byte[] bytes = "{\"error\":\"boom\"}".getBytes(StandardCharsets.UTF_8);
+            exchange.sendResponseHeaders(status, bytes.length);
+            try (var os = exchange.getResponseBody()) {
+                os.write(bytes);
+            }
+            exchange.close();
+        });
+        server.start();
+        return "http://localhost:" + server.getAddress().getPort() + "/hook";
+    }
+
+    @Test
+    void executeHookRetriesUntilSuccessWithinBudget() throws Exception {
+        // Fails the first 2 calls, succeeds on the 3rd. retries=3 gives up to 4 total attempts —
+        // it must stop retrying as soon as it succeeds, not exhaust the whole retry budget.
+        String url = startServerFailingFirstNThenSucceeding(2, 503);
+        hookExecutor = new HookExecutor("test-secret", null, Duration.ofSeconds(2), Duration.ofSeconds(2),
+            Duration.ofSeconds(2), TestObservationRegistry.create());
+
+        hookExecutor.executeHook("my-hook", "Invoice", "PRECOMMIT", url, "{}", null, "reject", 3, false);
+
+        assertThat(requestCount.get()).as("initial attempt + 2 retries, then success — not the full retries=3 budget")
+            .isEqualTo(3);
+    }
+
+    @Test
+    void executeHookExhaustsRetriesThenRejectThrowsAfterExactlyRetryPlusOneAttempts() throws Exception {
+        String url = startAlwaysFailingCountingServer(503);
+        hookExecutor = new HookExecutor("test-secret", null, Duration.ofSeconds(2), Duration.ofSeconds(2),
+            Duration.ofSeconds(2), TestObservationRegistry.create());
+
+        assertThatThrownBy(() ->
+            hookExecutor.executeHook("my-hook", "Invoice", "PRECOMMIT", url, "{}", null, "reject", 2, false)
+        ).isInstanceOf(com.yahoo.elide.core.exceptions.BadRequestException.class);
+
+        assertThat(requestCount.get()).as("initial attempt + 2 retries = 3 total, exhausted then rejected")
+            .isEqualTo(3);
+    }
+
+    @Test
+    void executeHookExhaustsRetriesThenWarnLogsAndSucceeds() throws Exception {
+        String url = startAlwaysFailingCountingServer(503);
+        hookExecutor = new HookExecutor("test-secret", null, Duration.ofSeconds(2), Duration.ofSeconds(2),
+            Duration.ofSeconds(2), TestObservationRegistry.create());
+
+        assertThatCode(() ->
+            hookExecutor.executeHook("my-hook", "Invoice", "PRECOMMIT", url, "{}", null, "warn", 2, false)
+        ).doesNotThrowAnyException();
+
+        assertThat(requestCount.get()).as("initial attempt + 2 retries = 3 total, exhausted then warn-succeeded")
+            .isEqualTo(3);
+    }
+
+    @Test
+    void executeHookExhaustsRetriesThenPassthroughSucceedsSilently() throws Exception {
+        String url = startAlwaysFailingCountingServer(503);
+        hookExecutor = new HookExecutor("test-secret", null, Duration.ofSeconds(2), Duration.ofSeconds(2),
+            Duration.ofSeconds(2), TestObservationRegistry.create());
+
+        assertThatCode(() ->
+            hookExecutor.executeHook("my-hook", "Invoice", "PRECOMMIT", url, "{}", null, "passthrough", 2, false)
+        ).doesNotThrowAnyException();
+
+        assertThat(requestCount.get()).as("initial attempt + 2 retries = 3 total, exhausted then passthrough-succeeded")
+            .isEqualTo(3);
     }
 }

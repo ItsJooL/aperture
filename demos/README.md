@@ -83,7 +83,7 @@ Proves that the `AuditWriter` SPI can fan out audit events to an external HTTP d
 
 **Domain**: Product entity with an encrypted supplier field  
 **Auth**: Aperture's built-in JWT auth  
-**Highlights**: `AuditWriter` SPI, JDBC + webhook composite writer, WireMock SIEM sink, before/after UPDATE details
+**Highlights**: `AuditWriter` SPI, JDBC + webhook composite writer, WireMock SIEM sink, before/after UPDATE details, default encrypted-field redaction (`[REDACTED]`) end-to-end in both sinks
 
 ```bash
 mvn -pl demos/aperture-audit-demo -am package -DskipTests

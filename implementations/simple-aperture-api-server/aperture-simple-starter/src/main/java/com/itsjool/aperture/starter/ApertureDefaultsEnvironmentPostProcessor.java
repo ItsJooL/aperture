@@ -21,6 +21,17 @@ public class ApertureDefaultsEnvironmentPostProcessor implements EnvironmentPost
         // logging.pattern.correlation once a Tracer bean is present (micrometer-tracing-bridge-otel
         // is a starter dependency). Do not also edit logging.pattern.level — that double-prints them.
 
+        // micrometer-registry-otlp is an unconditional starter dependency (backs the OTLP metrics
+        // exporter for consumers who wire a collector), which means Spring Boot's OTLP metrics
+        // auto-config is enabled by default the moment it's on the classpath — with nowhere
+        // configured to send it, it pushes to http://localhost:4318/v1/metrics every 60s and logs a
+        // WARN on every failed attempt. The reference implementation's metrics path is the
+        // Prometheus *pull* endpoint (/actuator/prometheus); disable the OTLP metrics *push* by
+        // default so consumers who haven't configured an OTLP metrics receiver don't get spammed.
+        // Consumers who do want OTLP metrics push can override this with
+        // management.otlp.metrics.export.enabled=true once they've configured a receiver.
+        defaults.put("management.otlp.metrics.export.enabled", "false");
+
         // Add defaults with lowest precedence
         environment.getPropertySources().addLast(new MapPropertySource("apertureDefaults", defaults));
     }

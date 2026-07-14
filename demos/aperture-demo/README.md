@@ -160,7 +160,62 @@ curl -X POST http://localhost:8080/api/v3/operations \
 # → 400 and the invoice is rolled back with the rejected line item
 ```
 
-### 7. View distributed traces
+### 7. Trigger a mutate hook — customer enrichment
+
+```bash
+# The hook-service trims whitespace from the customer name before it's persisted
+curl -X POST http://localhost:8080/api/v3/customers \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/vnd.api+json" \
+  -H "Accept: application/vnd.api+json" \
+  -d '{"data":{"type":"customers","attributes":{"name":"  Acme Corp  ","email":"acme-enriched@example.com"}}}'
+# → 201; response name comes back "Acme Corp" — the EnrichCustomer mutate hook ran and
+#   trimmed the whitespace before the customer was persisted
+```
+
+### 8. Trigger hooks — asynchronous side effects
+
+The create above also fired `Customer`'s `TenantProvisioned` trigger hook. Trigger hooks run
+after the write commits and never hold open the API response — `Supplier.NotifySupplier`,
+`Product.ProductChanged`, and `Currency.SyncCurrency` are the demo's other trigger hooks, exercised
+by the seeder on startup. Check the hook-service logs to see them land:
+
+```bash
+docker compose logs hook-service --tail=20
+```
+
+Look for log lines such as `customer enrichment` (the mutate hook from step 7), `tenant provisioned
+— sending welcome email (simulated)`, `supplier notification dispatched (simulated)`, `product
+change event`, and `currency reference sync queued (simulated)`.
+
+### 9. Retries — automatic recovery from a transient hook failure
+
+`Invoice`'s `ValidateInvoice` hook declares `retries: 2` in the manifest (see
+`manifests/domain/billing/invoice.yaml`). Arm the hook-service to fail the next 2 calls, then create
+an invoice — it still succeeds, because Aperture retries automatically (500ms, then 1000ms backoff)
+before the hook-service's simulated failures are exhausted:
+
+```bash
+# Fail the next 2 calls to /hooks/validate-invoice with a 503
+curl -X POST http://localhost:8081/admin/simulate-failures \
+  -H "Content-Type: application/json" -H "X-Hook-Secret: ${APERTURE_HOOKS_SECRET:-default-secret}" \
+  -d '{"path":"/hooks/validate-invoice","count":2,"status":503}'
+
+curl -X POST http://localhost:8080/api/v1/invoices \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/vnd.api+json" \
+  -H "Accept: application/vnd.api+json" \
+  -d '{"data":{"type":"invoices","attributes":{"amount":275,"status":"DRAFT"},
+       "relationships":{"customer":{"data":{"type":"customers","id":"'"$CUSTOMER_ID"'"}}}}}'
+# → 201, but takes ~1.5s (the backoff delay) instead of an instant response
+```
+
+Check the hook-service logs (`docker compose logs hook-service --tail=20`) — you'll see 3 calls to
+`/hooks/validate-invoice` roughly 0.5s and 1s apart: two 503s, then a 200. See the Bruno folder
+`15-hook-retries` for the same flow, and `docs/guide/hooks.md#retries-and-timeouts` for the backoff
+formula, the per-hook-type caps, and the added-latency tradeoff of turning this on.
+
+### 10. View distributed traces
 
 Open http://localhost:16686 and select `aperture-demo` service to see traces for the above requests.
 
@@ -168,11 +223,11 @@ The demo is configured to capture **100% of traces** for observability testing (
 
 - **API request spans**: Each `/api/v*` call produces a root span with `aperture.entity`, `aperture.operation`, `aperture.api.version`, and `aperture.tenant.id` tags.
 - **Hook dispatch spans**: When a webhook is invoked (e.g., `ValidateInvoice`), the outbound HTTP call is wrapped in an `aperture.hook` span that propagates the trace context (`traceparent` header) to the hook service. This allows a single trace to span your API → hook-service → and back, showing the complete flow.
-- **Audit write spans**: Asynchronous audit log writes are linked to the original request span via span links (not parent-child, since writes occur post-commit).
+- **Audit write spans**: Asynchronous audit log writes are emitted as a child span of the original request span, even though writes occur post-commit.
 
 Try the invoice creation flow (step 3 or 4 above) and look at the Jaeger trace — you'll see the API request → hook dispatch → hook-service validation all in one trace.
 
-### 7. Observability and Metrics
+### 11. Observability and Metrics
 
 Aperture exposes metrics at `/actuator/metrics` and Prometheus scrape endpoint at `/actuator/prometheus`. Bruno includes folders for both:
 
@@ -189,7 +244,7 @@ curl http://localhost:8080/actuator/prometheus | grep aperture
 
 Key metrics during the walkthrough:
 
-- `aperture.hook.duration` — how long hook dispatch took
+- `aperture.hook` — how long hook dispatch took
 - `aperture.audit.queue.size` — how many events are pending write
 - `http.server.requests` — request count, latency, status by endpoint and tenant
 

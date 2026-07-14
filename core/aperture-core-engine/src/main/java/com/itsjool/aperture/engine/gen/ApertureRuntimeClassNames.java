@@ -1,10 +1,11 @@
 package com.itsjool.aperture.engine.gen;
 
 /**
- * Fully-qualified class names from aperture-core-runtime that CodeGenerator embeds as string
- * literals in generated Java source. There is no Maven compile-time dependency between
- * aperture-core-engine and aperture-core-runtime, so renaming any of these classes will break
- * generated code at the consumer's build. Keep these constants in sync with the runtime module.
+ * Fully-qualified class names from aperture-core-runtime (and, for a couple of shared SPI marker
+ * types, aperture-provider-spi) that CodeGenerator embeds as string literals in generated Java
+ * source. There is no Maven compile-time dependency between aperture-core-engine and either of
+ * those modules, so renaming any of these classes will break generated code at the consumer's
+ * build. Keep these constants in sync with the source module.
  */
 final class ApertureRuntimeClassNames {
     static final String AUDIT_BRIDGE          = "com.itsjool.aperture.runtime.audit.AuditBridge";
@@ -15,6 +16,7 @@ final class ApertureRuntimeClassNames {
     static final String HOOK_EXECUTOR         = "com.itsjool.aperture.runtime.hook.HookExecutor";
     static final String HOOK_PAYLOAD_BUILDER  = "com.itsjool.aperture.runtime.hook.HookPayloadBuilder";
     static final String APERTURE_PRINCIPAL    = "com.itsjool.aperture.spi.AperturePrincipal";
+    static final String ENCRYPTED             = "com.itsjool.aperture.spi.Encrypted";
 
     private ApertureRuntimeClassNames() {}
 }

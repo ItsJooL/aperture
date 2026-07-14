@@ -227,9 +227,17 @@ public class CodeGenerator {
         java.util.List<String> publicOps = entityDef.publicOperations() != null ?
             entityDef.publicOperations().stream().map(String::toLowerCase).toList() : java.util.List.of();
 
+        // The single reachability predicate shared with the MCP tool derivation (plan 016): an
+        // operation the manifest doesn't grant to any role, policy, or publicOperations entry
+        // collapses to Prefab.Role.None here, and to "not derivable as an MCP tool" there. Both
+        // call sites must agree, or the REST permission surface and the MCP tool surface drift.
+        java.util.Set<String> reachableOps = com.itsjool.aperture.engine.model.EntityOperations.reachableOperations(entityDef);
+
         for (String op : roleOps.keySet()) {
             String expr;
-            if (publicOps.contains(op)) {
+            if (!reachableOps.contains(op)) {
+                expr = "Prefab.Role.None";
+            } else if (publicOps.contains(op)) {
                 expr = "Prefab.Role.All";
             } else {
                 java.util.List<String> opRoles = roleOps.get(op);
@@ -242,10 +250,8 @@ public class CodeGenerator {
                     expr = "(" + roleExpr + " AND " + policyExpr + ")";
                 } else if (roleExpr != null) {
                     expr = roleExpr;
-                } else if (policyExpr != null) {
-                    expr = policyExpr;
                 } else {
-                    expr = "Prefab.Role.None";
+                    expr = policyExpr;
                 }
             }
 
@@ -417,6 +423,10 @@ public class CodeGenerator {
                 if (field.encrypted()) {
                     String converterName = entityDef.name() + capitalize(fieldName) + "Converter";
                     fieldBuilder.addAnnotation(com.palantir.javapoet.AnnotationSpec.builder(ClassName.get("jakarta.persistence", "Convert")).addMember("converter", "$T.class", ClassName.get("com.itsjool.aperture.generated", converterName)).build());
+                    // Purely additive runtime signal (no effect on the encryption mechanism itself):
+                    // AuditBridge looks this up via EntityDictionary to redact this field's before/after
+                    // values in the audit trail by default.
+                    fieldBuilder.addAnnotation(ClassName.bestGuess(ApertureRuntimeClassNames.ENCRYPTED));
                 }
                 
                 if (field.required() && FieldKind.from(field) != FieldKind.ONEOF) {
@@ -732,11 +742,11 @@ public class CodeGenerator {
             if (semantics.async()) {
                 executeBuilder
                     .addStatement("hookExecutor.executeHook($S, $S, $S, $S, payload, req, $S, $L, true)",
-                        hookName, entityDef.name(), semantics.phase(), hookDef.url(), semantics.onFailure(), 0);
+                        hookName, entityDef.name(), semantics.phase(), hookDef.url(), semantics.onFailure(), semantics.retries());
             } else {
                 executeBuilder
                     .addStatement("java.util.concurrent.CompletableFuture<Boolean> future = hookExecutor.executeHook($S, $S, $S, $S, payload, req, $S, $L, false)",
-                        hookName, entityDef.name(), semantics.phase(), hookDef.url(), semantics.onFailure(), 0)
+                        hookName, entityDef.name(), semantics.phase(), hookDef.url(), semantics.onFailure(), semantics.retries())
                     .addStatement("future.join()");
             }
         }

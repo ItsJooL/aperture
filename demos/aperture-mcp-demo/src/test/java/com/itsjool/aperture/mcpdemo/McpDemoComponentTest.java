@@ -91,22 +91,40 @@ class McpDemoComponentTest {
     }
 
     private String createAgentApiKey() throws Exception {
+        return createAgentApiKey("Admin", "Component test MCP key");
+    }
+
+    private String createAgentApiKey(String domainRole, String keyName) throws Exception {
         String token = loginAsAgentAdmin();
         var result = mockMvc.perform(post("/auth/me/api-keys")
                         .header("Authorization", token)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
-                                  "name": "Component test MCP key",
-                                  "domainRoles": ["Admin"],
+                                  "name": "%s",
+                                  "domainRoles": ["%s"],
                                   "securityAttributes": {}
                                 }
-                                """))
+                                """.formatted(keyName, domainRole)))
                 .andReturn();
         assertThat(result.getResponse().getStatus()).isEqualTo(201);
         JsonNode root = MAPPER.readTree(result.getResponse().getContentAsString());
         assertThat(root.path("secret").isMissingNode()).isFalse();
         return root.path("secret").asText();
+    }
+
+    private JsonNode listMcpTools(String apiKey) throws Exception {
+        String listToolsBody = """
+                {"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}
+                """;
+        var result = elide(post("/mcp")
+                        .header("X-API-Key", apiKey)
+                        .header("Accept", MCP_ACCEPT)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(listToolsBody))
+                .andExpect(status().isOk())
+                .andReturn();
+        return MAPPER.readTree(result.getResponse().getContentAsString());
     }
 
     private JsonNode callMcpTool(String token, int id, String toolName, String argumentsJson) throws Exception {
@@ -199,6 +217,37 @@ class McpDemoComponentTest {
         // (see McpElideAdapter#relationshipRef / #buildBody), so Task also exposes full CRUD.
         assertThat(toolNames).contains(
                 "list_tasks", "get_task", "create_task", "update_task", "delete_task");
+    }
+
+    @Test
+    void mcpToolsList_adminApiKeySeesAllTenTools() throws Exception {
+        // Principal-scoped tools/list (plan 016 phase 2): an Admin-role API key — not the
+        // superadmin bypass used by mcpListTools_exposesProjectAndTaskFullCrud above — must still
+        // see the full generated tool surface, since Admin's permissions grant full CRUD on both
+        // Project and Task.
+        String apiKey = createAgentApiKey("Admin", "Admin tools/list test key");
+
+        JsonNode root = listMcpTools(apiKey);
+        List<String> toolNames = new ArrayList<>();
+        root.path("result").path("tools").forEach(tool -> toolNames.add(tool.path("name").asText()));
+
+        assertThat(toolNames).containsExactlyInAnyOrder(
+                "list_projects", "get_project", "create_project", "update_project", "delete_project",
+                "list_tasks", "get_task", "create_task", "update_task", "delete_task");
+    }
+
+    @Test
+    void mcpToolsList_readOnlyApiKeySeesOnlyReadTools() throws Exception {
+        // ReadOnly's permissions only grant "read" on both entities, so it must see exactly the
+        // four read tools and none of the write ones — proving tools/list is actually scoped to
+        // the calling principal's roles, not just returning the full generated surface.
+        String apiKey = createAgentApiKey("ReadOnly", "ReadOnly tools/list test key");
+
+        JsonNode root = listMcpTools(apiKey);
+        List<String> toolNames = new ArrayList<>();
+        root.path("result").path("tools").forEach(tool -> toolNames.add(tool.path("name").asText()));
+
+        assertThat(toolNames).containsExactlyInAnyOrder("list_projects", "get_project", "list_tasks", "get_task");
     }
 
     @Test

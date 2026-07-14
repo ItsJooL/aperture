@@ -1,0 +1,35 @@
+meta {
+  name: Login Agent Admin
+  type: http
+  seq: 5
+}
+
+post {
+  url: {{baseUrl}}/auth/login
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "username": "{{agentAdminUsername}}",
+    "password": "{{agentAdminPassword}}"
+  }
+}
+
+docs {
+  Logs in as the non-superadmin "agent-admin" user that owns the demo's MCP
+  API keys, so the next request can mint a ReadOnly-scoped key without any
+  superadmin bypass involved.
+}
+
+script:post-response {
+  if (res.status === 200) {
+    bru.setVar("agentAdminToken", res.body.accessToken);
+  }
+}
+
+assert {
+  res.status: eq 200
+  res.body.accessToken: isDefined
+}

@@ -3,9 +3,6 @@ kind: Entity
 metadata:
   name: Task
 spec:
-  mcp:
-    enabled: true
-    tools: [list, get, create, update, delete]
   optimisticLocking: true
   softDelete: true
   fields:

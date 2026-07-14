@@ -82,13 +82,13 @@ ETag for you on these two subcommands; quote the `version` attribute from a prio
 `get`/`create` call (`apply --upsert`, `update -f`, and `delete -f` *do* fetch it
 automatically — see the `07` section below).
 
-`06-entities/06-create-customer-v3-preenrich.bru` (exercising the `PREENRICH` hook,
+`06-entities/06-create-customer-v3-mutate.bru` (exercising the `EnrichCustomer` mutate hook,
 which requires `/api/v3/`) has a direct equivalent — no explicit `--api-version`
 needed, since `3` is already the default:
 
 ```bash
 $CLI --server http://localhost:8080 create customers --name "  Acme Corp  " --email acme-enriched@example.com --format json
-# → name comes back trimmed to "Acme Corp": the PREENRICH hook ran before persisting.
+# → name comes back trimmed to "Acme Corp": the EnrichCustomer mutate hook ran before persisting.
 ```
 
 ## Maps to `07-atomic-operations`
