@@ -8,28 +8,71 @@ import com.itsjool.aperture.spi.RateLimitRule;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.observation.Observation;
 import io.micrometer.observation.ObservationRegistry;
+import org.redisson.Redisson;
+import org.redisson.api.FunctionMode;
+import org.redisson.api.FunctionResult;
+import org.redisson.api.RedissonClient;
+import org.redisson.client.codec.StringCodec;
+import org.redisson.config.Config;
 
-import java.io.ByteArrayOutputStream;
 import java.io.Closeable;
-import java.io.EOFException;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
-import java.net.InetSocketAddress;
-import java.net.Socket;
-import java.nio.charset.StandardCharsets;
-import java.time.Duration;
-import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * Valkey/Redis-backed {@link RateLimitProvider}. The token-bucket algorithm runs entirely server-side
+ * as a Redis Function ({@code FUNCTION LOAD} / {@code FCALL}) - this class only owns the client
+ * transport and the plumbing around a single {@code consume} call.
+ *
+ * <h2>Client: Redisson, not a hand-rolled RESP client</h2>
+ * Previously this class hand-rolled a RESP2 wire client (one {@code Socket}, one {@code synchronized}
+ * lock, manual framing). Plan 031 replaces that with Redisson. Two things were confirmed
+ * <b>empirically</b> against the project's pinned {@code valkey/valkey:9.1.0} image before writing this
+ * class (see {@code dev-notes/plans/031-valkey-redisson-migration.md} Step 1):
+ * <ul>
+ *   <li>Redisson's {@link org.redisson.api.RFunction} API supports {@code FUNCTION LOAD}/{@code FCALL}
+ *       ("Redis Functions") directly - no protocol incompatibility, no HELLO/RESP3 handshake mismatch.
+ *       So the Lua function-library shape is kept as-is (loaded via {@code loadAndReplace}, invoked via
+ *       {@code call(FunctionMode.WRITE, ...)}); there was no need to fall back to the EVALSHA-based
+ *       plain-script mechanism the plan allowed for as a second choice.</li>
+ *   <li>Redisson's {@code load()}/{@code loadAndReplace(name, code)} synthesize the
+ *       {@code #!lua name=...} shebang line themselves from the {@code name} argument - the Lua source
+ *       passed in must NOT include it (including it twice makes Valkey reject the load with
+ *       "unexpected symbol near '#'").</li>
+ * </ul>
+ *
+ * <h2>Lazy connection (fixes finding 1F)</h2>
+ * {@link Config#setLazyInitialization(boolean)} is set to {@code true}, and the function library is
+ * loaded lazily on first use (see {@link #ensureFunctionLoaded()}) rather than from the constructor.
+ * So the constructor performs no I/O at all and never throws when Valkey is unreachable at boot; the
+ * first real {@code evaluate()} call is what triggers connection establishment (and the library load),
+ * and a failure there is just an ordinary exception that {@code RateLimitFilter.evaluateOrFailOpen()}
+ * catches and fails open on - identical to any other runtime Valkey outage.
+ *
+ * <h2>Pooling / concurrency (fixes finding 1G)</h2>
+ * Redisson's built-in connection pool replaces the single socket + single lock the old client used.
+ * The only synchronization left in this class ({@link #ensureFunctionLoaded()}'s monitor) guards the
+ * one-time function-library load, not the per-request {@code FCALL} round trip - once the library is
+ * loaded, concurrent {@code evaluate()} calls proceed independently over the pool with no shared lock.
+ *
+ * <h2>Codec</h2>
+ * The client is configured with a plain {@link StringCodec} rather than Redisson's default
+ * {@code Kryo5Codec}. Empirically both round-tripped the key/args correctly for this use case, but
+ * {@code StringCodec} is used anyway to keep the on-the-wire Valkey key format an explicit, obviously
+ * plain string (matching the pre-migration behavior byte-for-byte) rather than relying on default-codec
+ * behavior that could change across Redisson versions.
+ */
 public class ValkeyRateLimitProvider implements RateLimitProvider, Closeable {
-    private static final String FUNCTION_NAME = "consume";
-    private static final String LIBRARY_NAME = "aperture_rate_limit";
 
-    private final RespClient client;
+    private final RedissonClient redissonClient;
+    private final String libraryName;
+    private final String functionName;
+    private final String functionSource;
     private final String keyPrefix;
     private final MeterRegistry meterRegistry;
     private final ObservationRegistry observationRegistry;
+
+    private final Object loadLock = new Object();
+    private volatile boolean functionLoaded = false;
 
     public ValkeyRateLimitProvider(ApertureRateLimitProperties.Valkey valkeyProperties) {
         this(valkeyProperties, null, null);
@@ -41,10 +84,20 @@ public class ValkeyRateLimitProvider implements RateLimitProvider, Closeable {
 
     public ValkeyRateLimitProvider(ApertureRateLimitProperties.Valkey valkeyProperties, MeterRegistry meterRegistry, ObservationRegistry observationRegistry) {
         this.keyPrefix = valkeyProperties.getKeyPrefix();
-        this.client = new RespClient(valkeyProperties.getHost(), valkeyProperties.getPort());
+        this.libraryName = valkeyProperties.getLibraryName();
+        this.functionName = valkeyProperties.getFunctionName();
+        this.functionSource = buildFunctionSource(this.functionName);
         this.meterRegistry = meterRegistry;
         this.observationRegistry = observationRegistry != null ? observationRegistry : ObservationRegistry.NOOP;
-        loadFunctionLibrary();
+
+        // No I/O here: lazyInitialization defers the actual TCP connect (and the function-library
+        // load, see ensureFunctionLoaded()) until the first evaluate() call. This is the 1F fix - a
+        // Valkey outage at boot must not fail bean creation / app startup.
+        Config config = new Config();
+        config.setLazyInitialization(true);
+        config.setCodec(new StringCodec());
+        config.useSingleServer().setAddress("redis://" + valkeyProperties.getHost() + ":" + valkeyProperties.getPort());
+        this.redissonClient = Redisson.create(config);
     }
 
     @Override
@@ -59,16 +112,17 @@ public class ValkeyRateLimitProvider implements RateLimitProvider, Closeable {
                 .lowCardinalityKeyValue("type", key.type());
         observation.start();
         try (Observation.Scope scope = observation.openScope()) {
-            Object response = client.command(
-                    "FCALL",
-                    FUNCTION_NAME,
-                    "1",
-                    redisKey(key),
+            ensureFunctionLoaded();
+
+            List<?> values = redissonClient.getFunction().call(
+                    FunctionMode.WRITE,
+                    functionName,
+                    FunctionResult.LIST,
+                    List.of(redisKey(key)),
                     Integer.toString(rule.capacity()),
                     Integer.toString(rule.burst()),
                     Integer.toString(rule.windowSeconds()));
 
-            List<?> values = asList(response);
             long allowed = asLong(values, 0);
             int remaining = (int) asLong(values, 1);
             long retryAfterSeconds = asLong(values, 2);
@@ -98,12 +152,31 @@ public class ValkeyRateLimitProvider implements RateLimitProvider, Closeable {
 
     @Override
     public void close() {
-        client.close();
+        redissonClient.shutdown();
     }
 
-    private void loadFunctionLibrary() {
-        String functionSource = """
-                #!lua name=%s
+    /**
+     * Loads the token-bucket function library on first use (not from the constructor - see class
+     * Javadoc). Double-checked locking guards only this one-time load: once {@link #functionLoaded} is
+     * {@code true}, every subsequent {@code evaluate()} call takes the lock-free fast path straight
+     * through to {@code FCALL}. If the load fails (e.g. Valkey unreachable), {@link #functionLoaded}
+     * stays {@code false} so the next call retries the load rather than being permanently stuck.
+     */
+    private void ensureFunctionLoaded() {
+        if (functionLoaded) {
+            return;
+        }
+        synchronized (loadLock) {
+            if (functionLoaded) {
+                return;
+            }
+            redissonClient.getFunction().loadAndReplace(libraryName, functionSource);
+            functionLoaded = true;
+        }
+    }
+
+    private static String buildFunctionSource(String functionName) {
+        return """
                 redis.register_function('%s', function(keys, args)
                   local key = keys[1]
                   local capacity = tonumber(args[1])
@@ -157,21 +230,11 @@ public class ValkeyRateLimitProvider implements RateLimitProvider, Closeable {
                   redis.call('PEXPIRE', key, math.max(window_seconds * 2000, 1000))
                   return {allowed, remaining, retry_after}
                 end)
-                """.formatted(LIBRARY_NAME, FUNCTION_NAME);
-
-        client.command("FUNCTION", "LOAD", "REPLACE", functionSource);
+                """.formatted(functionName);
     }
 
     private String redisKey(RateLimitKey key) {
         return keyPrefix + key.type() + ":" + key.value();
-    }
-
-    @SuppressWarnings("unchecked")
-    private static List<?> asList(Object response) {
-        if (response instanceof List<?>) {
-            return (List<?>) response;
-        }
-        throw new IllegalStateException("Unexpected Valkey response: " + response);
     }
 
     private static long asLong(List<?> values, int index) {
@@ -183,166 +246,5 @@ public class ValkeyRateLimitProvider implements RateLimitProvider, Closeable {
             return Long.parseLong(string);
         }
         throw new IllegalStateException("Unexpected Valkey response value: " + value);
-    }
-
-    private static final class RespClient implements Closeable {
-        private final String host;
-        private final int port;
-        private final Object lock = new Object();
-        private Socket socket;
-        private InputStream input;
-        private OutputStream output;
-
-        private RespClient(String host, int port) {
-            this.host = host;
-            this.port = port;
-        }
-
-        private Object command(String... parts) {
-            synchronized (lock) {
-                try {
-                    ensureConnected();
-                    writeCommand(parts);
-                    return readValue();
-                } catch (IOException first) {
-                    reconnect();
-                    try {
-                        writeCommand(parts);
-                        return readValue();
-                    } catch (IOException second) {
-                        throw new IllegalStateException("Valkey command failed after reconnect", second);
-                    }
-                }
-            }
-        }
-
-        private void ensureConnected() throws IOException {
-            if (socket != null && socket.isConnected() && !socket.isClosed()) {
-                return;
-            }
-            reconnect();
-        }
-
-        private void reconnect() {
-            closeQuietly();
-            try {
-                Socket newSocket = new Socket();
-                newSocket.connect(new InetSocketAddress(host, port), (int) Duration.ofSeconds(2).toMillis());
-                newSocket.setSoTimeout((int) Duration.ofSeconds(2).toMillis());
-                socket = newSocket;
-                input = newSocket.getInputStream();
-                output = newSocket.getOutputStream();
-            } catch (IOException e) {
-                throw new IllegalStateException("Unable to connect to Valkey at " + host + ":" + port, e);
-            }
-        }
-
-        private void writeCommand(String... parts) throws IOException {
-            output.write(("*" + parts.length + "\r\n").getBytes(StandardCharsets.UTF_8));
-            for (String part : parts) {
-                byte[] bytes = part.getBytes(StandardCharsets.UTF_8);
-                output.write(("$" + bytes.length + "\r\n").getBytes(StandardCharsets.UTF_8));
-                output.write(bytes);
-                output.write("\r\n".getBytes(StandardCharsets.UTF_8));
-            }
-            output.flush();
-        }
-
-        private Object readValue() throws IOException {
-            int type = input.read();
-            if (type == -1) {
-                throw new EOFException("Valkey connection closed");
-            }
-
-            return switch (type) {
-                case '+' -> readLine();
-                case '-' -> throw new IOException("Valkey error: " + readLine());
-                case ':' -> Long.parseLong(readLine());
-                case '$' -> readBulkString();
-                case '*' -> readArray();
-                default -> throw new IOException("Unexpected RESP type: " + (char) type);
-            };
-        }
-
-        private List<Object> readArray() throws IOException {
-            int length = Integer.parseInt(readLine());
-            if (length < 0) {
-                return null;
-            }
-            List<Object> values = new ArrayList<>(length);
-            for (int i = 0; i < length; i++) {
-                values.add(readValue());
-            }
-            return values;
-        }
-
-        private String readBulkString() throws IOException {
-            int length = Integer.parseInt(readLine());
-            if (length < 0) {
-                return null;
-            }
-            byte[] buffer = input.readNBytes(length);
-            if (buffer.length != length) {
-                throw new EOFException("Unexpected end of bulk string");
-            }
-            expectCrlf();
-            return new String(buffer, StandardCharsets.UTF_8);
-        }
-
-        private String readLine() throws IOException {
-            ByteArrayOutputStream buffer = new ByteArrayOutputStream();
-            int previous = -1;
-            while (true) {
-                int current = input.read();
-                if (current == -1) {
-                    throw new EOFException("Unexpected end of RESP line");
-                }
-                if (previous == '\r' && current == '\n') {
-                    break;
-                }
-                if (previous != -1) {
-                    buffer.write(previous);
-                }
-                previous = current;
-            }
-            return new String(buffer.toByteArray(), StandardCharsets.UTF_8);
-        }
-
-        private void expectCrlf() throws IOException {
-            int first = input.read();
-            int second = input.read();
-            if (first != '\r' || second != '\n') {
-                throw new EOFException("Expected CRLF after bulk string");
-            }
-        }
-
-        @Override
-        public void close() {
-            closeQuietly();
-        }
-
-        private void closeQuietly() {
-            try {
-                if (input != null) {
-                    input.close();
-                }
-            } catch (IOException ignored) {
-            }
-            try {
-                if (output != null) {
-                    output.close();
-                }
-            } catch (IOException ignored) {
-            }
-            try {
-                if (socket != null) {
-                    socket.close();
-                }
-            } catch (IOException ignored) {
-            }
-            socket = null;
-            input = null;
-            output = null;
-        }
     }
 }
