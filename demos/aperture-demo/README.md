@@ -188,7 +188,34 @@ Look for log lines such as `customer enrichment` (the mutate hook from step 7), 
 — sending welcome email (simulated)`, `supplier notification dispatched (simulated)`, `product
 change event`, and `currency reference sync queued (simulated)`.
 
-### 9. View distributed traces
+### 9. Retries — automatic recovery from a transient hook failure
+
+`Invoice`'s `ValidateInvoice` hook declares `retries: 2` in the manifest (see
+`manifests/domain/billing/invoice.yaml`). Arm the hook-service to fail the next 2 calls, then create
+an invoice — it still succeeds, because Aperture retries automatically (500ms, then 1000ms backoff)
+before the hook-service's simulated failures are exhausted:
+
+```bash
+# Fail the next 2 calls to /hooks/validate-invoice with a 503
+curl -X POST http://localhost:8081/admin/simulate-failures \
+  -H "Content-Type: application/json" -H "X-Hook-Secret: ${APERTURE_HOOKS_SECRET:-default-secret}" \
+  -d '{"path":"/hooks/validate-invoice","count":2,"status":503}'
+
+curl -X POST http://localhost:8080/api/v1/invoices \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/vnd.api+json" \
+  -H "Accept: application/vnd.api+json" \
+  -d '{"data":{"type":"invoices","attributes":{"amount":275,"status":"DRAFT"},
+       "relationships":{"customer":{"data":{"type":"customers","id":"'"$CUSTOMER_ID"'"}}}}}'
+# → 201, but takes ~1.5s (the backoff delay) instead of an instant response
+```
+
+Check the hook-service logs (`docker compose logs hook-service --tail=20`) — you'll see 3 calls to
+`/hooks/validate-invoice` roughly 0.5s and 1s apart: two 503s, then a 200. See the Bruno folder
+`15-hook-retries` for the same flow, and `docs/guide/hooks.md#retries-and-timeouts` for the backoff
+formula, the per-hook-type caps, and the added-latency tradeoff of turning this on.
+
+### 10. View distributed traces
 
 Open http://localhost:16686 and select `aperture-demo` service to see traces for the above requests.
 
@@ -200,7 +227,7 @@ The demo is configured to capture **100% of traces** for observability testing (
 
 Try the invoice creation flow (step 3 or 4 above) and look at the Jaeger trace — you'll see the API request → hook dispatch → hook-service validation all in one trace.
 
-### 10. Observability and Metrics
+### 11. Observability and Metrics
 
 Aperture exposes metrics at `/actuator/metrics` and Prometheus scrape endpoint at `/actuator/prometheus`. Bruno includes folders for both:
 
