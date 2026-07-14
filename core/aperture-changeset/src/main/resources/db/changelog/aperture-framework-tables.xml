@@ -294,4 +294,27 @@
             </sql>
         </rollback>
     </changeSet>
+
+    <changeSet id="aperture-033-audit-log-timestamptz" author="aperture">
+        <!--
+          aperture_audit_log.timestamp was a timezone-naive TIMESTAMP, populated via NOW() at
+          JdbcAuditWriter's batch-insert time. A naive column is itself a latent correctness bug:
+          if the DB session timezone that reads a row ever differs from the session that wrote it,
+          the value is silently misinterpreted. The `AT TIME ZONE 'UTC'` cast below treats every
+          existing row as already-UTC, which is safe here because every session that has ever
+          written this column runs with Postgres's own default TimeZone GUC ('UTC') — verified
+          empirically against the exact postgres:17-alpine image this project's demos and
+          FrameworkSchemaIT/AuditDemoComponentTest use (`SHOW TIMEZONE` reports UTC out of the box,
+          with no TZ environment variable or session-level `SET TIME ZONE` anywhere in this
+          project's docker-compose files, JDBC URLs, or application config to override it).
+        -->
+        <sql>
+            ALTER TABLE aperture_audit_log ALTER COLUMN "timestamp" TYPE TIMESTAMPTZ USING "timestamp" AT TIME ZONE 'UTC';
+        </sql>
+        <rollback>
+            <sql>
+                ALTER TABLE aperture_audit_log ALTER COLUMN "timestamp" TYPE TIMESTAMP USING "timestamp" AT TIME ZONE 'UTC';
+            </sql>
+        </rollback>
+    </changeSet>
 </databaseChangeLog>

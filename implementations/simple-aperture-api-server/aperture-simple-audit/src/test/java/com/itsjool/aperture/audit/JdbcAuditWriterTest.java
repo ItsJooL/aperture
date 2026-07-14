@@ -35,7 +35,7 @@ class JdbcAuditWriterTest {
         writer = new JdbcAuditWriter(jdbcTemplate, meterRegistry, observationRegistry);
 
         writer.write(new AuditEvent("user-1", "tenant-1", "Invoice", "invoice-1", "UPDATE",
-            "{\"fieldPath\":\"status\",\"before\":\"open\",\"after\":\"closed\"}"));
+            "{\"fieldPath\":\"status\",\"before\":\"open\",\"after\":\"closed\"}", java.time.Instant.now()));
 
         waitUntil(() -> TestObservationRegistryAssert.assertThat(observationRegistry)
             .hasSingleObservationThat()
