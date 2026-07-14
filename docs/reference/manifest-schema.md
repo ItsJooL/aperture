@@ -69,7 +69,8 @@ Each key under `fields` is a field name (camelCase). Each value is a field defin
 **`type: oneof` notes:** `target` names a `OneOf` manifest. The field generates `{fieldName}_type`
 and `{fieldName}_id` columns and is represented as a JSON:API relationship whose `data.type` is the
 concrete member resource type. `relation` and `mappedBy` do not apply to `oneof` fields and are
-rejected. Aperture always creates a composite lookup index over the type and ID columns (unique
+rejected — `oneof` is always a to-one field (one row selects exactly one member); there is no
+collection-shaped equivalent in V1. Aperture always creates a composite lookup index over the type and ID columns (unique
 when `unique: true`, non-unique otherwise). In POOL mode for a tenant-scoped owner, the tenant
 column is the leading index column. For `required: true`, Aperture validates JSON:API resource and
 relationship writes and generates a deferred database constraint. The generated Hibernate

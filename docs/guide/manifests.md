@@ -214,7 +214,10 @@ fields:
 The build validates that every member is an entity, each member belongs to only one `OneOf`, and all
 members have the same tenant shape. A global owner cannot reference a tenant-scoped one-of set:
 without an owner tenant, Aperture could not safely constrain the member lookup. `relation` and
-`mappedBy` are invalid on a `oneof` field because the selected-member pointer defines its storage shape.
+`mappedBy` are invalid on a `oneof` field because the selected-member pointer defines its storage shape:
+a `oneof` field is always to-one — one owning row selects exactly one member. There is no
+collection-shaped `oneof` (no "many billables per line item"); model a repeated selection with
+multiple owner rows instead, the way this demo gives each `LineItem` its own `billable` pointer.
 
 In generated storage, the field becomes two columns: `{field}_type` and `{field}_id`, plus a
 composite index (unique when `unique: true`, non-unique otherwise). For tenant-scoped owners in
