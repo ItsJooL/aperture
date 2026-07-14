@@ -48,6 +48,15 @@ public abstract class DemoApplicationTestSupport {
     private static final java.util.concurrent.ConcurrentHashMap<String, String> HOOK_BODY_OVERRIDES =
             new java.util.concurrent.ConcurrentHashMap<>();
 
+    // Plan 032: lets a test simulate a hook that fails transiently N times then recovers, to prove
+    // a retries-configured hook actually recovers rather than just asserting the value flows through.
+    // Checked before HOOK_RESPONSE_OVERRIDES in the dispatcher below, so it takes priority while armed.
+    private static final java.util.concurrent.ConcurrentHashMap<String, java.util.concurrent.atomic.AtomicInteger>
+            HOOK_TRANSIENT_FAILURES_REMAINING = new java.util.concurrent.ConcurrentHashMap<>();
+
+    private static final java.util.concurrent.ConcurrentHashMap<String, Integer> HOOK_TRANSIENT_FAILURE_STATUS =
+            new java.util.concurrent.ConcurrentHashMap<>();
+
     protected static void overrideHookResponse(String path, int statusCode) {
         HOOK_RESPONSE_OVERRIDES.put(path, statusCode);
     }
@@ -57,9 +66,22 @@ public abstract class DemoApplicationTestSupport {
         HOOK_BODY_OVERRIDES.put(path, body);
     }
 
+    /**
+     * Arms {@code path} to fail the next {@code failureCount} requests with {@code failureStatus},
+     * then fall through to the normal 200/override behavior. Lets a component test prove a
+     * {@code retries}-configured hook recovers from a transient failure, not just that the value
+     * is wired through.
+     */
+    protected static void armTransientHookFailures(String path, int failureCount, int failureStatus) {
+        HOOK_TRANSIENT_FAILURES_REMAINING.put(path, new java.util.concurrent.atomic.AtomicInteger(failureCount));
+        HOOK_TRANSIENT_FAILURE_STATUS.put(path, failureStatus);
+    }
+
     protected static void clearHookOverrides() {
         HOOK_RESPONSE_OVERRIDES.clear();
         HOOK_BODY_OVERRIDES.clear();
+        HOOK_TRANSIENT_FAILURES_REMAINING.clear();
+        HOOK_TRANSIENT_FAILURE_STATUS.clear();
     }
 
     static {
@@ -73,6 +95,16 @@ public abstract class DemoApplicationTestSupport {
             @Override
             public okhttp3.mockwebserver.MockResponse dispatch(okhttp3.mockwebserver.RecordedRequest request) {
                 String path = request.getPath();
+
+                java.util.concurrent.atomic.AtomicInteger remaining = HOOK_TRANSIENT_FAILURES_REMAINING.get(path);
+                if (remaining != null && remaining.getAndUpdate(n -> n > 0 ? n - 1 : n) > 0) {
+                    int failureStatus = HOOK_TRANSIENT_FAILURE_STATUS.getOrDefault(path, 503);
+                    return new okhttp3.mockwebserver.MockResponse()
+                            .setResponseCode(failureStatus)
+                            .setBody("{\"error\":\"simulated transient failure\"}")
+                            .addHeader("Content-Type", "application/json");
+                }
+
                 Integer override = HOOK_RESPONSE_OVERRIDES.get(path);
                 int status = (override != null) ? override : 200;
                 String body = HOOK_BODY_OVERRIDES.getOrDefault(path, "");

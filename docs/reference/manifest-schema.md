@@ -103,6 +103,7 @@ Hook name → hook definition. Hooks use semantic intent; Aperture maps that int
 | `on` | array | `create`, `update`, `delete` | Optional write operations. Defaults depend on `type` |
 | `onFailure` | string | `reject`, `warn`, `passthrough` | Optional behaviour on non-2xx or error. Valid values depend on `type` |
 | `url` | string | HTTP/HTTPS URL | Endpoint Aperture calls |
+| `retries` | integer | `0`–`5`, default `0` | Optional, opt-in retry count on a failed call. The schema's own ceiling (5) is the loosest per-type cap (`trigger`'s); `guard`/`validate` are capped tighter at `2`, and `mutate` does not support it at all — both enforced by manifest validation, not this schema, since a per-`type` maximum isn't expressible here. See [Hooks & Lifecycle → Retries And Timeouts](../guide/hooks.md#retries-and-timeouts) for the backoff formula and the latency this adds to synchronous hook types. |
 
 ```yaml
 hooks:
@@ -110,6 +111,7 @@ hooks:
     type: validate
     on: [create, update]
     url: http://hook-service:8080/hooks/validate-invoice
+    retries: 2
 ```
 
 ### `spec.mcp` (entity-level override)

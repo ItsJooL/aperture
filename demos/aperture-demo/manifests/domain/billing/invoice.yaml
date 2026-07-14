@@ -43,3 +43,7 @@ spec:
       type: validate
       on: [create, update]
       url: http://hook-service:8080/hooks/validate-invoice
+      # Opt-in retry (plan 032): rides out a transient blip in hook-service without failing the
+      # write. 2 is validate's cap — see docs/guide/hooks.md#retries-and-timeouts for the backoff
+      # formula and the ~16.5s worst-case latency this adds if the hook is ever consistently down.
+      retries: 2

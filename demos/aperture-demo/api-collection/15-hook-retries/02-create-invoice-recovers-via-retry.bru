@@ -1,0 +1,51 @@
+meta {
+  name: Create Invoice Recovers via Retry
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{baseUrl}}/api/v1/invoices
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tenantAdminToken}}
+}
+
+headers {
+  Content-Type: application/vnd.api+json
+  Accept: application/vnd.api+json
+}
+
+body:json {
+  {
+    "data": {
+      "type": "invoices",
+      "attributes": {
+        "amount": 275,
+        "status": "DRAFT"
+      },
+      "relationships": {
+        "customer": { "data": { "type": "customers", "id": "{{customerId}}" } }
+      }
+    }
+  }
+}
+
+docs {
+  ValidateInvoice declares retries: 2. The hook-service was just armed (see the previous
+  request) to fail the next 2 calls with 503 — this create still succeeds (201) because
+  Aperture retries automatically (500ms, then 1000ms backoff) and the 3rd attempt lands after
+  the armed failures are exhausted. Check hook-service logs for 3 calls to
+  /hooks/validate-invoice: two 503s, then a 200.
+
+  Run 01-create-customer (folder 06) first to populate {{customerId}}, and the previous
+  request in this folder to arm the failures.
+}
+
+assert {
+  res.status: eq 201
+  res.body.data.id: isDefined
+}

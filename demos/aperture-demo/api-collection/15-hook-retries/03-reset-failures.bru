@@ -1,0 +1,33 @@
+meta {
+  name: Reset Transient Failures
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{hookServiceUrl}}/admin/simulate-failures
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+  X-Hook-Secret: {{hookServiceSecret}}
+}
+
+body:json {
+  {
+    "path": "/hooks/validate-invoice",
+    "count": 0
+  }
+}
+
+docs {
+  Clears any armed failure simulation on /hooks/validate-invoice, so re-running this folder
+  (or any other folder that hits ValidateInvoice) starts from a clean state.
+}
+
+assert {
+  res.status: eq 200
+  res.body.armed: eq 0
+}

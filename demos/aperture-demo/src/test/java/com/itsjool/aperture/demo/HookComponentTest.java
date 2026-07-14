@@ -69,6 +69,32 @@ public class HookComponentTest extends DemoApplicationTestSupport {
     }
 
     @Test
+    void validateHookRecoversFromTransientFailureWhenRetriesConfigured() throws Exception {
+        // ValidateInvoice declares retries: 2 in the manifest (plan 032) — the first 2 calls fail
+        // transiently (503) and Aperture retries automatically; the 3rd call succeeds, so the
+        // write must still go through instead of being rejected.
+        armTransientHookFailures("/hooks/validate-invoice", 2, 503);
+
+        Integer countBefore = jdbcTemplate.queryForObject("SELECT count(*) FROM aperture_invoices", Integer.class);
+
+        performElideRequest(post("/api/v1/invoices")
+                .header("Authorization", getAcmeAccountantToken())
+                .contentType(VNDAPI)
+                .content("{\"data\": {\"type\": \"invoices\", \"attributes\": {\"amount\": 250, \"status\": \"DRAFT\"}, \"relationships\": {\"customer\": {\"data\": {\"type\": \"customers\", \"id\": \"00000000-0000-0000-0000-000000000001\"}}}}}"))
+                .andExpect(status().isCreated());
+
+        Integer countAfter = jdbcTemplate.queryForObject("SELECT count(*) FROM aperture_invoices", Integer.class);
+        assertThat(countAfter).as("write must succeed once the retried hook call recovers").isGreaterThan(countBefore);
+
+        int hookCallCount = 0;
+        okhttp3.mockwebserver.RecordedRequest req;
+        while ((req = mockWebServer.takeRequest(1, TimeUnit.SECONDS)) != null) {
+            if ("/hooks/validate-invoice".equals(req.getPath())) hookCallCount++;
+        }
+        assertThat(hookCallCount).as("initial attempt + 2 retries before the hook recovered").isEqualTo(3);
+    }
+
+    @Test
     void hookDoesNotForwardUserCredentials() throws Exception {
         performElideRequest(post("/api/v1/invoices")
                 .header("Authorization", getAcmeAccountantToken())

@@ -1,0 +1,35 @@
+meta {
+  name: Arm Transient Failures on ValidateInvoice
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{hookServiceUrl}}/admin/simulate-failures
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+  X-Hook-Secret: {{hookServiceSecret}}
+}
+
+body:json {
+  {
+    "path": "/hooks/validate-invoice",
+    "count": 2,
+    "status": 503
+  }
+}
+
+docs {
+  Arms the hook-service to fail the next 2 calls to /hooks/validate-invoice with 503, then
+  fall through to its normal validation logic. Talks directly to the hook-service's admin
+  endpoint (port 8081), guarded by the same X-Hook-Secret every hook call uses.
+}
+
+assert {
+  res.status: eq 200
+  res.body.armed: eq 2
+}
