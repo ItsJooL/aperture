@@ -79,6 +79,8 @@ class OasGeneratorTest {
         EntityDef servicePackage = entity("ServicePackage", "ServicePackages", Map.of());
         EntityDef lineItem = entity("LineItem", null, Map.of(
             "billable", new FieldDef("oneof", false, false, false, false,
+                null, null, null, null, "Billable", null, null),
+            "primaryBillable", new FieldDef("oneof", true, false, false, false,
                 null, null, null, null, "Billable", null, null)));
         ResolvedDomainModel model = new ResolvedDomainModel(
             List.of(product, servicePackage, lineItem),
@@ -101,18 +103,23 @@ class OasGeneratorTest {
         Map<String, Object> type = (Map<String, Object>) properties.get("type");
 
         assertThat(schema.get("description").toString()).contains("Billable");
+        assertThat(schema.get("type")).isEqualTo(List.of("object", "null"));
         assertThat((List<String>) type.get("enum")).containsExactly("products", "servicepackages");
+        assertThat(((Map<String, Object>) schemas.get("LineItemPrimaryBillableRelationshipData")).get("type"))
+            .isEqualTo("object");
 
         Map<String, Object> paths = (Map<String, Object>) parsed.get("paths");
         Map<String, Object> lineItems = (Map<String, Object>) paths.get("/api/v1/lineitems");
         Map<String, Object> post = (Map<String, Object>) lineItems.get("post");
         assertThat(oneOfRelationshipRef(post, "billable"))
             .isEqualTo("#/components/schemas/LineItemBillableRelationshipData");
+        assertThat(requiredRelationships(post)).containsExactly("primaryBillable");
 
         Map<String, Object> lineItemById = (Map<String, Object>) paths.get("/api/v1/lineitems/{id}");
         Map<String, Object> patch = (Map<String, Object>) lineItemById.get("patch");
         assertThat(oneOfRelationshipRef(patch, "billable"))
             .isEqualTo("#/components/schemas/LineItemBillableRelationshipData");
+        assertThat(requiredRelationships(patch)).isEmpty();
     }
 
     private static EntityDef entity(String name, String plural, Map<String, FieldDef> fields) {
@@ -134,5 +141,17 @@ class OasGeneratorTest {
         Map<String, Object> billableProperties = (Map<String, Object>) billable.get("properties");
         Map<String, Object> relationshipData = (Map<String, Object>) billableProperties.get("data");
         return relationshipData.get("$ref").toString();
+    }
+
+    @SuppressWarnings("unchecked")
+    private static List<String> requiredRelationships(Map<String, Object> operation) {
+        Map<String, Object> requestBody = (Map<String, Object>) operation.get("requestBody");
+        Map<String, Object> content = (Map<String, Object>) requestBody.get("content");
+        Map<String, Object> mediaType = (Map<String, Object>) content.get("application/vnd.api+json");
+        Map<String, Object> schema = (Map<String, Object>) mediaType.get("schema");
+        Map<String, Object> data = (Map<String, Object>) ((Map<String, Object>) schema.get("properties")).get("data");
+        Map<String, Object> relationships = (Map<String, Object>)
+            ((Map<String, Object>) data.get("properties")).get("relationships");
+        return (List<String>) relationships.getOrDefault("required", List.of());
     }
 }

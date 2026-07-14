@@ -2,6 +2,7 @@ package com.itsjool.aperture.cli.generator;
 
 import com.itsjool.aperture.engine.model.EntityDef;
 import com.itsjool.aperture.engine.model.FieldDef;
+import com.itsjool.aperture.engine.model.FieldKind;
 import com.palantir.javapoet.*;
 
 import javax.lang.model.element.Modifier;
@@ -866,7 +867,7 @@ class EntityCommandGenerator {
     }
 
     private boolean isOneOf(FieldDef field) {
-        return "oneof".equals(field.type());
+        return FieldKind.from(field) == FieldKind.ONEOF;
     }
 
     // ── Tiny builders ─────────────────────────────────────────────────────────

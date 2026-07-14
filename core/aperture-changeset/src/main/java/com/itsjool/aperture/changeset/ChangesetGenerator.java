@@ -4,6 +4,7 @@ import com.itsjool.aperture.engine.config.TenancyMode;
 import com.itsjool.aperture.engine.diff.DiffResult;
 import com.itsjool.aperture.engine.model.EntityDef;
 import com.itsjool.aperture.engine.model.FieldDef;
+import com.itsjool.aperture.engine.model.FieldKind;
 import com.itsjool.aperture.engine.model.MigrationDef;
 import com.itsjool.aperture.engine.model.ResolvedDomainModel;
 
@@ -62,7 +63,7 @@ public class ChangesetGenerator {
             for (FieldColumn column : physicalColumns(entry.getKey(), field)) {
                 sb.append(String.format("            <column name=\"%s\" type=\"%s\">\n",
                     column.name(), column.type()));
-                if (field.required()) {
+                if (field.required() && FieldKind.from(field) != FieldKind.ONEOF) {
                     sb.append("                <constraints nullable=\"false\"/>\n");
                 }
                 sb.append("            </column>\n");
@@ -78,6 +79,9 @@ public class ChangesetGenerator {
         }
         sb.append("        </createTable>\n");
         appendIndexes(sb, entity, tenancyMode);
+        sortedFields(entity).stream()
+            .filter(entry -> FieldKind.from(entry.getValue()) == FieldKind.ONEOF && entry.getValue().required())
+            .forEach(entry -> appendRequiredOneOfConstraint(sb, tableName, entry.getKey()));
         if (tenancyMode == TenancyMode.POOL && entity.tenantScoped()) {
             sb.append(String.format(
                 "        <addUniqueConstraint tableName=\"%s\" columnNames=\"aperture_tenant_id, id\" constraintName=\"uq_%s_tenant_id\"/>\n",
@@ -85,6 +89,9 @@ public class ChangesetGenerator {
         }
         sb.append("        <rollback>\n");
         sb.append(String.format("            <dropTable tableName=\"%s\"/>\n", tableName));
+        sortedFields(entity).stream()
+            .filter(entry -> FieldKind.from(entry.getValue()) == FieldKind.ONEOF && entry.getValue().required())
+            .forEach(entry -> appendRequiredOneOfFunctionDrop(sb, tableName, entry.getKey(), "            "));
         sb.append("        </rollback>\n");
         sb.append("    </changeSet>\n");
     }
@@ -103,7 +110,7 @@ public class ChangesetGenerator {
                 sb.append(String.format(
                     "        <sql>CREATE UNIQUE INDEX idx_%s_%s_uniq ON %s(%s) WHERE deleted_at IS NULL;</sql>\n",
                     tableName, fieldName.toLowerCase(Locale.ROOT), tableName, columns));
-            } else if (field.unique() || field.index()) {
+            } else if (field.unique() || field.index() || FieldKind.from(field) == FieldKind.ONEOF) {
                 String suffix = field.unique() ? "_uniq" : "";
                 sb.append(String.format(
                     "        <createIndex indexName=\"idx_%s_%s%s\" tableName=\"%s\" unique=\"%s\">\n",
@@ -117,6 +124,54 @@ public class ChangesetGenerator {
                 sb.append("        </createIndex>\n");
             }
         }
+    }
+
+    private void appendRequiredOneOfConstraint(StringBuilder sb, String tableName, String fieldName) {
+        String functionName = requiredOneOfFunctionName(tableName, fieldName);
+        String triggerName = requiredOneOfTriggerName(tableName, fieldName);
+        sb.append("        <sql splitStatements=\"false\"><![CDATA[\n");
+        sb.append(String.format("CREATE OR REPLACE FUNCTION %s() RETURNS TRIGGER AS $$\n", functionName));
+        sb.append("BEGIN\n");
+        sb.append(String.format(
+            "  IF EXISTS (SELECT 1 FROM %s WHERE id = NEW.id AND (%s_type IS NULL OR %s_id IS NULL)) THEN\n",
+            tableName, fieldName, fieldName));
+        sb.append(String.format("    RAISE EXCEPTION '%s.%s is required';\n", tableName, fieldName));
+        sb.append("  END IF;\n");
+        sb.append("  RETURN NULL;\n");
+        sb.append("END;\n");
+        sb.append("$$ LANGUAGE plpgsql;\n");
+        sb.append(String.format(
+            "CREATE CONSTRAINT TRIGGER %s AFTER INSERT OR UPDATE OF %s_type, %s_id ON %s "
+                + "DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION %s();\n",
+            triggerName, fieldName, fieldName, tableName, functionName));
+        sb.append("]]></sql>\n");
+    }
+
+    private void appendRequiredOneOfConstraintRollback(StringBuilder sb, String tableName, String fieldName) {
+        sb.append("        <rollback>\n");
+        appendRequiredOneOfConstraintDrop(sb, tableName, fieldName, "            ");
+        sb.append("        </rollback>\n");
+    }
+
+    private void appendRequiredOneOfConstraintDrop(StringBuilder sb, String tableName, String fieldName,
+                                                    String indentation) {
+        sb.append(String.format("%s<sql>DROP TRIGGER IF EXISTS %s ON %s;</sql>\n",
+            indentation, requiredOneOfTriggerName(tableName, fieldName), tableName));
+        appendRequiredOneOfFunctionDrop(sb, tableName, fieldName, indentation);
+    }
+
+    private void appendRequiredOneOfFunctionDrop(StringBuilder sb, String tableName, String fieldName,
+                                                  String indentation) {
+        sb.append(String.format("%s<sql>DROP FUNCTION IF EXISTS %s();</sql>\n",
+            indentation, requiredOneOfFunctionName(tableName, fieldName)));
+    }
+
+    private String requiredOneOfFunctionName(String tableName, String fieldName) {
+        return "aperture_require_" + tableName + "_" + fieldName.toLowerCase(Locale.ROOT);
+    }
+
+    private String requiredOneOfTriggerName(String tableName, String fieldName) {
+        return "require_" + tableName + "_" + fieldName.toLowerCase(Locale.ROOT);
     }
 
     private void appendForeignKey(StringBuilder sb, Reference reference, Map<String, EntityDef> entitiesByName,
@@ -180,7 +235,7 @@ public class ChangesetGenerator {
     }
 
     private List<FieldColumn> physicalColumns(String fieldName, FieldDef field) {
-        if ("oneof".equalsIgnoreCase(field.type())) {
+        if (FieldKind.from(field) == FieldKind.ONEOF) {
             return List.of(
                 new FieldColumn(fieldName + "_type", "VARCHAR(255)"),
                 new FieldColumn(fieldName + "_id", "UUID")
@@ -251,6 +306,45 @@ public class ChangesetGenerator {
                     sb.append("        </addColumn>\n");
                     sb.append("    </changeSet>\n");
                 }
+                if (FieldKind.from(field) == FieldKind.ONEOF) {
+                    String uniqueSuffix = field.unique() ? "_uniq" : "";
+                    String indexName = "idx_" + tableName + "_" + fieldName.toLowerCase(Locale.ROOT)
+                        + uniqueSuffix;
+                    String indexChangesetId = changesetId + "-" + entry.getKey() + "-index";
+                    sb.append(String.format("    <changeSet id=\"%s\" author=\"aperture\">\n", indexChangesetId));
+                    sb.append("        <preConditions onFail=\"MARK_RAN\">\n");
+                    sb.append(String.format("            <not><indexExists tableName=\"%s\" indexName=\"%s\"/></not>\n",
+                        tableName, indexName));
+                    sb.append("        </preConditions>\n");
+                    if (field.unique() && entityDef != null && entityDef.softDelete()) {
+                        String columns = tenancyMode == TenancyMode.POOL && entityDef.tenantScoped()
+                            ? "aperture_tenant_id, " + columnNamesForIndex(fieldName, field)
+                            : columnNamesForIndex(fieldName, field);
+                        sb.append(String.format(
+                            "        <sql>CREATE UNIQUE INDEX %s ON %s(%s) WHERE deleted_at IS NULL;</sql>\n",
+                            indexName, tableName, columns));
+                    } else {
+                        sb.append(String.format(
+                            "        <createIndex indexName=\"%s\" tableName=\"%s\" unique=\"%s\">\n",
+                            indexName, tableName, field.unique()));
+                        if (tenancyMode == TenancyMode.POOL && entityDef != null && entityDef.tenantScoped()) {
+                            sb.append("            <column name=\"aperture_tenant_id\"/>\n");
+                        }
+                        for (FieldColumn column : physicalColumns(fieldName, field)) {
+                            sb.append(String.format("            <column name=\"%s\"/>\n", column.name()));
+                        }
+                        sb.append("        </createIndex>\n");
+                    }
+                    sb.append("    </changeSet>\n");
+                    if (field.required()) {
+                        String constraintChangesetId = changesetId + "-" + entry.getKey() + "-required";
+                        sb.append(String.format("    <changeSet id=\"%s\" author=\"aperture\">\n",
+                            constraintChangesetId));
+                        appendRequiredOneOfConstraint(sb, tableName, fieldName);
+                        appendRequiredOneOfConstraintRollback(sb, tableName, fieldName);
+                        sb.append("    </changeSet>\n");
+                    }
+                }
             }
         });
 
@@ -278,6 +372,9 @@ public class ChangesetGenerator {
             String changesetId = "deferred-drop-" + tableName + "-" + String.join("-", new java.util.TreeSet<>(fields.keySet()));
             sb.append(String.format("    <changeSet id=\"%s\" author=\"aperture\" context=\"pending\">\n", changesetId));
             for (Map.Entry<String, FieldDef> entry : fields.entrySet()) {
+                if (FieldKind.from(entry.getValue()) == FieldKind.ONEOF && entry.getValue().required()) {
+                    appendRequiredOneOfConstraintDrop(sb, tableName, entry.getKey(), "        ");
+                }
                 for (FieldColumn column : physicalColumns(entry.getKey(), entry.getValue())) {
                     sb.append(String.format("        <dropColumn tableName=\"%s\" columnName=\"%s\"/>\n", tableName, column.name()));
                 }

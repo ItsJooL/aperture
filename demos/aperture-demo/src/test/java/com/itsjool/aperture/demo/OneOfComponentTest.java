@@ -1,7 +1,9 @@
 package com.itsjool.aperture.demo;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.startsWith;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -29,14 +31,18 @@ public class OneOfComponentTest extends DemoApplicationTestSupport {
         String token = getAcmeAdminToken();
         String productId = createProduct(token);
         String servicePackageId = createServicePackage(token);
+        String subscriptionPlanId = createSubscriptionPlan(token);
 
         String productLineId = createLineItem(token, "products", productId, "API support block", 199);
         String serviceLineId = createLineItem(token, "servicepackages", servicePackageId, "Priority onboarding", 750);
+        String planLineId = createLineItem(token, "subscriptionplans", subscriptionPlanId, "Developer plan", 49);
 
         assertBillableRelationship(token, productLineId, "products", productId);
         assertBillableRelationship(token, serviceLineId, "servicepackages", servicePackageId);
+        assertBillableRelationship(token, planLineId, "subscriptionplans", subscriptionPlanId);
         assertBillableColumns(productLineId, "Product", productId);
         assertBillableColumns(serviceLineId, "ServicePackage", servicePackageId);
+        assertBillableColumns(planLineId, "SubscriptionPlan", subscriptionPlanId);
     }
 
     @Test
@@ -62,36 +68,181 @@ public class OneOfComponentTest extends DemoApplicationTestSupport {
         assertThat(lineItemsAfter).isEqualTo(lineItemsBefore);
     }
 
+    @Test
+    void requiredBillableRejectsMissingAndNullSelectionOnCreate() throws Exception {
+        String token = getAcmeAdminToken();
+        Integer lineItemsBefore = jdbcTemplate.queryForObject(
+            "SELECT count(*) FROM aperture_lineitems", Integer.class);
+
+        performElideRequest(post("/api/v1/lineitems")
+                .header("Authorization", token)
+                .contentType(JSON_API)
+                .content("""
+                    {"data":{"type":"lineitems","attributes":{
+                      "description":"Missing billable","quantity":1,"unit_price":10
+                    }}}
+                    """))
+            .andExpect(status().is4xxClientError());
+
+        performElideRequest(post("/api/v1/lineitems")
+                .header("Authorization", token)
+                .contentType(JSON_API)
+                .content("""
+                    {"data":{"type":"lineitems","attributes":{
+                      "description":"Null billable","quantity":1,"unit_price":10
+                    },"relationships":{"billable":{"data":null}}}}
+                    """))
+            .andExpect(status().is4xxClientError());
+
+        assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM aperture_lineitems", Integer.class))
+            .isEqualTo(lineItemsBefore);
+    }
+
+    @Test
+    void omitsOneofRelationshipFromGraphqlV1Schema() throws Exception {
+        String body = performElideRequest(post("/graphql/v1")
+                .header("Authorization", getAcmeAdminToken())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {"query":"{ __type(name: \\"Lineitems\\") { fields { name } } }"}
+                    """))
+            .andExpect(status().isOk())
+            .andReturn().getResponse().getContentAsString();
+
+        JsonNode fields = MAPPER.readTree(body).path("data").path("__type").path("fields");
+        assertThat(fields).extracting(field -> field.path("name").asText())
+            .contains("product")
+            .doesNotContain("billable");
+    }
+
+    @Test
+    void includesTheConcreteBillableResource() throws Exception {
+        String token = getAcmeAdminToken();
+        String productId = createProduct(token);
+        String lineItemId = createLineItem(token, "products", productId, "Included support block", 199);
+
+        performElideRequest(get("/api/v1/lineitems/" + lineItemId + "?include=billable")
+                .header("Authorization", token))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.relationships.billable.data.type").value("products"))
+            .andExpect(jsonPath("$.data.relationships.billable.data.id").value(productId))
+            .andExpect(jsonPath("$.included[0].type").value("products"))
+            .andExpect(jsonPath("$.included[0].id").value(productId))
+            .andExpect(jsonPath("$.included[0].attributes.name").value(startsWith("Oneof API support block ")));
+    }
+
+    @Test
+    void updatesTheSelectedMemberThroughTheRelationshipEndpoint() throws Exception {
+        String token = getAcmeAdminToken();
+        String productId = createProduct(token);
+        String servicePackageId = createServicePackage(token);
+        String lineItemId = createLineItem(token, "products", productId, "Replaceable billable", 199);
+
+        performElideRequest(patch("/api/v1/lineitems/" + lineItemId + "/relationships/billable")
+                .header("Authorization", token)
+                .contentType(JSON_API)
+                .content("""
+                    {"data":{"type":"servicepackages","id":"%s"}}
+                    """.formatted(servicePackageId)))
+            .andExpect(status().isNoContent());
+
+        assertBillableRelationship(token, lineItemId, "servicepackages", servicePackageId);
+        assertBillableColumns(lineItemId, "ServicePackage", servicePackageId);
+    }
+
+    @Test
+    void rejectsUndeclaredMemberThroughTheRelationshipEndpoint() throws Exception {
+        String token = getAcmeAdminToken();
+        String productId = createProduct(token);
+        String lineItemId = createLineItem(token, "products", productId, "Protected billable", 199);
+
+        performElideRequest(patch("/api/v1/lineitems/" + lineItemId + "/relationships/billable")
+                .header("Authorization", token)
+                .contentType(JSON_API)
+                .content("""
+                    {"data":{"type":"customers","id":"00000000-0000-0000-0000-000000000001"}}
+                    """))
+            .andExpect(status().isBadRequest());
+
+        assertBillableColumns(lineItemId, "Product", productId);
+    }
+
+    @Test
+    void rejectsOneOfMemberOwnedByAnotherTenant() throws Exception {
+        String globexProductId = createProduct(getGlobexAdminToken());
+        String acmeToken = getAcmeAdminToken();
+        Integer lineItemsBefore = jdbcTemplate.queryForObject("SELECT count(*) FROM aperture_lineitems", Integer.class);
+
+        performElideRequest(post("/api/v1/lineitems")
+                .header("Authorization", acmeToken)
+                .contentType(JSON_API)
+                .content("""
+                    {"data":{"type":"lineitems","attributes":{
+                      "description":"Cross-tenant billable",
+                      "quantity":1,
+                      "unit_price":199
+                    },"relationships":{
+                      "billable":{"data":{"type":"products","id":"%s"}}
+                    }}}
+                    """.formatted(globexProductId)))
+            .andExpect(status().is4xxClientError());
+
+        Integer lineItemsAfter = jdbcTemplate.queryForObject("SELECT count(*) FROM aperture_lineitems", Integer.class);
+        assertThat(lineItemsAfter).isEqualTo(lineItemsBefore);
+    }
+
     private String createProduct(String token) throws Exception {
+        String suffix = uniqueSuffix();
         var result = performElideRequest(post("/api/v1/products")
                 .header("Authorization", token)
                 .contentType(JSON_API)
                 .content("""
                     {"data":{"type":"products","attributes":{
-                      "name":"Oneof API support block",
-                      "sku":"OOF-API-BLOCK",
+                      "name":"Oneof API support block %s",
+                      "sku":"OOF-%s",
                       "unit_price":199.00,
                       "active":true
                     }}}
-                    """))
+                    """.formatted(suffix, suffix)))
             .andExpect(status().isCreated())
             .andReturn();
         return idFrom(result.getResponse().getContentAsString());
     }
 
     private String createServicePackage(String token) throws Exception {
+        String suffix = uniqueSuffix();
         var result = performElideRequest(post("/api/v1/servicepackages")
                 .header("Authorization", token)
                 .contentType(JSON_API)
                 .content("""
                     {"data":{"type":"servicepackages","attributes":{
-                      "name":"Oneof Priority Onboarding",
-                      "sku":"OOF-ONBOARD",
+                      "name":"Oneof Priority Onboarding %s",
+                      "sku":"OOF-%s",
                       "description":"Guided launch package",
                       "unit_price":750.00,
                       "active":true
                     }}}
-                    """))
+                    """.formatted(suffix, suffix)))
+            .andExpect(status().isCreated())
+            .andReturn();
+        return idFrom(result.getResponse().getContentAsString());
+    }
+
+    private String createSubscriptionPlan(String token) throws Exception {
+        String suffix = uniqueSuffix();
+        var result = performElideRequest(post("/api/v1/subscriptionplans")
+                .header("Authorization", token)
+                .contentType(JSON_API)
+                .content("""
+                    {"data":{"type":"subscriptionplans","attributes":{
+                      "name":"Oneof Developer Plan %s",
+                      "sku":"OOF-%s",
+                      "description":"Monthly API access",
+                      "unit_price":49.00,
+                      "billing_interval":"MONTHLY",
+                      "active":true
+                    }}}
+                    """.formatted(suffix, suffix)))
             .andExpect(status().isCreated())
             .andReturn();
         return idFrom(result.getResponse().getContentAsString());
@@ -140,4 +291,9 @@ public class OneOfComponentTest extends DemoApplicationTestSupport {
         JsonNode root = MAPPER.readTree(responseBody);
         return root.path("data").path("id").asText();
     }
+
+    private String uniqueSuffix() {
+        return UUID.randomUUID().toString().substring(0, 8).toUpperCase();
+    }
+
 }

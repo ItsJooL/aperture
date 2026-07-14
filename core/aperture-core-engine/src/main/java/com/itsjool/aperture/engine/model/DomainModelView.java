@@ -47,18 +47,26 @@ public final class DomainModelView {
             throw new IllegalArgumentException("Unknown field: " + entityName + "." + fieldName);
         }
 
-        if ("oneof".equalsIgnoreCase(field.type())) {
-            OneOfDef oneOf = oneOf(field.targetClass());
-            List<EntityDef> members = oneOf.members().stream()
-                .map(this::entity)
-                .toList();
-            return new ResolvedOneOfField(entityName, fieldName, field, oneOf, members);
-        }
+        return switch (FieldKind.from(field)) {
+            case ONEOF -> {
+                OneOfDef oneOf = oneOf(field.targetClass());
+                List<EntityDef> members = oneOf.members().stream()
+                    .map(this::entity)
+                    .toList();
+                yield new ResolvedOneOfField(entityName, fieldName, field, oneOf, members);
+            }
+            case REF -> new ResolvedRefField(entityName, fieldName, field, entity(field.targetClass()));
+            case SCALAR -> new ResolvedScalarField(entityName, fieldName, field);
+        };
+    }
 
-        if (field.targetClass() != null) {
-            return new ResolvedRefField(entityName, fieldName, field, entity(field.targetClass()));
+    public List<ResolvedField> fields(String entityName) {
+        EntityDef entity = entity(entityName);
+        if (entity.fields() == null) {
+            return List.of();
         }
-
-        return new ResolvedScalarField(entityName, fieldName, field);
+        return entity.fields().keySet().stream()
+            .map(fieldName -> field(entityName, fieldName))
+            .toList();
     }
 }

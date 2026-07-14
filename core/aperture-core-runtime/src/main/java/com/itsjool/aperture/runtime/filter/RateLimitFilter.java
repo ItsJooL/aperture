@@ -88,7 +88,7 @@ public class RateLimitFilter extends OncePerRequestFilter {
                 }
             }
         }
-        
+
         writeRateLimitHeaders(response, ipDecision, ipRule);
         filterChain.doFilter(request, response);
     }

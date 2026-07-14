@@ -52,7 +52,8 @@ class RuntimeMetadataGenerationTargetTest {
 
         assertThat((List<String>) billable.get("members")).containsExactly("Product", "ServicePackage");
         assertThat((List<String>) billable.get("memberResourceTypes")).containsExactly("products", "servicepackages");
-        assertThat((List<String>) billable.get("fields")).containsExactly("lineitems.billable");
+        assertThat((List<Map<String, Object>>) billable.get("fields")).containsExactly(
+            Map.of("resource", "lineitems", "field", "billable", "required", false));
     }
 
     private static EntityDef entity(String name, String plural, Map<String, FieldDef> fields) {

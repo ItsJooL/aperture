@@ -23,8 +23,10 @@ import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * Verifies that generated Liquibase changesets produce the correct physical schema in PostgreSQL.
@@ -126,6 +128,49 @@ class DomainSchemaIT {
         }
     }
 
+    @Test
+    void oneOfFieldCreatesTenantAwareCompositePointerIndex() throws Exception {
+        EntityDef lineItem = new EntityDef("LineItem", "lineitems", null, null,
+            false, false, true,
+            Map.of("billable", new FieldDef("oneof", true, false, false, false,
+                null, null, null, null, "Billable", null, null)),
+            null, null, null, Map.of(), Map.of());
+
+        try (Connection conn = applySchema(List.of(lineItem), TenancyMode.POOL)) {
+            assertThat(columnNames(conn, "aperture_lineitems"))
+                .contains("billable_type", "billable_id");
+            assertThat(indexDefinition(conn, "idx_aperture_lineitems_billable"))
+                .contains("(aperture_tenant_id, billable_type, billable_id)");
+
+            conn.setAutoCommit(false);
+            UUID rowId = UUID.randomUUID();
+            try (var insert = conn.prepareStatement(
+                    "INSERT INTO aperture_lineitems (id, aperture_tenant_id) VALUES (?, ?)")) {
+                insert.setObject(1, rowId);
+                insert.setObject(2, UUID.randomUUID());
+                insert.executeUpdate();
+            }
+            assertThatThrownBy(conn::commit)
+                .hasMessageContaining("aperture_lineitems.billable is required");
+            conn.rollback();
+
+            UUID stagedRowId = UUID.randomUUID();
+            try (var insert = conn.prepareStatement(
+                    "INSERT INTO aperture_lineitems (id, aperture_tenant_id) VALUES (?, ?)");
+                 var update = conn.prepareStatement(
+                    "UPDATE aperture_lineitems SET billable_type = ?, billable_id = ? WHERE id = ?")) {
+                insert.setObject(1, stagedRowId);
+                insert.setObject(2, UUID.randomUUID());
+                insert.executeUpdate();
+                update.setString(1, "Product");
+                update.setObject(2, UUID.randomUUID());
+                update.setObject(3, stagedRowId);
+                update.executeUpdate();
+            }
+            conn.commit();
+        }
+    }
+
     // ---------- helpers ----------
 
     private static Connection applySchema(List<EntityDef> entities, TenancyMode mode) throws Exception {
@@ -209,6 +254,15 @@ class DomainSchemaIT {
                  + "JOIN pg_attribute a ON a.attrelid = t.oid AND a.attnum = ANY(ix.indkey) "
                  + "WHERE t.relname = '" + table + "' AND a.attname = '" + column + "'")) {
             return rs.next();
+        }
+    }
+
+    private static String indexDefinition(Connection conn, String indexName) throws Exception {
+        try (Statement st = conn.createStatement();
+             ResultSet rs = st.executeQuery(
+                 "SELECT pg_get_indexdef(indexrelid) FROM pg_index "
+                 + "WHERE indexrelid = '" + indexName + "'::regclass")) {
+            return rs.next() ? rs.getString(1) : null;
         }
     }
 

@@ -52,7 +52,7 @@ Each key under `fields` is a field name (camelCase). Each value is a field defin
 | Property | Type | Default | Description |
 |---|---|---|---|
 | `type` | `string`, `decimal`, `integer`, `boolean`, `uuid`, `datetime`, `ref`, `oneof` | — | Required. Maps to a Java and SQL type |
-| `required` | boolean | `false` | Generates `NOT NULL` constraint and Elide validation |
+| `required` | boolean | `false` | Requires a value through generated validation and database constraints |
 | `unique` | boolean | `false` | Generates a unique index |
 | `index` | boolean | `false` | Generates a non-unique index |
 | `encrypted` | boolean | `false` | Stores value as AES-256-GCM ciphertext |
@@ -68,7 +68,14 @@ Each key under `fields` is a field name (camelCase). Each value is a field defin
 
 **`type: oneof` notes:** `target` names a `OneOf` manifest. The field generates `{fieldName}_type`
 and `{fieldName}_id` columns and is represented as a JSON:API relationship whose `data.type` is the
-concrete member resource type.
+concrete member resource type. `relation` and `mappedBy` do not apply to `oneof` fields and are
+rejected. Aperture always creates a composite lookup index over the type and ID columns (unique
+when `unique: true`, non-unique otherwise). In POOL mode for a tenant-scoped owner, the tenant
+column is the leading index column. For `required: true`, Aperture validates JSON:API resource and
+relationship writes and generates a deferred database constraint. The pointer columns remain
+transaction-staging nullable so JSON:API Atomic Operations can insert a resource and attach its
+relationship later in the same transaction; the transaction cannot commit while either pointer is
+null.
 
 ## OneOf
 
@@ -83,6 +90,7 @@ spec:
   members:
     - Product
     - ServicePackage
+    - SubscriptionPlan
 ```
 
 | Property | Type | Default | Description |
@@ -95,6 +103,8 @@ Validation rules:
 - A member entity may belong to only one `OneOf`.
 - Members must share the same `tenantScoped` shape.
 - A `type: oneof` field's `target` must name a known `OneOf`.
+- A global owner entity cannot reference a tenant-scoped `OneOf`; there would be no owner tenant
+  with which to constrain the target lookup.
 
 ### `spec.permissions`
 

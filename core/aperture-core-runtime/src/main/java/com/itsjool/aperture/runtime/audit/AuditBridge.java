@@ -51,7 +51,7 @@ public class AuditBridge implements LifeCycleHook<Object> {
         if (auditWriter == null || phase != TransactionPhase.POSTCOMMIT) {
             return;
         }
-        
+
         String userId = "system";
         String tenantId = "system";
         if (requestScope != null && requestScope.getUser() != null && requestScope.getUser().getPrincipal() instanceof AperturePrincipal) {

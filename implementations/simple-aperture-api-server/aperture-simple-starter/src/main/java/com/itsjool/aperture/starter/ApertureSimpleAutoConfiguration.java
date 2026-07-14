@@ -26,7 +26,7 @@ import com.yahoo.elide.core.dictionary.EntityDictionary;
 import com.yahoo.elide.core.type.ClassType;
 import jakarta.annotation.PostConstruct;
 import org.springframework.beans.factory.ObjectProvider;
-import org.springframework.beans.factory.SmartInitializingSingleton;
+import org.springframework.beans.factory.config.BeanPostProcessor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.domain.EntityScan;
@@ -221,14 +221,15 @@ public class ApertureSimpleAutoConfiguration {
         }
 
         EntityDictionary dict = event.getApplicationContext().getBean(EntityDictionary.class);
-        bindOneOfMarkers(dict);
         java.util.Map<String, com.yahoo.elide.core.security.checks.Check> checks = event.getApplicationContext().getBeansOfType(com.yahoo.elide.core.security.checks.Check.class);
         for (com.yahoo.elide.core.security.checks.Check check : checks.values()) {
             dict.addSecurityCheck(check.getClass());
         }
     }
 
-    private void bindOneOfMarkers(EntityDictionary dict) {
+    private static void bindOneOfMarkers(
+            EntityDictionary dict,
+            com.itsjool.aperture.runtime.config.ApertureRuntimeMetadata metadata) {
         if (metadata.oneOfs().isEmpty()) {
             return;
         }
@@ -257,7 +258,7 @@ public class ApertureSimpleAutoConfiguration {
         }
     }
 
-    private boolean isEntityBound(EntityDictionary dict, ClassType<?> markerType) {
+    private static boolean isEntityBound(EntityDictionary dict, ClassType<?> markerType) {
         try {
             dict.getEntityBinding(markerType);
             return true;
@@ -267,11 +268,15 @@ public class ApertureSimpleAutoConfiguration {
     }
 
     @Bean
-    public SmartInitializingSingleton oneOfMarkerBinder(ObjectProvider<EntityDictionary> dictionaryProvider) {
-        return () -> {
-            EntityDictionary dict = dictionaryProvider.getIfAvailable();
-            if (dict != null) {
-                bindOneOfMarkers(dict);
+    public static BeanPostProcessor oneOfMarkerBinder(
+            ObjectProvider<com.itsjool.aperture.runtime.config.ApertureRuntimeMetadata> metadataProvider) {
+        return new BeanPostProcessor() {
+            @Override
+            public Object postProcessAfterInitialization(Object bean, String beanName) {
+                if (bean instanceof EntityDictionary dictionary) {
+                    bindOneOfMarkers(dictionary, metadataProvider.getObject());
+                }
+                return bean;
             }
         };
     }
@@ -296,9 +301,11 @@ public class ApertureSimpleAutoConfiguration {
     @Bean
     public com.itsjool.aperture.starter.filter.OneOfRelationshipValidationFilter oneOfRelationshipValidationFilter(
             com.itsjool.aperture.runtime.config.ApertureRuntimeMetadata apertureRuntimeMetadata,
-            com.fasterxml.jackson.databind.ObjectMapper objectMapper) {
+            com.fasterxml.jackson.databind.ObjectMapper objectMapper,
+            @org.springframework.beans.factory.annotation.Value(
+                "${aperture.oneof-validation.max-request-body-bytes:1048576}") int maxRequestBodyBytes) {
         return new com.itsjool.aperture.starter.filter.OneOfRelationshipValidationFilter(
-                apertureRuntimeMetadata, objectMapper);
+                apertureRuntimeMetadata, objectMapper, maxRequestBodyBytes);
     }
 
     // ── Active only when simple (JWT) auth is not disabled ───────────────────

@@ -80,7 +80,7 @@ through relationship Country.invoices in POOL tenancy mode
 | FK constraints | Tenant-aware | Standard |
 | Use case | Core domain entities | Reference/lookup data shared across tenants |
 
-The billing demo uses `tenantScoped: false` for `Country` and `Currency` (shared reference data) and `tenantScoped: true` for `Customer`, `Invoice`, `LineItem`, `Payment`, `Product`, `ServicePackage`, and `Supplier`.
+The billing demo uses `tenantScoped: false` for `Country` and `Currency` (shared reference data) and `tenantScoped: true` for `Customer`, `Invoice`, `LineItem`, `Payment`, `Product`, `ServicePackage`, `SubscriptionPlan`, and `Supplier`.
 
 ### Tenant provisioning
 

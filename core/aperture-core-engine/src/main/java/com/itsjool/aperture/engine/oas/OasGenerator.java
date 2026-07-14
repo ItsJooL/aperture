@@ -2,20 +2,20 @@ package com.itsjool.aperture.engine.oas;
 
 import com.itsjool.aperture.engine.config.TenancyMode;
 import com.itsjool.aperture.engine.model.EntityDef;
-import com.itsjool.aperture.engine.model.FieldDef;
+import com.itsjool.aperture.engine.model.DomainModelView;
+import com.itsjool.aperture.engine.model.FieldKind;
 import com.itsjool.aperture.engine.model.OneOfDef;
 import com.itsjool.aperture.engine.model.ResolvedDomainModel;
+import com.itsjool.aperture.engine.model.ResolvedOneOfField;
 
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
-import java.util.stream.Collectors;
 
 public class OasGenerator {
 
     public String generate(ResolvedDomainModel model, TenancyMode tenancyMode, List<String> activeVersions) {
         StringBuilder sb = new StringBuilder();
+        DomainModelView modelView = DomainModelView.of(model);
         
         // Info block
         sb.append("openapi: \"3.1.0\"\n");
@@ -34,7 +34,7 @@ public class OasGenerator {
         sb.append("      type: apiKey\n");
         sb.append("      in: header\n");
         sb.append("      name: X-API-Key\n");
-        appendOneOfSchemas(sb, model);
+        appendOneOfSchemas(sb, model, modelView);
 
         sb.append("security:\n");
         sb.append("  - BearerAuth: []\n");
@@ -46,7 +46,7 @@ public class OasGenerator {
         // Entities
         for (EntityDef entity : model.entities()) {
             for (String version : activeVersions) {
-                appendEntityPaths(sb, entity, version);
+                appendEntityPaths(sb, entity, version, modelView);
             }
         }
         
@@ -64,42 +64,27 @@ public class OasGenerator {
         return sb.toString();
     }
 
-    private void appendOneOfSchemas(StringBuilder sb, ResolvedDomainModel model) {
-        Map<String, EntityDef> entitiesByName = model.entities().stream()
-            .collect(Collectors.toMap(EntityDef::name, entity -> entity, (left, right) -> left, LinkedHashMap::new));
-        Map<String, OneOfDef> oneOfsByName = model.oneOfs().stream()
-            .collect(Collectors.toMap(OneOfDef::name, oneOf -> oneOf, (left, right) -> left, LinkedHashMap::new));
-
+    private void appendOneOfSchemas(StringBuilder sb, ResolvedDomainModel model, DomainModelView modelView) {
         boolean started = false;
         for (EntityDef entity : model.entities()) {
-            if (entity.fields() == null) {
-                continue;
-            }
-            for (Map.Entry<String, FieldDef> entry : entity.fields().entrySet()) {
-                FieldDef field = entry.getValue();
-                if (!"oneof".equalsIgnoreCase(field.type())) {
-                    continue;
-                }
-                OneOfDef oneOf = oneOfsByName.get(field.targetClass());
-                if (oneOf == null) {
-                    continue;
-                }
+            for (ResolvedOneOfField field : oneOfFields(entity, modelView)) {
+                OneOfDef oneOf = field.oneOf();
                 if (!started) {
                     sb.append("  schemas:\n");
                     started = true;
                 }
-                String schemaName = oneOfRelationshipSchemaName(entity, entry.getKey());
+                String schemaName = oneOfRelationshipSchemaName(entity, field.fieldName());
                 sb.append("    ").append(schemaName).append(":\n");
-                sb.append("      type: object\n");
+                sb.append(field.field().required()
+                    ? "      type: object\n"
+                    : "      type: [object, \"null\"]\n");
                 sb.append("      required: [type, id]\n");
                 sb.append("      description: JSON:API resource identifier for one selected member of ").append(oneOf.name()).append("\n");
                 sb.append("      properties:\n");
                 sb.append("        type:\n");
                 sb.append("          type: string\n");
                 sb.append("          enum:\n");
-                oneOf.members().stream()
-                    .map(entitiesByName::get)
-                    .filter(java.util.Objects::nonNull)
+                field.members().stream()
                     .map(this::plural)
                     .forEach(resourceType -> sb.append("            - ").append(resourceType).append("\n"));
                 sb.append("        id:\n");
@@ -109,10 +94,10 @@ public class OasGenerator {
         }
     }
     
-    private void appendEntityPaths(StringBuilder sb, EntityDef entity, String version) {
+    private void appendEntityPaths(StringBuilder sb, EntityDef entity, String version, DomainModelView modelView) {
         String pathBase = "/api/v" + version + "/" + (entity.plural() != null ? entity.plural().toLowerCase() : entity.name().toLowerCase() + "s");
         String title = entity.name();
-        List<Map.Entry<String, FieldDef>> oneOfFields = oneOfFields(entity);
+        List<ResolvedOneOfField> oneOfFields = oneOfFields(entity, modelView);
         
         // Collection paths
         sb.append("  ").append(pathBase).append(":\n");
@@ -127,7 +112,7 @@ public class OasGenerator {
         // POST (Create)
         sb.append("    post:\n");
         sb.append("      summary: Create a ").append(title).append("\n");
-        appendOneOfRequestBody(sb, entity, oneOfFields);
+        appendOneOfRequestBody(sb, entity, oneOfFields, true);
         sb.append("      responses:\n");
         sb.append("        '201':\n");
         sb.append("          description: Created\n");
@@ -172,7 +157,7 @@ public class OasGenerator {
             sb.append("          schema:\n");
             sb.append("            type: string\n");
         }
-        appendOneOfRequestBody(sb, entity, oneOfFields);
+        appendOneOfRequestBody(sb, entity, oneOfFields, false);
         sb.append("      responses:\n");
         sb.append("        '200':\n");
         sb.append("          description: Updated\n");
@@ -199,10 +184,14 @@ public class OasGenerator {
         sb.append("          description: Deleted\n");
     }
 
-    private void appendOneOfRequestBody(StringBuilder sb, EntityDef entity, List<Map.Entry<String, FieldDef>> oneOfFields) {
+    private void appendOneOfRequestBody(
+            StringBuilder sb, EntityDef entity, List<ResolvedOneOfField> oneOfFields, boolean create) {
         if (oneOfFields.isEmpty()) {
             return;
         }
+        List<ResolvedOneOfField> requiredFields = create
+            ? oneOfFields.stream().filter(field -> field.field().required()).toList()
+            : List.of();
 
         sb.append("      requestBody:\n");
         sb.append("        required: true\n");
@@ -213,29 +202,36 @@ public class OasGenerator {
         sb.append("              properties:\n");
         sb.append("                data:\n");
         sb.append("                  type: object\n");
+        if (!requiredFields.isEmpty()) {
+            sb.append("                  required: [relationships]\n");
+        }
         sb.append("                  properties:\n");
         sb.append("                    type:\n");
         sb.append("                      type: string\n");
         sb.append("                      const: ").append(plural(entity)).append("\n");
         sb.append("                    relationships:\n");
         sb.append("                      type: object\n");
+        if (!requiredFields.isEmpty()) {
+            sb.append("                      required:\n");
+            requiredFields.forEach(field ->
+                sb.append("                        - ").append(field.fieldName()).append("\n"));
+        }
         sb.append("                      properties:\n");
-        for (Map.Entry<String, FieldDef> entry : oneOfFields) {
-            sb.append("                        ").append(entry.getKey()).append(":\n");
+        for (ResolvedOneOfField field : oneOfFields) {
+            sb.append("                        ").append(field.fieldName()).append(":\n");
             sb.append("                          type: object\n");
+            sb.append("                          required: [data]\n");
             sb.append("                          properties:\n");
             sb.append("                            data:\n");
             sb.append("                              $ref: '#/components/schemas/")
-                .append(oneOfRelationshipSchemaName(entity, entry.getKey())).append("'\n");
+                .append(oneOfRelationshipSchemaName(entity, field.fieldName())).append("'\n");
         }
     }
 
-    private List<Map.Entry<String, FieldDef>> oneOfFields(EntityDef entity) {
-        if (entity.fields() == null) {
-            return List.of();
-        }
-        return entity.fields().entrySet().stream()
-            .filter(entry -> "oneof".equalsIgnoreCase(entry.getValue().type()))
+    private List<ResolvedOneOfField> oneOfFields(EntityDef entity, DomainModelView modelView) {
+        return modelView.fields(entity.name()).stream()
+            .filter(field -> field.kind() == FieldKind.ONEOF)
+            .map(ResolvedOneOfField.class::cast)
             .toList();
     }
 

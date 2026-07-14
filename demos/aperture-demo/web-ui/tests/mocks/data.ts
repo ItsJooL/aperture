@@ -3,13 +3,14 @@
  * resetMockData() is called by tests/setup.ts after each test to restore defaults.
  */
 
-import type { Customer, Invite, ApiKey, ServiceAccount, Product, ServicePackage, Invoice, LineItem } from '@/api/types/domain'
+import type { Customer, Invite, ApiKey, ServiceAccount, Product, ServicePackage, SubscriptionPlan, Invoice, LineItem } from '@/api/types/domain'
 
 // ── Customers ────────────────────────────────────────────────────────────────
 
 let customers: Customer[] = []
 let products: Product[] = []
 let servicePackages: ServicePackage[] = []
+let subscriptionPlans: SubscriptionPlan[] = []
 let invoices: Invoice[] = []
 let lineItems: LineItem[] = []
 let invites: Invite[] = []
@@ -30,6 +31,11 @@ function seed() {
   servicePackages = [
     { id: 'svcpack-001', type: 'servicepackages', name: 'Priority onboarding', sku: 'SVC-ONBOARD', unit_price: 750, active: true },
     { id: 'svcpack-002', type: 'servicepackages', name: 'Quarterly architecture review', sku: 'SVC-ARCH', unit_price: 1200, active: true },
+  ]
+
+  subscriptionPlans = [
+    { id: 'subplan-001', type: 'subscriptionplans', name: 'Developer monthly', sku: 'SUB-DEV', unit_price: 49, billing_interval: 'MONTHLY', active: true },
+    { id: 'subplan-002', type: 'subscriptionplans', name: 'Enterprise annual', sku: 'SUB-ENT', unit_price: 2999, billing_interval: 'ANNUAL', active: true },
   ]
 
   invoices = [
@@ -81,6 +87,9 @@ export function setProducts(next: Product[]) { products = next }
 
 export function getServicePackages() { return servicePackages }
 export function setServicePackages(next: ServicePackage[]) { servicePackages = next }
+
+export function getSubscriptionPlans() { return subscriptionPlans }
+export function setSubscriptionPlans(next: SubscriptionPlan[]) { subscriptionPlans = next }
 
 export function getInvoices() { return invoices }
 export function setInvoices(next: Invoice[]) { invoices = next }

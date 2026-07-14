@@ -13,10 +13,10 @@
       </button>
     </div>
 
-    <ErrorState v-if="customersQuery.isError.value || productsQuery.isError.value || servicePackagesQuery.isError.value" description="Customers or billable catalogue items could not be loaded.">
+    <ErrorState v-if="lookupFailed" description="Customers or billable catalogue items could not be loaded.">
       <AppButton variant="outline" @click="refetchLookups">Retry</AppButton>
     </ErrorState>
-    <PageSkeleton v-else-if="customersQuery.isLoading.value || productsQuery.isLoading.value || servicePackagesQuery.isLoading.value" />
+    <PageSkeleton v-else-if="lookupsLoading" />
 
     <section v-else class="invoice-builder">
       <AppCard>
@@ -31,13 +31,16 @@
 
         <template v-else-if="step === 1">
           <div class="flex-between">
-            <div><h2 class="card-title">Add line items</h2><p class="card-description">Choose products or service packages, adjust quantities and confirm pricing.</p></div>
+            <div><h2 class="card-title">Add line items</h2><p class="card-description">Choose products, service packages or subscription plans, adjust quantities and confirm pricing.</p></div>
             <AppButton variant="outline" @click="addLine">Add item</AppButton>
           </div>
           <div class="stack" style="margin-top:1rem;">
             <div v-for="(line, index) in lines" :key="line.localId" class="line-item-card">
               <div class="flex-between"><strong>Item {{ index + 1 }}</strong><AppButton v-if="lines.length > 1" variant="ghost" @click="removeLine(index)">Remove</AppButton></div>
-              <AppSelect v-model="line.billableKey" label="Billable item" placeholder="Select product or service package" :options="billableOptions" @update:model-value="billableChanged(line)" />
+              <div class="form-grid">
+                <AppSelect v-model="line.billableType" label="Billable type" placeholder="Select a type" :options="billableTypeOptions" />
+                <AppSelect v-model="line.billableId" label="Billable item" placeholder="Select an item" :options="billableOptionsFor(line)" @update:model-value="billableChanged(line)" />
+              </div>
               <div v-if="selectedBillable(line)" class="notice notice-compact">
                 {{ selectedBillable(line)?.kindLabel }} · {{ selectedBillable(line)?.sku }}
               </div>
@@ -83,7 +86,10 @@
         <p class="card-description">A customer-facing summary of what will be created.</p>
         <div class="detail-list" style="margin-top:1rem;">
           <div class="detail-row"><span class="muted">Customer</span><strong>{{ selectedCustomer?.name || 'Choose customer' }}</strong></div>
-          <div v-for="line in validLines" :key="line.localId" class="detail-row"><span>{{ line.description }}</span><strong>{{ currency(lineTotal(line)) }}</strong></div>
+          <div v-for="line in validLines" :key="line.localId" class="detail-row">
+            <span>{{ selectedBillable(line)?.kindLabel }} · {{ selectedBillable(line)?.name }}</span>
+            <strong>{{ currency(lineTotal(line)) }}</strong>
+          </div>
           <div class="detail-row"><span class="muted">Total</span><strong style="font-size:1.35rem;">{{ currency(total) }}</strong></div>
         </div>
       </AppCard>
@@ -92,7 +98,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, reactive, ref } from 'vue'
+import { computed, reactive, ref, watch } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
 import { useQuery, useQueryClient } from '@/vue-query-wrapper'
 import AppButton from '@/components/ui/AppButton.vue'
@@ -106,7 +112,7 @@ import PageHeader from '@/components/ui/PageHeader.vue'
 import PageSkeleton from '@/components/ui/PageSkeleton.vue'
 import { customerService } from '@/api/services/customerService'
 import { invoiceService } from '@/api/services/invoiceService'
-import { productService, servicePackageService } from '@/api/services/productService'
+import { productService, servicePackageService, subscriptionPlanService } from '@/api/services/productService'
 import type { ResourceIdentifier } from '@/api/jsonapi/types'
 import { currency } from '@/lib/utils'
 import { useAppStore } from '@/stores/appStore'
@@ -115,16 +121,19 @@ type BillableOption = {
   label: string
   value: string
   id: string
-  resourceType: 'products' | 'servicepackages'
-  kindLabel: 'Product' | 'Service package'
+  resourceType: 'products' | 'servicepackages' | 'subscriptionplans'
+  kindLabel: 'Product' | 'Service package' | 'Subscription plan'
   name: string
   sku: string
   unit_price: number
 }
 
+type BillableResourceType = BillableOption['resourceType']
+
 type InvoiceLineDraft = {
   localId: string
-  billableKey: string
+  billableType: BillableResourceType | ''
+  billableId: string
   description: string
   quantity: number | string
   unit_price: number | string
@@ -139,15 +148,24 @@ const step = ref(0)
 const customersQuery = useQuery({ queryKey: ['customers'], queryFn: () => customerService.list(undefined, 200) })
 const productsQuery = useQuery({ queryKey: ['products'], queryFn: () => productService.list(undefined, 200) })
 const servicePackagesQuery = useQuery({ queryKey: ['servicepackages'], queryFn: () => servicePackageService.list(undefined, 200) })
+const subscriptionPlansQuery = useQuery({ queryKey: ['subscriptionplans'], queryFn: () => subscriptionPlanService.list(undefined, 200) })
 const customerId = ref(String(route.query.customerId || ''))
 const status = ref('draft')
 const saving = ref(false)
 const validationError = ref<string | undefined>()
-const lines = reactive<InvoiceLineDraft[]>([{ localId: crypto.randomUUID(), billableKey: '', description: '', quantity: 1, unit_price: 0 }])
+const lines = reactive<InvoiceLineDraft[]>([{ localId: crypto.randomUUID(), billableType: '', billableId: '', description: '', quantity: 1, unit_price: 0 }])
 const statusOptions = [{ label: 'Draft', value: 'draft' }, { label: 'Issue immediately', value: 'issued' }]
+const billableTypeOptions = [
+  { label: 'Product', value: 'products' },
+  { label: 'Service package', value: 'servicepackages' },
+  { label: 'Subscription plan', value: 'subscriptionplans' },
+]
 const customers = computed(() => customersQuery.data.value?.items ?? [])
 const products = computed(() => (productsQuery.data.value?.items ?? []).filter((product) => product.active !== false))
 const servicePackages = computed(() => (servicePackagesQuery.data.value?.items ?? []).filter((servicePackage) => servicePackage.active !== false))
+const subscriptionPlans = computed(() => (subscriptionPlansQuery.data.value?.items ?? []).filter((plan) => plan.active !== false))
+const lookupFailed = computed(() => customersQuery.isError.value || productsQuery.isError.value || servicePackagesQuery.isError.value || subscriptionPlansQuery.isError.value)
+const lookupsLoading = computed(() => customersQuery.isLoading.value || productsQuery.isLoading.value || servicePackagesQuery.isLoading.value || subscriptionPlansQuery.isLoading.value)
 const customerOptions = computed(() => customers.value.map((customer) => ({ label: `${customer.name} · ${customer.email}`, value: customer.id })))
 const billableOptions = computed<BillableOption[]>(() => [
   ...products.value.map((product) => ({
@@ -170,15 +188,31 @@ const billableOptions = computed<BillableOption[]>(() => [
     sku: servicePackage.sku,
     unit_price: Number(servicePackage.unit_price),
   })),
+  ...subscriptionPlans.value.map((plan) => ({
+    label: `${plan.name} · ${currency(plan.unit_price)} / ${plan.billing_interval.toLowerCase()}`,
+    value: `subscriptionplans:${plan.id}`,
+    id: plan.id,
+    resourceType: 'subscriptionplans' as const,
+    kindLabel: 'Subscription plan' as const,
+    name: plan.name,
+    sku: plan.sku,
+    unit_price: Number(plan.unit_price),
+  })),
 ])
 const selectedCustomer = computed(() => customers.value.find((customer) => customer.id === customerId.value))
 const validLines = computed(() => lines.filter((line) => billableIdentifier(line) && line.description.trim() && Number(line.quantity) > 0 && Number(line.unit_price) > 0))
 const total = computed(() => validLines.value.reduce((sum, line) => sum + lineTotal(line), 0))
 function lineTotal(line: { quantity: number | string; unit_price: number | string }) { return Number(line.quantity || 0) * Number(line.unit_price || 0) }
-function addLine() { lines.push({ localId: crypto.randomUUID(), billableKey: '', description: '', quantity: 1, unit_price: 0 }) }
+function addLine() { lines.push({ localId: crypto.randomUUID(), billableType: '', billableId: '', description: '', quantity: 1, unit_price: 0 }) }
 function removeLine(index: number) { lines.splice(index, 1) }
+function billableOptionsFor(line: InvoiceLineDraft) {
+  return billableOptions.value
+    .filter((candidate) => candidate.resourceType === line.billableType)
+    .map(({ label, id }) => ({ label, value: id }))
+}
 function selectedBillable(line: InvoiceLineDraft) {
-  return billableOptions.value.find((candidate) => candidate.value === line.billableKey)
+  return billableOptions.value.find((candidate) =>
+    candidate.resourceType === line.billableType && candidate.id === line.billableId)
 }
 function billableIdentifier(line: InvoiceLineDraft): ResourceIdentifier | null {
   const option = selectedBillable(line)
@@ -190,6 +224,18 @@ function billableChanged(line: InvoiceLineDraft) {
   line.description = billable.name
   line.unit_price = Number(billable.unit_price)
 }
+watch(
+  () => lines.map((line) => ({ localId: line.localId, billableType: line.billableType })),
+  (current, previous) => current.forEach((selection) => {
+    const prior = previous?.find((candidate) => candidate.localId === selection.localId)
+    if (!prior || prior.billableType === selection.billableType) return
+    const line = lines.find((candidate) => candidate.localId === selection.localId)
+    if (!line) return
+    line.billableId = ''
+    line.description = ''
+    line.unit_price = 0
+  }),
+)
 function validateCurrentStep() {
   validationError.value = undefined
   if (step.value === 0 && !customerId.value) validationError.value = 'Choose a customer to continue.'
@@ -199,7 +245,7 @@ function validateCurrentStep() {
 }
 function nextStep() { if (validateCurrentStep()) step.value++ }
 function goToStep(index: number) { if (index <= step.value || validateCurrentStep()) step.value = index }
-function refetchLookups() { customersQuery.refetch(); productsQuery.refetch(); servicePackagesQuery.refetch() }
+function refetchLookups() { customersQuery.refetch(); productsQuery.refetch(); servicePackagesQuery.refetch(); subscriptionPlansQuery.refetch() }
 async function createInvoice() {
   if (!validateCurrentStep()) return
   saving.value = true

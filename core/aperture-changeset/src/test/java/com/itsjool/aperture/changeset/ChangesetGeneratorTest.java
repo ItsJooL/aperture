@@ -288,7 +288,7 @@ class ChangesetGeneratorTest {
     @Test
     void schemaSnapshotEmitsOneOfPointerColumnsWithoutForeignKey() {
         EntityDef lineItem = tenantEntity("LineItem", "lineitems", fields(
-            "billable", oneOf("Billable", true, true)
+            "billable", oneOf("Billable", true, false)
         ));
 
         String xml = new ChangesetGenerator().generateSchemaSnapshot(
@@ -296,6 +296,12 @@ class ChangesetGeneratorTest {
 
         assertThat(xml).contains("<column name=\"billable_type\" type=\"VARCHAR(255)\">");
         assertThat(xml).contains("<column name=\"billable_id\" type=\"UUID\">");
+        assertThat(xml).doesNotContain("<column name=\"billable_type\" type=\"VARCHAR(255)\">\n                <constraints nullable=\"false\"/>");
+        assertThat(xml).contains("CREATE CONSTRAINT TRIGGER require_aperture_lineitems_billable")
+            .contains("DEFERRABLE INITIALLY DEFERRED")
+            .contains("billable_type IS NULL OR billable_id IS NULL")
+            .contains("<dropTable tableName=\"aperture_lineitems\"/>")
+            .contains("<sql>DROP FUNCTION IF EXISTS aperture_require_aperture_lineitems_billable();</sql>");
         assertThat(xml).contains("<createIndex indexName=\"idx_aperture_lineitems_billable\" tableName=\"aperture_lineitems\" unique=\"false\">");
         assertThat(xml).contains("<column name=\"billable_type\"/>");
         assertThat(xml).contains("<column name=\"billable_id\"/>");
@@ -327,8 +333,96 @@ class ChangesetGeneratorTest {
         assertThat(xml).contains("<column name=\"billable_id\" type=\"UUID\"/>");
         assertThat(xml).contains("<not><columnExists tableName=\"aperture_lineitems\" columnName=\"billable_type\"/></not>");
         assertThat(xml).contains("<not><columnExists tableName=\"aperture_lineitems\" columnName=\"billable_id\"/></not>");
+        assertThat(xml).contains("<createIndex indexName=\"idx_aperture_lineitems_billable\" tableName=\"aperture_lineitems\" unique=\"false\">");
+        assertThat(xml).contains("<column name=\"aperture_tenant_id\"/>");
+        assertThat(xml).contains("<column name=\"billable_type\"/>");
+        assertThat(xml).contains("<column name=\"billable_id\"/>");
         assertThat(xml).doesNotContain("<column name=\"billable\" type=");
         assertThat(xml).doesNotContain("addForeignKeyConstraint");
+    }
+
+    @Test
+    void generatedChangesetsRollbackRequiredOneOfConstraintObjects() {
+        EntityDef lineItem = tenantEntity("LineItem", "lineitems", fields(
+            "description", field("String", false)
+        ));
+        FieldDef billable = oneOf("Billable", true, false);
+        DiffResult diff = new DiffResult(
+            List.of(), List.of(), List.of(), Map.of("LineItem", Map.of("billable", billable)),
+            Map.of(), Map.of(), ChangeType.SAFE, Map.of("LineItem", lineItem));
+
+        String xml = new ChangesetGenerator().generateGeneratedChangesets(diff, TenancyMode.POOL);
+
+        assertThat(xml).contains("<sql>DROP TRIGGER IF EXISTS require_aperture_lineitems_billable "
+            + "ON aperture_lineitems;</sql>");
+        assertThat(xml).contains(
+            "<sql>DROP FUNCTION IF EXISTS aperture_require_aperture_lineitems_billable();</sql>");
+    }
+
+    @Test
+    void deferredDropRemovesRequiredOneOfConstraintObjectsBeforePointerColumns() {
+        EntityDef lineItem = tenantEntity("LineItem", "lineitems", fields(
+            "description", field("String", false)
+        ));
+        FieldDef billable = oneOf("Billable", true, false);
+        DiffResult diff = new DiffResult(
+            List.of(), List.of(), List.of(), Map.of(), Map.of("LineItem", Map.of("billable", billable)),
+            Map.of(), ChangeType.BREAKING, Map.of("LineItem", lineItem));
+
+        String xml = new ChangesetGenerator().generateGeneratedChangesets(diff, TenancyMode.POOL);
+
+        String triggerDrop = "<sql>DROP TRIGGER IF EXISTS require_aperture_lineitems_billable "
+            + "ON aperture_lineitems;</sql>";
+        String functionDrop =
+            "<sql>DROP FUNCTION IF EXISTS aperture_require_aperture_lineitems_billable();</sql>";
+        String firstColumnDrop =
+            "<dropColumn tableName=\"aperture_lineitems\" columnName=\"billable_type\"/>";
+
+        assertThat(xml).contains(triggerDrop).contains(functionDrop).contains(firstColumnDrop);
+        assertThat(xml.indexOf(triggerDrop)).isLessThan(xml.indexOf(functionDrop));
+        assertThat(xml.indexOf(functionDrop)).isLessThan(xml.indexOf(firstColumnDrop));
+    }
+
+    @Test
+    void generatedChangesetsPreserveUniqueOneOfIndexSemantics() {
+        EntityDef lineItem = tenantEntity("LineItem", "lineitems", fields(
+            "description", field("String", false)
+        ));
+        FieldDef billable = new FieldDef("oneof", false, true, false, false,
+            "1", null, null, null, "Billable", null, null);
+        DiffResult diff = new DiffResult(
+            List.of(), List.of(), List.of(), Map.of("LineItem", Map.of("billable", billable)),
+            Map.of(), Map.of(), ChangeType.SAFE, Map.of("LineItem", lineItem));
+
+        String xml = new ChangesetGenerator().generateGeneratedChangesets(diff, TenancyMode.POOL);
+
+        assertThat(xml).contains(
+            "<createIndex indexName=\"idx_aperture_lineitems_billable_uniq\" "
+                + "tableName=\"aperture_lineitems\" unique=\"true\">");
+        assertThat(xml).contains("<column name=\"aperture_tenant_id\"/>");
+        assertThat(xml).contains("<column name=\"billable_type\"/>");
+        assertThat(xml).contains("<column name=\"billable_id\"/>");
+    }
+
+    @Test
+    void generatedChangesetsPreserveSoftDeleteUniqueOneOfIndexSemantics() {
+        EntityDef lineItem = new EntityDef("LineItem", "lineitems", null, null,
+            false, true, true, fields("description", field("String", false)),
+            null, null, null, Map.of(), Map.of());
+        FieldDef billable = new FieldDef("oneof", false, true, false, false,
+            "1", null, null, null, "Billable", null, null);
+        DiffResult diff = new DiffResult(
+            List.of(), List.of(), List.of(), Map.of("LineItem", Map.of("billable", billable)),
+            Map.of(), Map.of(), ChangeType.SAFE, Map.of("LineItem", lineItem));
+
+        String xml = new ChangesetGenerator().generateGeneratedChangesets(diff, TenancyMode.POOL);
+
+        assertThat(xml).contains(
+            "<sql>CREATE UNIQUE INDEX idx_aperture_lineitems_billable_uniq "
+                + "ON aperture_lineitems(aperture_tenant_id, billable_type, billable_id) "
+                + "WHERE deleted_at IS NULL;</sql>");
+        assertThat(xml).doesNotContain(
+            "<createIndex indexName=\"idx_aperture_lineitems_billable_uniq\"");
     }
 
     private static FieldDef oneOf(String target, boolean required, boolean index) {

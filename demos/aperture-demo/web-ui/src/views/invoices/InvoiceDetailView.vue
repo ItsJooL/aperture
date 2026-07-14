@@ -98,6 +98,7 @@ import StatCard from '@/components/ui/StatCard.vue'
 import StatusBadge from '@/components/ui/StatusBadge.vue'
 import InvoiceStatusStepper from '@/components/product/InvoiceStatusStepper.vue'
 import { invoiceService } from '@/api/services/invoiceService'
+import { productService, servicePackageService, subscriptionPlanService } from '@/api/services/productService'
 import { currency } from '@/lib/utils'
 import { useAppStore } from '@/stores/appStore'
 
@@ -107,6 +108,9 @@ const client = useQueryClient()
 const id = computed(() => String(route.params.id))
 const query = useQuery({ queryKey: ['invoice', id], queryFn: () => invoiceService.get(id.value) })
 const lineItemsQuery = useQuery({ queryKey: ['invoice-lineitems', id], queryFn: () => invoiceService.listLineItems() })
+const productsQuery = useQuery({ queryKey: ['products'], queryFn: () => productService.list(undefined, 200) })
+const servicePackagesQuery = useQuery({ queryKey: ['servicepackages'], queryFn: () => servicePackageService.list(undefined, 200) })
+const subscriptionPlansQuery = useQuery({ queryKey: ['subscriptionplans'], queryFn: () => subscriptionPlanService.list(undefined, 200) })
 const invoice = computed(() => query.data.value)
 const lineItems = computed(() => (lineItemsQuery.data.value?.items ?? []).filter((line) => relationshipId(line, 'invoice') === id.value))
 const paymentOpen = ref(false)
@@ -127,7 +131,17 @@ function billableLabel(resource: { relationships?: Record<string, { data?: unkno
   if (!data || Array.isArray(data) || typeof data !== 'object') return 'Not selected'
   const type = 'type' in data ? String(data.type) : 'unknown'
   const id = 'id' in data ? String(data.id) : ''
-  return `${type}:${id}`
+  const catalogue = type === 'products'
+    ? productsQuery.data.value?.items
+    : type === 'servicepackages'
+      ? servicePackagesQuery.data.value?.items
+      : type === 'subscriptionplans'
+        ? subscriptionPlansQuery.data.value?.items
+        : undefined
+  const selected = catalogue?.find((candidate) => candidate.id === id)
+  if (!selected) return `${type}:${id}`
+  const kind = type === 'products' ? 'Product' : type === 'servicepackages' ? 'Service package' : 'Subscription plan'
+  return `${kind} · ${selected.name}`
 }
 async function updateStatus(status: string) {
   await invoiceService.updateStatus(id.value, status)

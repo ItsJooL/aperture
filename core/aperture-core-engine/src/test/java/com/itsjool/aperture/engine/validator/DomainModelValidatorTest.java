@@ -159,6 +159,42 @@ class DomainModelValidatorTest {
     }
 
     @Test
+    void oneOfFieldWithCollectionRelation_throws() {
+        EntityDef product = entity("Product", Map.of("name", stringField()));
+        EntityDef servicePackage = entity("ServicePackage", Map.of("name", stringField()));
+        FieldDef collectionOneOf = new FieldDef("oneof", false, false, false, false,
+            null, null, null, "OneToMany", "Billable", null, null);
+        EntityDef lineItem = entity("LineItem", Map.of("billable", collectionOneOf));
+        OneOfDef billable = new OneOfDef("Billable", List.of("Product", "ServicePackage"));
+
+        assertThatThrownBy(() -> validator.validate(
+            new ResolvedDomainModel(List.of(product, servicePackage, lineItem), List.of(), null,
+                List.of(), List.of(), List.of(), List.of(), List.of(billable)),
+            Map.of(lineItem, "line-item.yaml")))
+            .isInstanceOf(ManifestValidationException.class)
+            .hasMessageContaining("oneof field LineItem.billable")
+            .hasMessageContaining("does not support relation");
+    }
+
+    @Test
+    void oneOfFieldWithMappedBy_throws() {
+        EntityDef product = entity("Product", Map.of("name", stringField()));
+        EntityDef servicePackage = entity("ServicePackage", Map.of("name", stringField()));
+        FieldDef inverseOneOf = new FieldDef("oneof", false, false, false, false,
+            null, null, null, null, "Billable", "lineItem", null);
+        EntityDef lineItem = entity("LineItem", Map.of("billable", inverseOneOf));
+        OneOfDef billable = new OneOfDef("Billable", List.of("Product", "ServicePackage"));
+
+        assertThatThrownBy(() -> validator.validate(
+            new ResolvedDomainModel(List.of(product, servicePackage, lineItem), List.of(), null,
+                List.of(), List.of(), List.of(), List.of(), List.of(billable)),
+            Map.of(lineItem, "line-item.yaml")))
+            .isInstanceOf(ManifestValidationException.class)
+            .hasMessageContaining("oneof field LineItem.billable")
+            .hasMessageContaining("does not support mappedBy");
+    }
+
+    @Test
     void selfReferentialField_throws() {
         EntityDef category = entity("Category", Map.of("parent", manyToOneField("Unknown")));
 

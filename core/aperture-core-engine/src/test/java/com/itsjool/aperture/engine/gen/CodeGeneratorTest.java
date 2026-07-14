@@ -211,13 +211,14 @@ class CodeGeneratorTest {
             .contains("public class ProductV1 implements BillableV1");
         assertThat(lineItemSource)
             .contains("@ToOne")
-            .contains("@Any")
+            .contains("@Any(\n      optional = true\n  )")
             .contains("@AnyKeyJavaClass(UUID.class)")
             .contains("@Column(\n      name = \"billable_type\"")
             .contains("@JoinColumn(\n      name = \"billable_id\"")
             .contains("@AnyDiscriminatorValue(\n      discriminator = \"Product\",\n      entity = ProductV1.class\n  )")
             .contains("@AnyDiscriminatorValue(\n      discriminator = \"ServicePackage\",\n      entity = ServicePackageV1.class\n  )")
             .contains("private BillableV1 billable;")
+            .doesNotContain("@NotNull\n  private BillableV1 billable;")
             .doesNotContain("BillableV1V1");
     }
 

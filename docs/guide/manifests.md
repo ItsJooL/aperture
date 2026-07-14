@@ -51,7 +51,7 @@ kind: OneOf
 metadata:
   name: Billable
 spec:
-  members: [Product, ServicePackage]
+  members: [Product, ServicePackage, SubscriptionPlan]
 ```
 
 Names a closed set of entity types that a `type: oneof` field may reference. See
@@ -198,7 +198,7 @@ kind: OneOf
 metadata:
   name: Billable
 spec:
-  members: [Product, ServicePackage]
+  members: [Product, ServicePackage, SubscriptionPlan]
 ```
 
 An entity field then targets that named model concept:
@@ -208,15 +208,18 @@ fields:
   billable:
     type: oneof
     target: Billable
-    description: "Product or service package associated with this line item"
+    description: "Product, service package, or subscription plan associated with this line item"
 ```
 
 The build validates that every member is an entity, each member belongs to only one `OneOf`, and all
-members have the same tenant shape. A tenant-scoped owner cannot use a one-of set that mixes tenant
-scoped and global members.
+members have the same tenant shape. A global owner cannot reference a tenant-scoped one-of set:
+without an owner tenant, Aperture could not safely constrain the member lookup. `relation` and
+`mappedBy` are invalid on a `oneof` field because the selected-member pointer defines its storage shape.
 
-In generated storage, the field becomes two columns: `{field}_type` and `{field}_id`. JSON:API
-clients send the concrete resource type in the relationship data:
+In generated storage, the field becomes two columns: `{field}_type` and `{field}_id`, plus a
+composite index (unique when `unique: true`, non-unique otherwise). For tenant-scoped owners in
+POOL mode, that index is `(aperture_tenant_id, {field}_type, {field}_id)` so selected-member lookups
+retain tenant locality. JSON:API clients send the concrete resource type in the relationship data:
 
 ```json
 {
@@ -225,6 +228,12 @@ clients send the concrete resource type in the relationship data:
   }
 }
 ```
+
+Set `required: true` when every owner must select a member. Aperture rejects ordinary and atomic
+resource writes that omit the relationship, rejects attempts to clear it, and enforces the same
+invariant at transaction commit. The database check is deferred deliberately: Atomic Operations
+stages new resources before wiring their relationships, so a valid batch may temporarily contain
+an unset pointer but can never commit one.
 
 Adding a member to a `OneOf` is treated as a compatible model expansion. Removing a member or
 deleting a `OneOf` is a breaking model change because existing rows may still point at that member.

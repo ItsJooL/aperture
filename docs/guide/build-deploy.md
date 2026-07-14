@@ -76,7 +76,7 @@ The four diff categories and what they generate:
 | New field added | `addColumn` with `MARK_RAN` precondition | Idempotent — skipped if column already exists |
 | Field renamed (`renamedFrom:`) | `renameColumn` | No data loss |
 | Field removed | `dropColumn` with `context="pending"` | **Not applied automatically** (see Deferred drops) |
-| `oneof` field added | `addColumn` for `{field}_type` and `{field}_id` | No FK constraint, because the target table depends on the row |
+| `oneof` field added | `addColumn` for `{field}_type` and `{field}_id`, plus a composite index | No FK constraint, because the target table depends on the row; POOL mode prefixes the index with `aperture_tenant_id` |
 | `OneOf` member added | Domain-model lock update only | Compatible model expansion |
 | `OneOf` member removed | Build fails as breaking without a versioned rollout | Existing rows may still reference that member |
 | New ManyToOne field | `addForeignKeyConstraint` | Added after both tables exist |
@@ -185,8 +185,8 @@ Every entity is reachable over GraphQL as well as JSON:API, at `/graphql/{versio
 default, and gated on the same path-based versioning as the REST endpoints. Nested relationship
 traversal and mutations both work against the same permission and manifest model as REST for
 ordinary entity relationships. `oneof` fields are a JSON:API/CLI/MCP contract in this release, not
-a supported GraphQL shape. See [GraphQL configuration](/reference/configuration#graphql-elide-graphql)
-for the switch and limitation.
+part of the generated GraphQL schema. See
+[GraphQL configuration](/reference/configuration#graphql-elide-graphql) for the switch and limitation.
 
 ## Docker deployment
 

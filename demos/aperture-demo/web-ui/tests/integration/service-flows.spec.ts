@@ -62,4 +62,24 @@ describe('service integration flows with mocked HTTP API', () => {
       }),
     ]))
   })
+
+  it('creates invoice lines for subscription plans through the oneof billable relationship', async () => {
+    const invoice = await invoiceService.create({
+      customerId: 'cust-001',
+      status: 'draft',
+      lines: [{ billable: { type: 'subscriptionplans', id: 'subplan-001' }, description: 'Developer monthly', quantity: 1, unit_price: 49 }],
+    })
+
+    expect(invoice).toMatchObject({ type: 'invoices', amount: 49, status: 'draft' })
+
+    const lineItems = await invoiceService.listLineItems()
+    expect(lineItems.items).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        description: 'Developer monthly',
+        relationships: expect.objectContaining({
+          billable: { data: { type: 'subscriptionplans', id: 'subplan-001' } },
+        }),
+      }),
+    ]))
+  })
 })

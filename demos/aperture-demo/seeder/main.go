@@ -21,14 +21,15 @@ type SeedFile struct {
 }
 
 type TenantSeed struct {
-	Name            string           `yaml:"name"`
-	Admin           Credential       `yaml:"admin"`
-	Users           []UserSeed       `yaml:"users"`
-	Suppliers       []Supplier       `yaml:"suppliers"`
-	Products        []Product        `yaml:"products"`
-	ServicePackages []ServicePackage `yaml:"servicePackages"`
-	Customers       []Customer       `yaml:"customers"`
-	Invoices        []Invoice        `yaml:"invoices"`
+	Name              string             `yaml:"name"`
+	Admin             Credential         `yaml:"admin"`
+	Users             []UserSeed         `yaml:"users"`
+	Suppliers         []Supplier         `yaml:"suppliers"`
+	Products          []Product          `yaml:"products"`
+	ServicePackages   []ServicePackage   `yaml:"servicePackages"`
+	SubscriptionPlans []SubscriptionPlan `yaml:"subscriptionPlans"`
+	Customers         []Customer         `yaml:"customers"`
+	Invoices          []Invoice          `yaml:"invoices"`
 }
 
 type Credential struct {
@@ -60,6 +61,14 @@ type ServicePackage struct {
 	SKU         string  `yaml:"sku"`
 	UnitPrice   float64 `yaml:"unitPrice"`
 	Description string  `yaml:"description"`
+}
+
+type SubscriptionPlan struct {
+	Name            string  `yaml:"name"`
+	SKU             string  `yaml:"sku"`
+	UnitPrice       float64 `yaml:"unitPrice"`
+	BillingInterval string  `yaml:"billingInterval"`
+	Description     string  `yaml:"description"`
 }
 
 type Customer struct {
@@ -387,6 +396,35 @@ func (s *seeder) seedTenant(t TenantSeed, superToken string) error {
 			s.logger.Info("service package already exists or duplicate", "name", servicePackage.Name)
 		} else {
 			return fmt.Errorf("create service package %s: status %d", servicePackage.Name, status)
+		}
+	}
+
+	// Seed subscription plans
+	for _, plan := range t.SubscriptionPlans {
+		s.logger.Info("creating subscription plan", "name", plan.Name, "sku", plan.SKU)
+		body := map[string]interface{}{
+			"data": map[string]interface{}{
+				"type": "subscriptionplans",
+				"attributes": map[string]interface{}{
+					"name":             plan.Name,
+					"sku":              plan.SKU,
+					"unit_price":       plan.UnitPrice,
+					"billing_interval": plan.BillingInterval,
+					"description":      plan.Description,
+					"active":           true,
+				},
+			},
+		}
+		_, status, err := s.postJSONAPI("/api/v3/subscriptionplans", adminToken, body)
+		if err != nil {
+			return fmt.Errorf("create subscription plan %s: %w", plan.Name, err)
+		}
+		if status == 201 {
+			continue
+		} else if status == 409 || status == 422 {
+			s.logger.Info("subscription plan already exists or duplicate", "name", plan.Name)
+		} else {
+			return fmt.Errorf("create subscription plan %s: status %d", plan.Name, status)
 		}
 	}
 

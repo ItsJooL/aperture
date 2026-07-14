@@ -23,7 +23,7 @@ docker compose ps    # all should show "healthy" or "exited(0)" for seeder
 
 ## Domain model
 
-Nine entities in two domain areas, plus one named one-of concept:
+Twelve entities in three domain areas, plus one named one-of concept:
 
 ### Billing domain
 
@@ -34,6 +34,7 @@ Nine entities in two domain areas, plus one named one-of concept:
 | `Payment` | Yes | `validate` hook |
 | `Product` | Yes | Tenant catalogue item and `Billable` member |
 | `ServicePackage` | Yes | A second concrete member of `Billable` |
+| `SubscriptionPlan` | Yes | A recurring, interval-aware member of `Billable` |
 | `Country` | No | Shared reference data, `guard` hook for country code hygiene |
 | `Currency` | No | Shared reference data, `trigger` hook for reference-data sync |
 
@@ -44,6 +45,13 @@ Nine entities in two domain areas, plus one named one-of concept:
 | `Customer` | Yes | `encrypted: true` on email, optimistic locking, `mutate` hook |
 | `Supplier` | Yes | `trigger` hook for downstream notification |
 
+### Work domain
+
+| Entity | Tenant-scoped | Key features |
+|---|---|---|
+| `Project` | Yes | Parent resource for scoped task collections |
+| `Task` | Yes | `scopedBy: project` request scoping |
+
 ## Seeded data
 
 The `seeder` service creates two tenants at startup:
@@ -52,16 +60,17 @@ The `seeder` service creates two tenants at startup:
 - `admin@acme.com` — `TenantAdmin`
 - `accountant@acme.com` — `Accountant` with `department=finance`, `region=eu`, `status=active`
 - `viewer@acme.com` — `Viewer`
-- 3 customers, 3 invoices (PAID / ISSUED / DRAFT), 3 products
+- 3 customers, 3 invoices (PAID / ISSUED / DRAFT), 3 products, 2 service packages, 2 subscription plans
 
-`LineItem.billable` points at the `Billable` one-of. In the demo, `Billable` has two members:
-`Product` and `ServicePackage`. The web invoice builder shows them in one "Billable item" selector,
-and the Bruno collection's atomic invoice request creates one line for each concrete member.
+`LineItem.billable` points at the `Billable` one-of. In the demo, `Billable` has three members:
+`Product`, `ServicePackage`, and `SubscriptionPlan`. The web invoice builder shows them in one
+"Billable item" selector, and the Bruno collection's atomic invoice request creates one line for
+each concrete member.
 
 **TechStart Inc** (`admin@techstart.com` / `TechAdmin123!`)
 - `admin@techstart.com` — `TenantAdmin`
 - `dev@techstart.com` — `Accountant`
-- 2 customers, 2 invoices, 2 products
+- 2 customers, 2 invoices, 2 products, 1 service package, 1 subscription plan
 
 ## Feature walkthroughs
 
@@ -292,8 +301,8 @@ Country (global) ←─── Customer (tenant-scoped, encrypted email, optimist
 Currency (global)         │
                           │
 Product ────────────┐
-                    ├── Billable ←── LineItem ───→ Invoice ←─── Payment
-ServicePackage ─────┘
+ServicePackage ─────├── Billable ←── LineItem ───→ Invoice ←─── Payment
+SubscriptionPlan ───┘
                                         │
                                     ValidateInvoice (validate hook)
                                     CheckLineItem (guard hook)

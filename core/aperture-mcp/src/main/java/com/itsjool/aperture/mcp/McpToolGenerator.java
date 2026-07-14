@@ -2,6 +2,7 @@ package com.itsjool.aperture.mcp;
 
 import com.itsjool.aperture.engine.model.EntityDef;
 import com.itsjool.aperture.engine.model.FieldDef;
+import com.itsjool.aperture.engine.model.FieldKind;
 import com.itsjool.aperture.engine.model.McpConfig;
 import com.itsjool.aperture.engine.model.McpEntityConfig;
 import com.palantir.javapoet.AnnotationSpec;
@@ -128,27 +129,9 @@ public class McpToolGenerator {
             .returns(STRING)
             .addAnnotation(toolAnnotation("create_" + entity.name().toLowerCase(), toolDescription("create", entity)));
 
-        List<ParamMapping> mappings = new ArrayList<>();
-        List<RelationshipMapping> relationships = new ArrayList<>();
-        for (var e : entity.fields().entrySet()) {
-            if (isOneOf(e.getValue())) {
-                String typeParam = e.getKey() + "_type";
-                String idParam = e.getKey() + "_id";
-                m.addParameter(toolParam(STRING, typeParam, "JSON:API resource type for " + e.getKey()));
-                m.addParameter(toolParam(STRING, idParam, "UUID of the related " + e.getKey()));
-                relationships.add(RelationshipMapping.oneOf(typeParam, idParam, e.getKey()));
-                continue;
-            }
-            if (!isParameter(e.getValue())) continue;
-            String pName = paramName(e.getKey(), e.getValue());
-            m.addParameter(toolParam(STRING, pName, fieldDescription(e.getKey(), e.getValue())));
-            if (isRelationship(e.getValue())) {
-                relationships.add(RelationshipMapping.fixed(pName, e.getKey(),
-                    targetResourceType(e.getValue(), resourceTypesByEntity)));
-            } else {
-                mappings.add(new ParamMapping(pName, e.getKey()));
-            }
-        }
+        ToolFields fields = addFieldParameters(m, entity, resourceTypesByEntity, false);
+        List<ParamMapping> mappings = fields.attributes();
+        List<RelationshipMapping> relationships = fields.relationships();
 
         m.addStatement("$T<$T, $T> attrs = new $T<>()", MAP, STRING, ClassName.get(Object.class), HASH_MAP);
         for (ParamMapping mapping : mappings) {
@@ -177,28 +160,9 @@ public class McpToolGenerator {
             .addAnnotation(toolAnnotation("update_" + entity.name().toLowerCase(), toolDescription("update", entity)))
             .addParameter(toolParam(STRING, "id", "UUID of the " + entity.name().toLowerCase() + " to update"));
 
-        List<ParamMapping> mappings = new ArrayList<>();
-        List<RelationshipMapping> relationships = new ArrayList<>();
-        for (var e : entity.fields().entrySet()) {
-            if (isOneOf(e.getValue())) {
-                String typeParam = e.getKey() + "_type";
-                String idParam = e.getKey() + "_id";
-                m.addParameter(toolParam(STRING, typeParam, "JSON:API resource type for " + e.getKey()));
-                m.addParameter(toolParam(STRING, idParam, "UUID of the related " + e.getKey()));
-                relationships.add(RelationshipMapping.oneOf(typeParam, idParam, e.getKey()));
-                continue;
-            }
-            if (!isParameter(e.getValue())) continue;
-            String pName = paramName(e.getKey(), e.getValue());
-            String desc = fieldDescription(e.getKey(), e.getValue()).replace(" (required)", "");
-            m.addParameter(toolParam(STRING, pName, desc));
-            if (isRelationship(e.getValue())) {
-                relationships.add(RelationshipMapping.fixed(pName, e.getKey(),
-                    targetResourceType(e.getValue(), resourceTypesByEntity)));
-            } else {
-                mappings.add(new ParamMapping(pName, e.getKey()));
-            }
-        }
+        ToolFields fields = addFieldParameters(m, entity, resourceTypesByEntity, true);
+        List<ParamMapping> mappings = fields.attributes();
+        List<RelationshipMapping> relationships = fields.relationships();
 
         m.addStatement("$T<$T, $T> attrs = new $T<>()", MAP, STRING, ClassName.get(Object.class), HASH_MAP);
         for (ParamMapping mapping : mappings) {
@@ -231,8 +195,43 @@ public class McpToolGenerator {
         return "ManyToOne".equals(field.relation());
     }
 
+    private ToolFields addFieldParameters(MethodSpec.Builder method, EntityDef entity,
+                                          Map<String, String> resourceTypesByEntity,
+                                          boolean partialUpdate) {
+        List<ParamMapping> attributes = new ArrayList<>();
+        List<RelationshipMapping> relationships = new ArrayList<>();
+        for (var entry : entity.fields().entrySet()) {
+            String fieldName = entry.getKey();
+            FieldDef field = entry.getValue();
+            if (isOneOf(field)) {
+                String typeParam = fieldName + "_type";
+                String idParam = fieldName + "_id";
+                method.addParameter(toolParam(STRING, typeParam, "JSON:API resource type for " + fieldName));
+                method.addParameter(toolParam(STRING, idParam, "UUID of the related " + fieldName));
+                relationships.add(RelationshipMapping.oneOf(typeParam, idParam, fieldName));
+                continue;
+            }
+            if (!isParameter(field)) {
+                continue;
+            }
+            String param = paramName(fieldName, field);
+            String description = fieldDescription(fieldName, field);
+            if (partialUpdate) {
+                description = description.replace(" (required)", "");
+            }
+            method.addParameter(toolParam(STRING, param, description));
+            if (isRelationship(field)) {
+                relationships.add(RelationshipMapping.fixed(param, fieldName,
+                    targetResourceType(field, resourceTypesByEntity)));
+            } else {
+                attributes.add(new ParamMapping(param, fieldName));
+            }
+        }
+        return new ToolFields(attributes, relationships);
+    }
+
     private boolean isOneOf(FieldDef field) {
-        return "oneof".equals(field.type());
+        return FieldKind.from(field) == FieldKind.ONEOF;
     }
 
     private String targetResourceType(FieldDef field, Map<String, String> resourceTypesByEntity) {
@@ -242,6 +241,8 @@ public class McpToolGenerator {
     }
 
     private record ParamMapping(String paramName, String fieldName) {}
+
+    private record ToolFields(List<ParamMapping> attributes, List<RelationshipMapping> relationships) {}
 
     private record RelationshipMapping(String typeParamName, String idParamName, String fieldName,
                                        String targetResourceType, boolean oneOf) {

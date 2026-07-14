@@ -6,6 +6,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
 
+import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -128,9 +129,16 @@ public class HookComponentTest extends DemoApplicationTestSupport {
     void guardHookRejectsBeforePersistence() throws Exception {
         // CheckLineItem is a guard hook (PRESECURITY, on: [create]) on LineItem — a rejection
         // must happen before the row is ever written, unlike validate/mutate which run PRECOMMIT.
-        // The line item is created without an invoice relationship: the guard fires on the new
-        // entity in the PRESECURITY phase, before any relationship read or DB write, so this
-        // isolates the guard behavior itself (invoice is optional on LineItem).
+        // Seed a valid required billable pointer directly so OneOf request validation succeeds
+        // without introducing unrelated product-hook callbacks into MockWebServer.
+        UUID productId = UUID.randomUUID();
+        String suffix = productId.toString().substring(0, 8);
+        jdbcTemplate.update("""
+            INSERT INTO aperture_products
+                (id, aperture_tenant_id, name, sku, unit_price, active, version)
+            VALUES (?, ?::uuid, ?, ?, ?, true, 0)
+            """, productId, "00000000-0000-0000-0000-000000000001",
+            "Guard hook product " + suffix, "GUARD-" + suffix, 10.00);
         overrideHookResponse("/hooks/check-line-item", 403);
 
         Integer countBefore = jdbcTemplate.queryForObject("SELECT count(*) FROM aperture_lineitems", Integer.class);
@@ -138,7 +146,14 @@ public class HookComponentTest extends DemoApplicationTestSupport {
         performElideRequest(post("/api/v1/lineitems")
                 .header("Authorization", getAcmeAccountantToken())
                 .contentType(VNDAPI)
-                .content("{\"data\": {\"type\": \"lineitems\", \"attributes\": {\"quantity\": 5, \"unit_price\": 10.00}}}"))
+                .content("""
+                    {"data":{"type":"lineitems","attributes":{
+                      "quantity":5,
+                      "unit_price":10.00
+                    },"relationships":{
+                      "billable":{"data":{"type":"products","id":"%s"}}
+                    }}}
+                    """.formatted(productId)))
                 .andExpect(status().is4xxClientError());
 
         Integer countAfter = jdbcTemplate.queryForObject("SELECT count(*) FROM aperture_lineitems", Integer.class);

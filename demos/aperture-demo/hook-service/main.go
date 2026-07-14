@@ -140,25 +140,18 @@ func validatePayment(w http.ResponseWriter, r *http.Request) {
 var skuRegex = regexp.MustCompile(`^[A-Z0-9-]{3,20}$`)
 
 func validateProduct(w http.ResponseWriter, r *http.Request) {
-	p, err := readPayload(r)
-	if err != nil {
-		reject(w, "invalid payload", http.StatusBadRequest)
-		return
-	}
-	price, _ := numberField(p.Fields, "unit_price")
-	if price <= 0 {
-		reject(w, "unit_price must be positive", http.StatusUnprocessableEntity)
-		return
-	}
-	sku, _ := p.Fields["sku"].(string)
-	if !skuRegex.MatchString(sku) {
-		reject(w, "sku must be 3-20 uppercase alphanumeric characters or hyphens", http.StatusUnprocessableEntity)
-		return
-	}
-	approve(w)
+	validatePricedSKU(w, r)
 }
 
 func validateServicePackage(w http.ResponseWriter, r *http.Request) {
+	validatePricedSKU(w, r)
+}
+
+func validateSubscriptionPlan(w http.ResponseWriter, r *http.Request) {
+	validatePricedSKU(w, r)
+}
+
+func validatePricedSKU(w http.ResponseWriter, r *http.Request) {
 	p, err := readPayload(r)
 	if err != nil {
 		reject(w, "invalid payload", http.StatusBadRequest)
@@ -332,6 +325,7 @@ func main() {
 	mux.HandleFunc("/hooks/validate-payment", protected(validatePayment))
 	mux.HandleFunc("/hooks/validate-product", protected(validateProduct))
 	mux.HandleFunc("/hooks/validate-service-package", protected(validateServicePackage))
+	mux.HandleFunc("/hooks/validate-subscription-plan", protected(validateSubscriptionPlan))
 	mux.HandleFunc("/hooks/validate-customer-email", protected(validateCustomerEmail))
 	mux.HandleFunc("/hooks/enrich-customer", protected(enrichCustomer(logger)))
 	mux.HandleFunc("/hooks/notify-supplier", protected(notifySupplier(logger)))

@@ -1,0 +1,53 @@
+meta {
+  name: Create Subscription Plan
+  type: http
+  seq: 10
+}
+
+post {
+  url: {{baseUrl}}/api/v1/subscriptionplans
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{tenantAdminToken}}
+}
+
+headers {
+  Content-Type: application/vnd.api+json
+  Accept: application/vnd.api+json
+}
+
+body:json {
+  {
+    "data": {
+      "type": "subscriptionplans",
+      "attributes": {
+        "name": "Bruno Developer Monthly",
+        "sku": "BRU-SUB-1",
+        "description": "A recurring-plan member of the Billable one-of set.",
+        "unit_price": 49.00,
+        "billing_interval": "MONTHLY",
+        "active": true
+      }
+    }
+  }
+}
+
+docs {
+  Creates a SubscriptionPlan, the third concrete member of the Billable one-of.
+  Its billing interval demonstrates that one-of members can expose different
+  attributes while sharing the same relationship slot on LineItem.
+}
+
+script:post-response {
+  if (res.status === 201) {
+    bru.setVar("billableSubscriptionPlanId", res.body.data.id);
+  }
+}
+
+assert {
+  res.status: eq 201
+  res.body.data.id: isDefined
+}

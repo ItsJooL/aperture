@@ -2,6 +2,7 @@ package com.itsjool.aperture.cli.generator;
 
 import com.itsjool.aperture.engine.model.EntityDef;
 import com.itsjool.aperture.engine.model.FieldDef;
+import com.itsjool.aperture.engine.model.FieldKind;
 import com.itsjool.aperture.cli.spi.AuthPaths;
 import com.palantir.javapoet.*;
 
@@ -1501,7 +1502,7 @@ final class CliTemplates {
                         String targetNaturalKey = classToNaturalKey.getOrDefault(targetClass, "name");
                         cb.addStatement("$L.put($S, new FieldSpec(true, $L, false, $S, $S, $S))",
                             fVar, fname, manyToOne, targetPath, fname, targetNaturalKey);
-                    } else if ("oneof".equals(fd.type())) {
+                    } else if (FieldKind.from(fd) == FieldKind.ONEOF) {
                         cb.addStatement("$L.put($S, new FieldSpec(true, true, true, null, $S, null))",
                             fVar, fname, fname);
                     } else {

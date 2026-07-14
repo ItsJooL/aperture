@@ -5,6 +5,7 @@ import com.itsjool.aperture.engine.hook.HookSemantics;
 import com.itsjool.aperture.engine.hook.HookSemanticsResolver;
 import com.itsjool.aperture.engine.model.EntityDef;
 import com.itsjool.aperture.engine.model.FieldDef;
+import com.itsjool.aperture.engine.model.FieldKind;
 import com.itsjool.aperture.engine.model.HookDef;
 import com.itsjool.aperture.engine.model.OneOfDef;
 import com.palantir.javapoet.ClassName;
@@ -223,7 +224,7 @@ public class CodeGenerator {
             }
         }
 
-        java.util.List<String> publicOps = entityDef.publicOperations() != null ? 
+        java.util.List<String> publicOps = entityDef.publicOperations() != null ?
             entityDef.publicOperations().stream().map(String::toLowerCase).toList() : java.util.List.of();
 
         for (String op : roleOps.keySet()) {
@@ -233,10 +234,10 @@ public class CodeGenerator {
             } else {
                 java.util.List<String> opRoles = roleOps.get(op);
                 java.util.List<String> opPolicies = policyOps.get(op);
-                
+
                 String roleExpr = opRoles.isEmpty() ? null : "(" + String.join(" OR ", opRoles) + ")";
                 String policyExpr = opPolicies.isEmpty() ? null : "(" + String.join(" AND ", opPolicies) + ")";
-                
+
                 if (roleExpr != null && policyExpr != null) {
                     expr = "(" + roleExpr + " AND " + policyExpr + ")";
                 } else if (roleExpr != null) {
@@ -350,13 +351,16 @@ public class CodeGenerator {
 
                 FieldSpec.Builder fieldBuilder;
                 com.palantir.javapoet.TypeName fieldTypeName = null;
-                if ("oneof".equalsIgnoreCase(field.type())) {
+                if (FieldKind.from(field) == FieldKind.ONEOF) {
                     OneOfDef oneOf = findOneOf(field.targetClass(), oneOfs);
                     fieldTypeName = ClassName.get("com.itsjool.aperture.generated.v" + version, field.targetClass() + "V" + version);
                     fieldBuilder = FieldSpec.builder(fieldTypeName, fieldName, Modifier.PRIVATE)
                         .addAnnotation(ClassName.get("com.yahoo.elide.annotation", "ToOne"))
                         .addAnnotation(com.palantir.javapoet.AnnotationSpec.builder(ClassName.get("org.hibernate.annotations", "Any"))
-                            .addMember("optional", "$L", !field.required())
+                            // Elide's Atomic Operations support inserts resources before applying their
+                            // relationships. Keep the Hibernate association nullable during that staging
+                            // flush; the API filter and deferred database constraint enforce requiredness.
+                            .addMember("optional", "$L", true)
                             .build())
                         .addAnnotation(com.palantir.javapoet.AnnotationSpec.builder(ClassName.get("org.hibernate.annotations", "AnyDiscriminator"))
                             .addMember("value", "$T.STRING", ClassName.get("jakarta.persistence", "DiscriminatorType"))
@@ -415,7 +419,7 @@ public class CodeGenerator {
                     fieldBuilder.addAnnotation(com.palantir.javapoet.AnnotationSpec.builder(ClassName.get("jakarta.persistence", "Convert")).addMember("converter", "$T.class", ClassName.get("com.itsjool.aperture.generated", converterName)).build());
                 }
                 
-                if (field.required()) {
+                if (field.required() && FieldKind.from(field) != FieldKind.ONEOF) {
                     fieldBuilder.addAnnotation(ClassName.get("jakarta.validation.constraints", "NotNull"));
                 }
                 // Only scalar fields get the per-field UPDATE audit hook. For relationship fields,

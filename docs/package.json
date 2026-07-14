@@ -6,7 +6,7 @@
     "dev": "vitepress dev",
     "build": "vitepress build",
     "preview": "vitepress preview",
-    "test": "node tests/hooks-vocabulary.test.mjs"
+    "test": "node tests/hooks-vocabulary.test.mjs && node tests/oneof-vocabulary.test.mjs"
   },
   "devDependencies": {
     "vitepress": "^1.6.0"

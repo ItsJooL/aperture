@@ -1,7 +1,7 @@
 meta {
   name: Reject Invalid Billable One-Of Member
   type: http
-  seq: 10
+  seq: 11
 }
 
 post {
@@ -37,8 +37,8 @@ body:json {
 
 docs {
   Demonstrates that a one-of relationship only accepts resource types declared
-  by its OneOf manifest. LineItem.billable accepts products and servicepackages,
-  so customers is rejected before a line item is persisted.
+  by its OneOf manifest. LineItem.billable accepts products, servicepackages,
+  and subscriptionplans, so customers is rejected before a line item is persisted.
 }
 
 assert {

@@ -78,7 +78,7 @@ class ApertureRuntimeMetadataLoaderTest {
                      "name":"Billable",
                      "members":["Product","ServicePackage"],
                      "memberResourceTypes":["products","servicepackages"],
-                     "fields":["lineitems.billable"]
+                     "fields":[{"resource":"lineitems","field":"billable","required":true}]
                    }
                  }}
                 """));
@@ -86,7 +86,8 @@ class ApertureRuntimeMetadataLoaderTest {
         ApertureRuntimeMetadata.OneOfMetadata billable = metadata.oneOfs().get("Billable");
         assertThat(billable.members()).containsExactly("Product", "ServicePackage");
         assertThat(billable.memberResourceTypes()).containsExactly("products", "servicepackages");
-        assertThat(billable.fields()).containsExactly("lineitems.billable");
+        assertThat(billable.fields()).containsExactly(
+            new ApertureRuntimeMetadata.OneOfFieldMetadata("lineitems", "billable", true));
     }
 
     @Test

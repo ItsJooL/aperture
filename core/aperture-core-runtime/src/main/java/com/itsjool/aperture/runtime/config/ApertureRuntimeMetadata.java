@@ -71,11 +71,20 @@ public record ApertureRuntimeMetadata(
     }
 
     public record OneOfMetadata(
-            String name, List<String> members, List<String> memberResourceTypes, Set<String> fields) {
+            String name, List<String> members, List<String> memberResourceTypes,
+            List<OneOfFieldMetadata> fields) {
         public OneOfMetadata {
             members = members != null ? List.copyOf(members) : List.of();
             memberResourceTypes = memberResourceTypes != null ? List.copyOf(memberResourceTypes) : List.of();
-            fields = fields != null ? Set.copyOf(fields) : Set.of();
+            fields = fields != null ? List.copyOf(fields) : List.of();
+        }
+    }
+
+    public record OneOfFieldMetadata(String resource, String field, boolean required) {
+        public OneOfFieldMetadata {
+            if (resource == null || resource.isBlank() || field == null || field.isBlank()) {
+                throw new IllegalArgumentException("OneOf field resource and field are required");
+            }
         }
     }
 }

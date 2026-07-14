@@ -12,6 +12,7 @@ import {
   getCustomers, setCustomers,
   getProducts, setProducts,
   getServicePackages,
+  getSubscriptionPlans,
   getInvoices, setInvoices,
   getLineItems, setLineItems,
   getInvites, setInvites,
@@ -304,6 +305,18 @@ const resourceHandlers = [
     const searchParam = new URL(request.url).searchParams.get('filter[servicepackages.name][infix]') ?? ''
     const filtered = getServicePackages().filter((servicePackage) =>
       !searchParam || servicePackage.name.toLowerCase().includes(searchParam.toLowerCase()),
+    )
+    return HttpResponse.json(jsonApiCollection(filtered), {
+      headers: { 'Content-Type': 'application/vnd.api+json' },
+    })
+  }),
+
+  // ── Subscription Plans ────────────────────────────────────────────────────
+
+  http.get(resourcePath('subscriptionplans'), ({ request }) => {
+    const searchParam = new URL(request.url).searchParams.get('filter[subscriptionplans.name][infix]') ?? ''
+    const filtered = getSubscriptionPlans().filter((plan) =>
+      !searchParam || plan.name.toLowerCase().includes(searchParam.toLowerCase()),
     )
     return HttpResponse.json(jsonApiCollection(filtered), {
       headers: { 'Content-Type': 'application/vnd.api+json' },

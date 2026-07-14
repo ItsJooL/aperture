@@ -20,7 +20,8 @@ spec:
     billable:
       type: oneof
       target: Billable
-      description: "Product or service package associated with this line item"
+      required: true
+      description: "Product, service package, or subscription plan associated with this line item"
     quantity:
       type: decimal
       required: true

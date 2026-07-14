@@ -43,6 +43,17 @@ tenants:
         sku: SVC-ARCH-001
         unitPrice: 1200.00
         description: "Recurring advisory review for technical teams"
+    subscriptionPlans:
+      - name: Platform Growth
+        sku: SUB-GROWTH-001
+        unitPrice: 299.00
+        billingInterval: MONTHLY
+        description: "Monthly platform access for growing delivery teams"
+      - name: Enterprise Annual
+        sku: SUB-ENT-001
+        unitPrice: 2999.00
+        billingInterval: ANNUAL
+        description: "Annual platform access with enterprise support"
     customers:
       - name: Acme Corp HQ
         email: hq@acme.com
@@ -88,6 +99,12 @@ tenants:
         sku: SVC-LAUNCH-001
         unitPrice: 500.00
         description: "Checklist and operational review before launch"
+    subscriptionPlans:
+      - name: Developer Monthly
+        sku: SUB-DEV-001
+        unitPrice: 49.00
+        billingInterval: MONTHLY
+        description: "Monthly API access for individual developers"
     customers:
       - name: DevCorp Ltd
         email: billing@devcorp.io

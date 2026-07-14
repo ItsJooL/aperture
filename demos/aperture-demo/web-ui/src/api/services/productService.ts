@@ -1,5 +1,5 @@
 import { createResource, getResource, listResources, updateResource } from './resourceService'
-import type { Product, ServicePackage, Supplier } from '@/api/types/domain'
+import type { Product, ServicePackage, SubscriptionPlan, Supplier } from '@/api/types/domain'
 
 export type ProductInput = Pick<Product, 'name' | 'sku' | 'unit_price'> & {
   description?: string
@@ -8,6 +8,11 @@ export type ProductInput = Pick<Product, 'name' | 'sku' | 'unit_price'> & {
 }
 
 export type ServicePackageInput = Pick<ServicePackage, 'name' | 'sku' | 'unit_price'> & {
+  description?: string
+  active?: boolean
+}
+
+export type SubscriptionPlanInput = Pick<SubscriptionPlan, 'name' | 'sku' | 'unit_price' | 'billing_interval'> & {
   description?: string
   active?: boolean
 }
@@ -26,4 +31,10 @@ export const servicePackageService = {
   list: (search?: string, pageSize = 20) => listResources<ServicePackage>('servicepackages', { search, sort: ['name'], pageSize }),
   create: (input: ServicePackageInput) => createResource<ServicePackage>('servicepackages', input),
   update: (id: string, input: Partial<ServicePackageInput>) => updateResource<ServicePackage>('servicepackages', id, input),
+}
+
+export const subscriptionPlanService = {
+  list: (search?: string, pageSize = 20) => listResources<SubscriptionPlan>('subscriptionplans', { search, sort: ['name'], pageSize }),
+  create: (input: SubscriptionPlanInput) => createResource<SubscriptionPlan>('subscriptionplans', input),
+  update: (id: string, input: Partial<SubscriptionPlanInput>) => updateResource<SubscriptionPlan>('subscriptionplans', id, input),
 }

@@ -3,6 +3,7 @@ package com.itsjool.aperture.generation.target;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.itsjool.aperture.engine.model.EntityDef;
 import com.itsjool.aperture.engine.model.FieldDef;
+import com.itsjool.aperture.engine.model.FieldKind;
 import com.itsjool.aperture.engine.model.OneOfDef;
 import com.itsjool.aperture.generation.spi.ApertureGenerationContext;
 import com.itsjool.aperture.generation.spi.ApertureGenerationRequest;
@@ -113,8 +114,9 @@ public class RuntimeMetadataGenerationTarget implements ApertureGenerationTarget
         return oneOfs;
     }
 
-    private List<String> oneOfFields(com.itsjool.aperture.engine.model.ResolvedDomainModel model, String oneOfName) {
-        List<String> fields = new ArrayList<>();
+    private List<Map<String, Object>> oneOfFields(
+            com.itsjool.aperture.engine.model.ResolvedDomainModel model, String oneOfName) {
+        List<Map<String, Object>> fields = new ArrayList<>();
         model.entities().stream()
             .sorted(Comparator.comparing(EntityDef::name))
             .forEach(entity -> {
@@ -124,13 +126,16 @@ public class RuntimeMetadataGenerationTarget implements ApertureGenerationTarget
                 entity.fields().entrySet().stream()
                     .sorted(Map.Entry.comparingByKey())
                     .filter(entry -> isOneOfTarget(entry.getValue(), oneOfName))
-                    .forEach(entry -> fields.add(plural(entity) + "." + entry.getKey()));
+                    .forEach(entry -> fields.add(Map.of(
+                        "resource", plural(entity),
+                        "field", entry.getKey(),
+                        "required", entry.getValue().required())));
             });
         return fields;
     }
 
     private boolean isOneOfTarget(FieldDef field, String oneOfName) {
-        return "oneof".equalsIgnoreCase(field.type()) && oneOfName.equals(field.targetClass());
+        return FieldKind.from(field) == FieldKind.ONEOF && oneOfName.equals(field.targetClass());
     }
 
     private LinkedHashSet<String> computeAllowedHttpMethods(com.itsjool.aperture.engine.model.ResolvedDomainModel model) {

@@ -27,7 +27,7 @@ body:json {
         "data": {
           "type": "invoices",
           "lid": "new-invoice",
-          "attributes": { "amount": 1249, "status": "DRAFT" },
+          "attributes": { "amount": 1298, "status": "DRAFT" },
           "relationships": {
             "customer": { "data": { "type": "customers", "id": "{{customerId}}" } }
           }
@@ -67,26 +67,44 @@ body:json {
             "billable": { "data": { "type": "servicepackages", "id": "{{billableServicePackageId}}" } }
           }
         }
+      },
+      {
+        "op": "add",
+        "data": {
+          "type": "lineitems",
+          "lid": "li-3",
+          "attributes": {
+            "description": "Bruno Developer Monthly",
+            "quantity": 1,
+            "unit_price": 49.00,
+            "price": 49.00
+          },
+          "relationships": {
+            "invoice": { "data": { "type": "invoices", "lid": "new-invoice" } },
+            "billable": { "data": { "type": "subscriptionplans", "id": "{{billableSubscriptionPlanId}}" } }
+          }
+        }
       }
     ]
   }
 }
 
 docs {
-  Creates an Invoice and two LineItems in a single atomic transaction. The first
-  LineItem uses a Product as its Billable member; the second uses a ServicePackage.
-  Both still reference the new Invoice using lid (local identifier) before the
+  Creates an Invoice and three LineItems in a single atomic transaction. They use
+  Product, ServicePackage and SubscriptionPlan as the three Billable members.
+  All three still reference the new Invoice using lid (local identifier) before the
   Invoice has a real database ID.
 
-  Run 01-create-customer, 08-create-product and 09-create-service-package first to
-  populate {{customerId}}, {{billableProductId}} and {{billableServicePackageId}}.
+  Run 01-create-customer and the three billable-member create requests first to
+  populate {{customerId}}, {{billableProductId}}, {{billableServicePackageId}} and
+  {{billableSubscriptionPlanId}}.
 }
 
 script:post-response {
   if (res.status === 200) {
     var results = res.body["atomic:results"];
-    if (!Array.isArray(results) || results.length !== 3) {
-      throw new Error("Expected three atomic results");
+    if (!Array.isArray(results) || results.length !== 4) {
+      throw new Error("Expected four atomic results");
     }
     if (results && results[0] && results[0].data) {
       bru.setVar("atomicInvoiceId", results[0].data.id);

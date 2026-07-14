@@ -10,6 +10,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 class DomainModelViewTest {
 
     @Test
+    void classifiesManifestFieldsThroughOneCanonicalDecoder() {
+        assertThat(FieldKind.from(stringField())).isEqualTo(FieldKind.SCALAR);
+        assertThat(FieldKind.from(manyToOneField("Product"))).isEqualTo(FieldKind.REF);
+        assertThat(FieldKind.from(oneOfField("Billable"))).isEqualTo(FieldKind.ONEOF);
+    }
+
+    @Test
     void resolvesScalarReferenceAndOneOfFields() {
         EntityDef product = entity("Product", Map.of("name", stringField()));
         EntityDef servicePackage = entity("ServicePackage", Map.of("name", stringField()));
@@ -38,6 +45,24 @@ class DomainModelViewTest {
             assertThat(oneOf.members()).extracting(EntityDef::name)
                 .containsExactly("Product", "ServicePackage");
         });
+    }
+
+    @Test
+    void exposesResolvedFieldsInManifestOrder() {
+        EntityDef product = entity("Product", Map.of("name", stringField()));
+        EntityDef servicePackage = entity("ServicePackage", Map.of("name", stringField()));
+        Map<String, FieldDef> fields = new java.util.LinkedHashMap<>();
+        fields.put("description", stringField());
+        fields.put("billable", oneOfField("Billable"));
+        EntityDef lineItem = entity("LineItem", fields);
+        OneOfDef billable = new OneOfDef("Billable", List.of("Product", "ServicePackage"));
+        DomainModelView view = DomainModelView.of(new ResolvedDomainModel(
+            List.of(product, servicePackage, lineItem), List.of(), null,
+            List.of(), List.of(), List.of(), List.of(), List.of(billable)));
+
+        assertThat(view.fields("LineItem"))
+            .extracting(ResolvedField::fieldName)
+            .containsExactly("description", "billable");
     }
 
     private static EntityDef entity(String name, Map<String, FieldDef> fields) {

@@ -1,1 +1,1 @@
-{"oneOfs":[{"name":"Billable","members":["Product","ServicePackage"]}]}
+{"oneOfs":[{"name":"Billable","members":["Product","ServicePackage","SubscriptionPlan"]}]}

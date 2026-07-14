@@ -8,6 +8,7 @@ import com.itsjool.aperture.engine.model.FieldDef;
 import com.itsjool.aperture.engine.model.HookDef;
 import com.itsjool.aperture.engine.model.RoleDefinitionDef;
 import com.itsjool.aperture.engine.model.FrameworkConfigDef;
+import com.itsjool.aperture.engine.model.FieldKind;
 import com.itsjool.aperture.engine.model.McpConfig;
 import com.itsjool.aperture.engine.model.McpEntityConfig;
 import com.itsjool.aperture.engine.model.AbacPolicyDef;
@@ -156,7 +157,7 @@ public class DomainModelValidator {
             if (entity.mcpConfig() != null) {
                 validateEntityMcpConfig(entity.mcpConfig(), loc, entity.name());
             }
-            
+
             Set<String> publicOps = new HashSet<>();
             if (entity.publicOperations() != null) {
                 for (String op : entity.publicOperations()) {
@@ -258,7 +259,7 @@ public class DomainModelValidator {
                 for (Map.Entry<String, FieldDef> fieldEntry : entity.fields().entrySet()) {
                     String fieldName = fieldEntry.getKey();
                     FieldDef field = fieldEntry.getValue();
-                    if ("oneof".equalsIgnoreCase(field.type())) {
+                    if (FieldKind.from(field) == FieldKind.ONEOF) {
                         if (field.targetClass() == null || !knownOneOfNames.contains(field.targetClass())) {
                             throw new ManifestValidationException(
                                 "Unknown oneof target in " + loc + " (Entity " + entity.name()
@@ -271,6 +272,17 @@ public class DomainModelValidator {
                                 "Global entity " + entity.name()
                                     + " cannot reference tenant-scoped OneOf " + field.targetClass()
                                     + " through oneof field " + entity.name() + "." + fieldName);
+                        }
+                        if (field.relation() != null && !field.relation().isBlank()) {
+                            throw new ManifestValidationException(
+                                "Invalid oneof field " + entity.name() + "." + fieldName + " in " + loc
+                                    + ": this oneof field is a to-one selection and does not support relation '"
+                                    + field.relation() + "'");
+                        }
+                        if (field.mappedBy() != null && !field.mappedBy().isBlank()) {
+                            throw new ManifestValidationException(
+                                "Invalid oneof field " + entity.name() + "." + fieldName + " in " + loc
+                                    + ": this oneof field does not support mappedBy");
                         }
                     } else if (field.targetClass() != null && !knownEntityNames.contains(field.targetClass())) {
                         throw new ManifestValidationException(

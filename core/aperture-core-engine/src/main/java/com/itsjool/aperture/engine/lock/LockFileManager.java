@@ -2,6 +2,7 @@ package com.itsjool.aperture.engine.lock;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.itsjool.aperture.engine.model.EntityDef;
+import com.itsjool.aperture.engine.model.OneOfDef;
 import com.itsjool.aperture.engine.model.ResolvedDomainModel;
 
 import java.nio.charset.StandardCharsets;
@@ -40,7 +41,10 @@ public class LockFileManager {
             if (!Files.exists(lockDir)) {
                 Files.createDirectories(lockDir);
             }
-            mapper.writeValue(filePath.toFile(), new DomainModelLock(model.oneOfs()));
+            List<OneOfDef> sortedOneOfs = model.oneOfs().stream()
+                .sorted(Comparator.comparing(OneOfDef::name))
+                .toList();
+            mapper.writeValue(filePath.toFile(), new DomainModelLock(sortedOneOfs));
         } catch (Exception e) {
             throw new RuntimeException("Failed to write domain model lock file", e);
         }

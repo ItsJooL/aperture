@@ -39,6 +39,20 @@ export type ServicePackage = {
   relationships?: Record<string, JsonApiRelationship>
 }
 
+export type SubscriptionPlan = {
+  id: string
+  type: string
+  name: string
+  sku: string
+  description?: string
+  unit_price: number
+  billing_interval: 'MONTHLY' | 'QUARTERLY' | 'ANNUAL'
+  active?: boolean
+  version?: number
+  apertureTenantId?: string
+  relationships?: Record<string, JsonApiRelationship>
+}
+
 export type Invoice = {
   id: string
   type: string

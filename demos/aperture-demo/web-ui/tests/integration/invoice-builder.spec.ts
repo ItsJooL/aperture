@@ -37,7 +37,9 @@ describe('InvoiceBuilderView integration', () => {
 
     await wrapper.findAll('button').find((button) => button.text() === 'Continue')!.trigger('click')
     await flushPromises()
-    await wrapper.find('select').setValue('products:prod-001')
+    await wrapper.findAll('select')[0].setValue('products')
+    await flushPromises()
+    await wrapper.findAll('select')[1].setValue('prod-001')
     await flushPromises()
     expect(wrapper.text()).toContain('Integration Starter')
     expect(wrapper.text()).toContain('€249')
@@ -58,12 +60,44 @@ describe('InvoiceBuilderView integration', () => {
     await wrapper.findAll('button').find((button) => button.text() === 'Continue')!.trigger('click')
     await flushPromises()
 
+    await wrapper.findAll('select')[0].setValue('servicepackages')
+    await flushPromises()
     expect(wrapper.text()).toContain('Priority onboarding')
-    await wrapper.find('select').setValue('servicepackages:svcpack-001')
+    await wrapper.findAll('select')[1].setValue('svcpack-001')
     await flushPromises()
 
     expect(wrapper.text()).toContain('Service package')
     expect(wrapper.text()).toContain('€750')
+
+    await wrapper.findAll('button').find((button) => button.text() === 'Continue')!.trigger('click')
+    await flushPromises()
+    await wrapper.findAll('button').find((button) => button.text() === 'Continue')!.trigger('click')
+    await flushPromises()
+    await wrapper.findAll('button').find((button) => button.text() === 'Create invoice')!.trigger('click')
+    await flushPromises()
+
+    expect(router.currentRoute.value.fullPath).toMatch(/^\/invoices\/invo-/)
+  })
+
+  it('lets a user choose a subscription plan as the line item billable', async () => {
+    const { wrapper, router } = await mountBuilder()
+
+    await wrapper.findAll('button').find((button) => button.text() === 'Continue')!.trigger('click')
+    await flushPromises()
+
+    await wrapper.findAll('select')[0].setValue('products')
+    await flushPromises()
+    await wrapper.findAll('select')[1].setValue('prod-001')
+    await flushPromises()
+    await wrapper.findAll('select')[0].setValue('subscriptionplans')
+    await flushPromises()
+    expect((wrapper.findAll('select')[1].element as HTMLSelectElement).value).toBe('')
+    expect(wrapper.text()).toContain('Developer monthly')
+    await wrapper.findAll('select')[1].setValue('subplan-001')
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('Subscription plan')
+    expect(wrapper.text()).toContain('€49')
 
     await wrapper.findAll('button').find((button) => button.text() === 'Continue')!.trigger('click')
     await flushPromises()
