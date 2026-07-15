@@ -222,7 +222,7 @@ All Aperture configuration is environment-variable-driven. Required at runtime:
 | `APERTURE_HOOKS_SECRET` | Shared secret for hook request signing |
 
 `APERTURE_BOOTSTRAP_ADMIN_PASSWORD` (seen in the demo compose files) is **not** a general
-framework variable — see [Bootstrap admin](/reference/configuration#bootstrap-admin) for what
+Aperture variable — see [Bootstrap admin](/reference/configuration#bootstrap-admin) for what
 actually consumes it.
 
 ### Schema migration on startup

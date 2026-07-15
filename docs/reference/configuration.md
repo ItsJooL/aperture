@@ -294,7 +294,7 @@ When enabled, the generated OpenAPI spec includes all entity endpoints, auth and
 
 ## Bootstrap admin
 
-There is no `aperture.bootstrap.*` property in the framework, and the runtime/starter do not
+There is no `aperture.bootstrap.*` property in Aperture, and the runtime/starter do not
 read `APERTURE_BOOTSTRAP_ADMIN_PASSWORD` — automatic superadmin provisioning is not currently a
 general Aperture feature, despite what earlier revisions of this page implied. Setting
 `aperture.bootstrap.admin-password` in your own `application.yml` has no effect; nothing binds it.

@@ -192,7 +192,7 @@ tri-state field (`null` means unset, not "off"). `enabled: false` together with 
 `tools` list is a validation error: it's contradictory, and Aperture rejects the manifest rather
 than silently picking one interpretation.
 
-Listing a tool the entity's own access rules don't reach, or one outside the framework ceiling, is
+Listing a tool the entity's own access rules don't reach, or one outside the Aperture ceiling, is
 also a validation error — `tools: [delete]` on an entity where nothing grants `delete` describes a
 tool that could never succeed for anyone but a superadmin, and Aperture rejects it at parse time
 rather than generating it.
@@ -238,7 +238,7 @@ spec:
 ```
 
 `transport` is optional and currently accepts only `stateless`. `tools` is a **ceiling, not a
-default**: the framework-wide upper bound on MCP tools any entity may expose, applied on top of
+default**: the Aperture-wide upper bound on MCP tools any entity may expose, applied on top of
 whatever each entity's own `permissions`/`policies`/`publicOperations` already derive (see
 `Entity.spec.mcp` above for the full derive/ceiling/narrow resolution rule). Omitting it means no
 ceiling — every entity's derived tools remain possible, subject only to entity-level narrowing.

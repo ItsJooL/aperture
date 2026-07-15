@@ -123,6 +123,6 @@ Switching an existing NONE deployment to POOL requires:
 1. Adding `aperture_tenant_id` columns to all entities you intend to make tenant-scoped (a schema migration)
 2. Backfilling `aperture_tenant_id` with a tenant ID for all existing rows
 3. Updating FK constraints to be tenant-aware
-4. Changing `tenancyMode: none` to `tenancyMode: pool` in the framework config
+4. Changing `tenancyMode: none` to `tenancyMode: pool` in the Aperture config
 
 This is non-trivial and requires careful coordination with Liquibase changesets. Plan your tenancy model before going to production.

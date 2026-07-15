@@ -21,7 +21,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 @Testcontainers
-class FrameworkSchemaIT {
+class ApertureSchemaIT {
     @Container
     private static final PostgreSQLContainer POSTGRES =
         new PostgreSQLContainer("postgres:17-alpine");
@@ -29,7 +29,7 @@ class FrameworkSchemaIT {
     private static Connection connection;
 
     @BeforeAll
-    static void applyFrameworkChangelog() throws Exception {
+    static void applyApertureChangelog() throws Exception {
         try (Connection migrationConnection = DriverManager.getConnection(
             POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword())) {
             try (Liquibase liquibase = new Liquibase(
@@ -115,10 +115,10 @@ class FrameworkSchemaIT {
     }
 
     @Test
-    void permitsOnlyMarkedFrameworkAdministratorsWithoutATenant() throws SQLException {
+    void permitsOnlyMarkedSuperAdministratorsWithoutATenant() throws SQLException {
         execute("INSERT INTO aperture_users " +
             "(id, username, tenant_id, status, super_admin) VALUES " +
-            "('framework-superadmin', 'SuperAdmin', NULL, 'active', true)");
+            "('aperture-superadmin', 'SuperAdmin', NULL, 'active', true)");
 
         assertThatThrownBy(() -> execute(
             "INSERT INTO aperture_users (id, username, tenant_id, status) VALUES " +
@@ -183,7 +183,7 @@ class FrameworkSchemaIT {
     }
 
     @Test
-    void rollsBackFrameworkObjectsInReverseDependencyOrder() throws Exception {
+    void rollsBackApertureObjectsInReverseDependencyOrder() throws Exception {
         try (Connection admin = DriverManager.getConnection(
             POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword())) {
             try (Statement statement = admin.createStatement()) {

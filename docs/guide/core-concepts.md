@@ -19,7 +19,7 @@ manifests/
       line-item.yaml
     identity/
       customer.yaml
-  framework/
+  aperture/
     config.yaml
   roles/
     abac-policies.yaml
@@ -126,7 +126,7 @@ For each entity, the code generator produces:
 - Elide controller registration
 - Permission annotations (`@ReadPermission`, `@CreatePermission`, `@UpdatePermission`, `@DeletePermission`)
 - ABAC policy check classes for any `policies:` declared
-- MCP tool class (if `mcp.enabled: true` in framework config)
+- MCP tool class (if `mcp.enabled: true` in Aperture config)
 
 Optionally (when `<cli><enabled>true</enabled></cli>` is set in the plugin config):
 

@@ -36,7 +36,7 @@ for example `mise run demos:aperture-demo:docker-deploy`.
 
 | Service      | URL                           | Description                  |
 |-------------|-------------------------------|------------------------------|
-| api-server  | http://localhost:8080         | JSON:API + framework routes  |
+| api-server  | http://localhost:8080         | JSON:API + Aperture routes  |
 | web-ui      | http://localhost:3780         | Vue billing workspace SPA    |
 | hook-service| http://localhost:8081         | Webhook handler              |
 | jaeger      | http://localhost:16686        | Distributed trace UI         |
@@ -262,7 +262,7 @@ mise run docker-clear
 
 ## TLS (optional)
 
-Aperture delegates TLS entirely to Spring Boot — no framework code changes are needed.
+Aperture delegates TLS entirely to Spring Boot — no Aperture code changes are needed.
 
 To enable HTTPS for local development:
 

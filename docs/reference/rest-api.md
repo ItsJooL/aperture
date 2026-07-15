@@ -1,6 +1,6 @@
 ---
 title: REST API
-description: JSON:API entity endpoints, filtering, pagination, and all framework endpoints.
+description: JSON:API entity endpoints, filtering, pagination, and all Aperture endpoints.
 ---
 
 # REST API
@@ -281,7 +281,7 @@ When `optimisticLocking: true` on an entity:
 | `GET` | `/manage/settings/personal-api-keys` | `SuperAdmin` |
 | `PUT` | `/manage/settings/personal-api-keys` | `SuperAdmin` |
 
-### Other framework endpoints
+### Other Aperture endpoints
 
 | Method | Path | Description |
 |---|---|---|

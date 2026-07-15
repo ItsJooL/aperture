@@ -11,7 +11,7 @@ with catalog names such as `mise run demos:aperture-demo:docker-deploy`.
 
 ## aperture-demo — Multi-tenant (POOL mode)
 
-The reference demo. Multiple tenants share one database schema, separated by an `aperture_tenant_id` column on every domain table. The framework manages tenant lifecycle (create/suspend/delete) and enforces row-level isolation automatically.
+The reference demo. Multiple tenants share one database schema, separated by an `aperture_tenant_id` column on every domain table. Aperture manages tenant lifecycle (create/suspend/delete) and enforces row-level isolation automatically.
 
 **Domain**: Customer, Invoice, LineItem, Payment, Product, Supplier, Currency, Country  
 **Auth**: Aperture's built-in JWT auth (`/auth/login`)  

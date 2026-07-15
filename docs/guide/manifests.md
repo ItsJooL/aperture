@@ -367,7 +367,7 @@ hooks:
     url: http://hook-service:8080/hooks/validate-invoice
 ```
 
-A hook's `type` declares what it does; the framework maps each type to the lifecycle phase and blocking behavior that fits:
+A hook's `type` declares what it does; Aperture maps each type to the lifecycle phase and blocking behavior that fits:
 
 | Type       | Runs                        | Blocking                        | Default `on`           |
 |------------|-----------------------------|---------------------------------|------------------------|
@@ -381,7 +381,7 @@ A hook's `type` declares what it does; the framework maps each type to the lifec
 ## MCP exposure
 
 ```yaml
-# framework/config.yaml
+# aperture/config.yaml
 spec:
   mcp:
     enabled: true
@@ -408,7 +408,7 @@ model — never extend it. There are two knobs, both optional, and both narrowin
 The effective tool set for an entity is `derived(entity) ∩ ceiling ∩ narrowing`. Declaring a tool
 that the entity's own access rules don't reach, or that the ceiling excludes, fails manifest
 validation rather than silently producing a tool nobody could ever call — an agent-facing tool
-list functions like a prompt on every conversation, so the framework prefers a validation error at
+list functions like a prompt on every conversation, so Aperture prefers a validation error at
 build time over quietly showing an agent something it's tempted to try and can never do.
 
 `stateless` is the only supported MCP transport today. Valid tool names are
@@ -449,7 +449,7 @@ parameters; they have no column of their own and are read via the owning side.
 ## CLI generation config
 
 ```yaml
-# framework/config.yaml
+# aperture/config.yaml
 spec:
   cli:
     binaryName: acme

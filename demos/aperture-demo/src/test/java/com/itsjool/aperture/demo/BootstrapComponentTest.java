@@ -57,7 +57,7 @@ class BootstrapComponentTest {
         Integer count = jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM aperture_users WHERE username = ? AND super_admin = true",
                 Integer.class, "superadmin@aperture.local");
-        assertThat(count).as("DemoBootstrap must create exactly one framework superadmin").isEqualTo(1);
+        assertThat(count).as("DemoBootstrap must create exactly one Aperture superadmin").isEqualTo(1);
     }
 
     @Test

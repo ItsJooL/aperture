@@ -5,7 +5,7 @@ description: Guard, validate, mutate, and react asynchronously — the four hook
 
 # Hooks & Lifecycle
 
-Hooks are HTTP callbacks you register on an entity. You build a small web service; Aperture calls it at the right moment and handles signing and timeouts. Nothing in the framework to modify — declare intent in the manifest and Aperture generates the Elide lifecycle wiring.
+Hooks are HTTP callbacks you register on an entity. You build a small web service; Aperture calls it at the right moment and handles signing and timeouts. Nothing in Aperture to modify — declare intent in the manifest and Aperture generates the Elide lifecycle wiring.
 
 There are four hook types:
 
