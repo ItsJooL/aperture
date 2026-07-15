@@ -36,8 +36,8 @@
             <div class="step-num">3</div>
             <span class="step-label">Hook into the lifecycle</span>
           </div>
-          <h3>Attach validation and triggers</h3>
-          <p>Four hook types fire at the right phase of every request. You own the logic over HTTP while Aperture handles signing, retries, and failure modes.</p>
+          <h3>Attach lifecycle validation</h3>
+          <p>Use a validate hook to reject invalid creates and updates before commit. Other hook types can guard, mutate, or trigger asynchronous work.</p>
         </div>
         <CodeWindow filename="invoice.yaml" :code="step3Code" />
       </div>
@@ -81,7 +81,6 @@ spec:
       required: true`
 
 const step2Code = `  permissions:
-    TenantAdmin: [read, delete]
     Accountant:  [create, read, update]
     Viewer:      [read]
 
@@ -91,21 +90,21 @@ const step2Code = `  permissions:
 
 const step3Code = `  hooks:
     ValidateInvoice:
-      phase: PRECOMMIT
-      async: false
-      onFailure: reject
-      url: http://hook-service:8080/hooks/validate-invoice`
+      type: validate
+      on: [create, update]
+      url: http://hook-service:8080/hooks/validate-invoice
+      retries: 2`
 
-const step4Code = `# generates, migrates, tests, packages
-$ mvn verify
+const step4Code = `# validate, generate, test, and package
+$ mvn verify --no-transfer-progress
 
-✓ Manifest validated
-✓ Java source generated
-✓ Liquibase changeset written
-✓ 81 tests passed
+# build and start the flagship demo
+$ cd demos/aperture-demo
+$ mise run docker-deploy
 
-$ docker compose up --detach
-✓ JSON:API server listening on :8080`
+# verify the API is healthy
+$ curl --fail http://localhost:8080/actuator/health
+{"status":"UP"}`
 </script>
 
 <style scoped>
