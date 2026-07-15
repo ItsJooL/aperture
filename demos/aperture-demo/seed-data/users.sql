@@ -1,6 +1,6 @@
 -- Password hash is for "password" using Argon2id
 -- super_admin=true required: schema CHECK enforces (tenant_id IS NULL) → (super_admin = true)
-INSERT INTO aperture_users (id, username, password_hash, tenant_id, status, super_admin) VALUES ('10000000-0000-0000-0000-000000000000', 'superadmin@framework.local', '$argon2id$v=19$m=16384,t=2,p=1$vAUAlhjPv3j6+FOJPXB7lg$5JcDsYY6SlCBWdcy8Id51Ew9XWgAtVlGh3jbqqLi5vM', NULL, 'ACTIVE', true) ON CONFLICT (id) DO NOTHING;
+INSERT INTO aperture_users (id, username, password_hash, tenant_id, status, super_admin) VALUES ('10000000-0000-0000-0000-000000000000', 'superadmin@aperture.local', '$argon2id$v=19$m=16384,t=2,p=1$vAUAlhjPv3j6+FOJPXB7lg$5JcDsYY6SlCBWdcy8Id51Ew9XWgAtVlGh3jbqqLi5vM', NULL, 'ACTIVE', true) ON CONFLICT (id) DO NOTHING;
 
 -- acme-corp
 INSERT INTO aperture_users (id, username, password_hash, tenant_id) VALUES ('10000000-0000-0000-0000-000000000001', 'admin@acme.com', '$argon2id$v=19$m=16384,t=2,p=1$vAUAlhjPv3j6+FOJPXB7lg$5JcDsYY6SlCBWdcy8Id51Ew9XWgAtVlGh3jbqqLi5vM', '00000000-0000-0000-0000-000000000001') ON CONFLICT (id) DO NOTHING;

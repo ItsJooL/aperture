@@ -17,7 +17,7 @@ import org.springframework.stereotype.Component;
 public class McpDemoBootstrap {
 
     private static final Logger log = LoggerFactory.getLogger(McpDemoBootstrap.class);
-    private static final String SUPERADMIN_USERNAME = "superadmin@framework.local";
+    private static final String SUPERADMIN_USERNAME = "superadmin@aperture.local";
     private static final String AGENT_ADMIN_USERNAME = "agent-admin@mcp-demo.local";
     private static final String AGENT_ADMIN_TENANT_ID = "mcp-demo";
     private static final String AGENT_ADMIN_USER_ID = "mcp-demo-agent-admin";

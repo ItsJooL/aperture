@@ -16,7 +16,7 @@ import java.util.UUID;
 @ConditionalOnProperty(name = "aperture.profile", havingValue = "demo")
 class AuditDemoBootstrap {
     private static final Logger log = LoggerFactory.getLogger(AuditDemoBootstrap.class);
-    private static final String SUPERADMIN_USERNAME = "superadmin@framework.local";
+    private static final String SUPERADMIN_USERNAME = "superadmin@aperture.local";
     private static final String DEFAULT_PASSWORD = "changeme-local-only";
 
     private final JdbcTemplate jdbcTemplate;

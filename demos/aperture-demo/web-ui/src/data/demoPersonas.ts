@@ -53,7 +53,7 @@ export const demoPersonas: DemoPersona[] = [
     label: 'Platform super admin',
     tenant: 'Platform',
     role: 'SuperAdmin',
-    username: 'superadmin@framework.local',
+    username: 'superadmin@aperture.local',
     password: 'changeme-local-only',
     description: 'Review tenants and system-level administration.',
     defaultForTenant: true,

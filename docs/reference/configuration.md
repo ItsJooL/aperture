@@ -301,7 +301,7 @@ general Aperture feature, despite what earlier revisions of this page implied. S
 
 What exists today is demo-specific: `demos/aperture-demo` ships its own `DemoBootstrap`
 component (active only when `aperture.profile=demo`) that creates a fixed
-`superadmin@framework.local` user on `ApplicationReadyEvent`, reading the raw
+`superadmin@aperture.local` user on `ApplicationReadyEvent`, reading the raw
 `APERTURE_BOOTSTRAP_ADMIN_PASSWORD` environment variable directly — not through any
 `aperture.*` configuration property. If your own application needs a bootstrap superadmin,
 write an equivalent `ApplicationReadyEvent` listener; see

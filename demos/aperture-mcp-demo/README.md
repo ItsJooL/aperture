@@ -126,7 +126,7 @@ The demo creates two local users on first startup:
 
 | User | Purpose | Password |
 |---|---|---|
-| `superadmin@framework.local` | Bootstrap and broad local inspection | `changeme-local-only` |
+| `superadmin@aperture.local` | Bootstrap and broad local inspection | `changeme-local-only` |
 | `agent-admin@mcp-demo.local` | API-key owner for local MCP clients | `changeme-local-only` |
 
 Override the shared password with `APERTURE_BOOTSTRAP_ADMIN_PASSWORD`.

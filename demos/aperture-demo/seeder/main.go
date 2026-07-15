@@ -517,7 +517,7 @@ func (s *seeder) seedTenant(t TenantSeed, superToken string) error {
 func main() {
 	seedFile := flag.String("seed-file", envOrDefault("SEED_FILE", "seed.yaml"), "path to seed YAML file")
 	apiURL := flag.String("api-url", envOrDefault("API_URL", "http://api-server:8080"), "Aperture API base URL")
-	superUser := flag.String("superadmin-username", envOrDefault("SUPERADMIN_USERNAME", "superadmin@framework.local"), "superadmin username")
+	superUser := flag.String("superadmin-username", envOrDefault("SUPERADMIN_USERNAME", "superadmin@aperture.local"), "superadmin username")
 	superPass := flag.String("superadmin-password", envOrDefault("SUPERADMIN_PASSWORD", "changeme-local-only"), "superadmin password")
 	flag.Parse()
 

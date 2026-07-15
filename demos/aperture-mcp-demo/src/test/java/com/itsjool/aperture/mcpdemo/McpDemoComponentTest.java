@@ -71,7 +71,7 @@ class McpDemoComponentTest {
     private String loginAsSuperadmin() throws Exception {
         var result = mockMvc.perform(post("/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"username\":\"superadmin@framework.local\",\"password\":\"changeme-local-only\"}"))
+                        .content("{\"username\":\"superadmin@aperture.local\",\"password\":\"changeme-local-only\"}"))
                 .andReturn();
         assertThat(result.getResponse().getStatus()).isEqualTo(200);
         JsonNode root = MAPPER.readTree(result.getResponse().getContentAsString());

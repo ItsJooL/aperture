@@ -6,7 +6,7 @@ set -euo pipefail
 
 CLI_DIR="target/generated-cli/aperture-cli"
 SERVER="${APERTURE_SERVER:-http://localhost:8080}"
-SUPERADMIN_USERNAME="${SUPERADMIN_USERNAME:-superadmin@framework.local}"
+SUPERADMIN_USERNAME="${SUPERADMIN_USERNAME:-superadmin@aperture.local}"
 SUPERADMIN_PASSWORD="${APERTURE_BOOTSTRAP_ADMIN_PASSWORD:-changeme-local-only}"
 TENANT_USERNAME="${TENANT_USERNAME:-admin@acme.com}"
 TENANT_PASSWORD="${TENANT_PASSWORD:-AcmeAdmin123!}"

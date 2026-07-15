@@ -53,10 +53,10 @@ class BootstrapComponentTest {
     JdbcTemplate jdbcTemplate;
 
     @Test
-    void bootstrapCreatesFrameworkSuperadmin() {
+    void bootstrapCreatesApertureSuperadmin() {
         Integer count = jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM aperture_users WHERE username = ? AND super_admin = true",
-                Integer.class, "superadmin@framework.local");
+                Integer.class, "superadmin@aperture.local");
         assertThat(count).as("DemoBootstrap must create exactly one framework superadmin").isEqualTo(1);
     }
 
@@ -83,7 +83,7 @@ class BootstrapComponentTest {
     void bootstrappedSuperadminCanLogin() throws Exception {
         mockMvc.perform(post("/auth/login")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"username\":\"superadmin@framework.local\",\"password\":\"test-bootstrap-pw\"}"))
+                .content("{\"username\":\"superadmin@aperture.local\",\"password\":\"test-bootstrap-pw\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.accessToken").exists())
                 .andExpect(jsonPath("$.refreshToken").exists());
@@ -93,7 +93,7 @@ class BootstrapComponentTest {
     void wrongPasswordIsRejected() throws Exception {
         mockMvc.perform(post("/auth/login")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"username\":\"superadmin@framework.local\",\"password\":\"wrong-password\"}"))
+                .content("{\"username\":\"superadmin@aperture.local\",\"password\":\"wrong-password\"}"))
                 .andExpect(status().isUnauthorized());
     }
 }

@@ -24,7 +24,7 @@ or `--api-version 2` to explicitly target a `SUNSET` version instead (see the
 ## Maps to `01-auth`, `08-cleanup`
 
 ```bash
-$CLI --server http://localhost:8080 auth login --username superadmin@framework.local --password "$APERTURE_BOOTSTRAP_ADMIN_PASSWORD"
+$CLI --server http://localhost:8080 auth login --username superadmin@aperture.local --password "$APERTURE_BOOTSTRAP_ADMIN_PASSWORD"
 $CLI --server http://localhost:8080 auth me
 $CLI --server http://localhost:8080 auth refresh
 $CLI --server http://localhost:8080 auth logout

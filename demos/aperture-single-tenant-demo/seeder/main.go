@@ -14,7 +14,7 @@ func main() {
 	apiURL := getEnv("API_URL", "http://localhost:8080")
 	password := getEnv("SUPERADMIN_PASSWORD", "changeme-local-only")
 
-	token := mustLogin(apiURL, "superadmin@framework.local", password)
+	token := mustLogin(apiURL, "superadmin@aperture.local", password)
 	createNote(apiURL, token, "Welcome note", "This is the aperture-single-tenant-demo. No tenants required.")
 	createNote(apiURL, token, "NONE mode demo", "Schema has no aperture_tenant_id columns in domain tables.")
 	fmt.Println("Seeding complete.")

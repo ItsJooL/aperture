@@ -6,7 +6,7 @@ export type DemoUser = {
 }
 
 export const users = {
-  superAdmin: { username: 'superadmin@framework.local', password: 'changeme-local-only' },
+  superAdmin: { username: 'superadmin@aperture.local', password: 'changeme-local-only' },
   acmeAdmin: { username: 'admin@acme.com', password: 'AcmeAdmin123!' },
   acmeAccountant: { username: 'accountant@acme.com', password: 'Accountant123!' },
   acmeViewer: { username: 'viewer@acme.com', password: 'Viewer123!' },

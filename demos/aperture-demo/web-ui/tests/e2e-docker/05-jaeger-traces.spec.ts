@@ -7,7 +7,7 @@ test.setTimeout(30000)
 test.skip('login API call produces an OTEL trace visible in Jaeger', async ({ page, request }) => {
   // Perform a login directly against the API to generate a traceable request
   const response = await request.post('http://localhost:8080/auth/login', {
-    data: { username: 'superadmin@framework.local', password: 'changeme-local-only' },
+    data: { username: 'superadmin@aperture.local', password: 'changeme-local-only' },
   })
   expect(response.ok()).toBeTruthy()
 

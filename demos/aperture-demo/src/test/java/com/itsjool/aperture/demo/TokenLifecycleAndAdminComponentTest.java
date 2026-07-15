@@ -35,7 +35,7 @@ public class TokenLifecycleAndAdminComponentTest extends DemoApplicationTestSupp
     }
 
     @Test
-    void tenantAdminCannotAccessFrameworkAdminApi() throws Exception {
+    void tenantAdminCannotAccessSuperAdminApi() throws Exception {
         // Login as admin@acme.com (TenantAdmin, not SuperAdmin)
         String acmeAdminToken = getAcmeAdminToken();
 
@@ -46,7 +46,7 @@ public class TokenLifecycleAndAdminComponentTest extends DemoApplicationTestSupp
     }
 
     @Test
-    void unauthenticatedCannotAccessFrameworkAdminApi() throws Exception {
+    void unauthenticatedCannotAccessSuperAdminApi() throws Exception {
         // GET /manage/tenants with NO Authorization header → assert 401
         performElideRequest(get("/manage/tenants"))
                 .andExpect(status().isUnauthorized());

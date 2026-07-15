@@ -60,7 +60,7 @@ class AuditDemoComponentTest {
     private static final List<String> siemRequestBodies = new CopyOnWriteArrayList<>();
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
-    private static final String SUPERADMIN_USERNAME = "superadmin@framework.local";
+    private static final String SUPERADMIN_USERNAME = "superadmin@aperture.local";
     private static final String SUPERADMIN_PASSWORD = "changeme-local-only";
 
     @BeforeAll

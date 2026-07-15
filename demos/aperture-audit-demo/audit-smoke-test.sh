@@ -123,7 +123,7 @@ curl -fsS -X DELETE "$WIREMOCK_URL/__admin/requests" >/dev/null
 
 TOKEN="$(curl -fsS -X POST "$BASE_URL/auth/login" \
   -H "Content-Type: application/json" \
-  -d "{\"username\":\"superadmin@framework.local\",\"password\":\"$PASSWORD\"}" | json_get accessToken)"
+  -d "{\"username\":\"superadmin@aperture.local\",\"password\":\"$PASSWORD\"}" | json_get accessToken)"
 
 PRODUCT_ID="$(curl -fsS -X POST "$BASE_URL/api/v1/products" \
   -H "Authorization: Bearer $TOKEN" \

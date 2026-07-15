@@ -55,8 +55,8 @@ class SingleTenantComponentTest {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
     private static final String SHADOW_TENANT_ID = "aaaaaaaa-0000-0000-0000-000000000001";
-    private static final String FRAMEWORK_ADMIN_USERNAME = "superadmin@framework.local";
-    private static final String FRAMEWORK_ADMIN_PASSWORD = "test-framework-admin-pass";
+    private static final String SUPERADMIN_USERNAME = "superadmin@aperture.local";
+    private static final String SUPERADMIN_PASSWORD = "test-superadmin-pass";
     private static final String ADMIN_USERNAME = "admin@notes-demo.local";
     private static final String ADMIN_PASSWORD = "test-admin-pass";
     private static final String READONLY_USERNAME = "readonly@notes-demo.local";
@@ -70,8 +70,8 @@ class SingleTenantComponentTest {
         jdbcTemplate.update(
             "INSERT INTO aperture_users (id, username, password_hash, tenant_id, status, super_admin) " +
             "VALUES (?, ?, ?, NULL, 'ACTIVE', true) ON CONFLICT (id) DO NOTHING",
-            "00000000-0000-0000-0000-000000000001", FRAMEWORK_ADMIN_USERNAME,
-            passwordEncoder.encode(FRAMEWORK_ADMIN_PASSWORD));
+            "00000000-0000-0000-0000-000000000001", SUPERADMIN_USERNAME,
+            passwordEncoder.encode(SUPERADMIN_PASSWORD));
 
         // Shadow tenant for domain role resolution. In NONE mode the REST API for tenant
         // management returns 404, but the underlying framework tables still exist. We create
@@ -129,7 +129,7 @@ class SingleTenantComponentTest {
     void bootstrapAdminCanLogin() throws Exception {
         String body = mockMvc.perform(post("/auth/login")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"username\":\"" + FRAMEWORK_ADMIN_USERNAME + "\",\"password\":\"" + FRAMEWORK_ADMIN_PASSWORD + "\"}"))
+                .content("{\"username\":\"" + SUPERADMIN_USERNAME + "\",\"password\":\"" + SUPERADMIN_PASSWORD + "\"}"))
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString();
         assertThat(MAPPER.readTree(body).get("accessToken")).isNotNull();
@@ -157,7 +157,7 @@ class SingleTenantComponentTest {
 
     @Test
     void tenantsEndpointReturns404() throws Exception {
-        String token = login(FRAMEWORK_ADMIN_USERNAME, FRAMEWORK_ADMIN_PASSWORD);
+        String token = login(SUPERADMIN_USERNAME, SUPERADMIN_PASSWORD);
         mockMvc.perform(get("/manage/tenants")
                 .header("Authorization", token))
                 .andExpect(status().isNotFound());

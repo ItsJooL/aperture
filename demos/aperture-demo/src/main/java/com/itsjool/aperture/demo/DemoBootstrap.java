@@ -17,7 +17,7 @@ import java.util.UUID;
 public class DemoBootstrap {
 
     private static final Logger log = LoggerFactory.getLogger(DemoBootstrap.class);
-    private static final String SUPERADMIN_USERNAME = "superadmin@framework.local";
+    private static final String SUPERADMIN_USERNAME = "superadmin@aperture.local";
     private static final String DEFAULT_PASSWORD = "changeme-local-only";
 
     private final JdbcTemplate jdbcTemplate;

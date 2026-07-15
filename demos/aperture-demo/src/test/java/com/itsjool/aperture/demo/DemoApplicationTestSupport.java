@@ -163,7 +163,7 @@ public abstract class DemoApplicationTestSupport {
     }
 
     protected String getSuperAdminToken() {
-        return loginAs("superadmin@framework.local", "password");
+        return loginAs("superadmin@aperture.local", "password");
     }
 
     protected String getAcmeAdminToken() {

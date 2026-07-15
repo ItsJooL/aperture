@@ -67,7 +67,7 @@ main() {
 
     echo "Testing: Superadmin login (bootstrap verification)"
     response=$(req POST "$BASE_URL/auth/login" \
-        '{"username":"superadmin@framework.local","password":"changeme-local-only"}')
+        '{"username":"superadmin@aperture.local","password":"changeme-local-only"}')
     status=$(echo "$response" | tail -n1)
     body=$(echo "$response" | sed '$d')
     TOKEN=$(extract "$body" ".accessToken")
