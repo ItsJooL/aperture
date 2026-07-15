@@ -5,7 +5,7 @@
     "apiVersion": { "type": "string" },
     "kind": { 
       "type": "string",
-      "enum": ["Entity", "OneOf", "Migration", "FrameworkConfig", "RoleDefinition", "AbacPolicy", "ApiVersionConfig", "PrincipalAttributeDefinition"]
+      "enum": ["Entity", "OneOf", "Migration", "ApertureConfig", "RoleDefinition", "AbacPolicy", "ApiVersionConfig", "PrincipalAttributeDefinition"]
     },
     "metadata": {
       "type": "object",
@@ -40,7 +40,7 @@
                   "tools": {
                     "type": "array",
                     "items": { "type": "string", "enum": ["list", "get", "create", "update", "delete"] },
-                    "description": "Narrows the entity's effective MCP tools to this subset. The full effective set is derived(entity) ∩ framework ceiling ∩ this list, where derived(entity) is whatever the entity's own permissions/policies/publicOperations already permit. Listing a tool the entity's access rules don't grant, or that the framework ceiling excludes, is a validation error — this list can only restrict, never widen."
+                    "description": "Narrows the entity's effective MCP tools to this subset. The full effective set is derived(entity) ∩ Aperture ceiling ∩ this list, where derived(entity) is whatever the entity's own permissions/policies/publicOperations already permit. Listing a tool the entity's access rules don't grant, or that the Aperture ceiling excludes, is a validation error — this list can only restrict, never widen."
                   }
                 }
               },
@@ -155,7 +155,7 @@
       }
     },
     {
-      "if": { "properties": { "kind": { "const": "FrameworkConfig" } } },
+      "if": { "properties": { "kind": { "const": "ApertureConfig" } } },
       "then": {
         "properties": {
           "spec": {
@@ -184,7 +184,7 @@
                   "tools": {
                     "type": "array",
                     "items": { "type": "string", "enum": ["list", "get", "create", "update", "delete"] },
-                    "description": "A ceiling, not a default: the framework-wide upper bound on MCP tools any entity may expose, applied on top of what each entity's own permissions/policies/publicOperations already derive. Absent means no ceiling (all five tools remain possible, subject to each entity's own derivation and any entity-level tools narrowing)."
+                    "description": "A ceiling, not a default: the Aperture-wide upper bound on MCP tools any entity may expose, applied on top of what each entity's own permissions/policies/publicOperations already derive. Absent means no ceiling (all five tools remain possible, subject to each entity's own derivation and any entity-level tools narrowing)."
                   }
                 }
               }

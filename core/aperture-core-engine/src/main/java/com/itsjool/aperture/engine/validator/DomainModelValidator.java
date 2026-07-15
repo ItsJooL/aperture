@@ -7,7 +7,7 @@ import com.itsjool.aperture.engine.model.EntityDef;
 import com.itsjool.aperture.engine.model.FieldDef;
 import com.itsjool.aperture.engine.model.HookDef;
 import com.itsjool.aperture.engine.model.RoleDefinitionDef;
-import com.itsjool.aperture.engine.model.FrameworkConfigDef;
+import com.itsjool.aperture.engine.model.ApertureConfigDef;
 import com.itsjool.aperture.engine.model.FieldKind;
 import com.itsjool.aperture.engine.model.EntityOperations;
 import com.itsjool.aperture.engine.model.McpConfig;
@@ -99,22 +99,22 @@ public class DomainModelValidator {
             }
         }
 
-        if (model.frameworkConfig() != null && model.frameworkConfig().defaultRoles() != null) {
-            for (String defaultRole : model.frameworkConfig().defaultRoles()) {
+        if (model.apertureConfig() != null && model.apertureConfig().defaultRoles() != null) {
+            for (String defaultRole : model.apertureConfig().defaultRoles()) {
                 if ("SuperAdmin".equals(defaultRole) || "TenantAdmin".equals(defaultRole)) {
-                    String loc = locationMap.getOrDefault(model.frameworkConfig(), "unknown file");
-                    throw new ManifestValidationException("Reserved role name cannot be used in defaultRoles in " + loc + " (FrameworkConfig): " + defaultRole);
+                    String loc = locationMap.getOrDefault(model.apertureConfig(), "unknown file");
+                    throw new ManifestValidationException("Reserved role name cannot be used in defaultRoles in " + loc + " (ApertureConfig): " + defaultRole);
                 }
                 if (!declaredRoles.contains(defaultRole)) {
-                    String loc = locationMap.getOrDefault(model.frameworkConfig(), "unknown file");
-                    throw new ManifestValidationException("Unknown default role referenced in " + loc + " (FrameworkConfig): " + defaultRole);
+                    String loc = locationMap.getOrDefault(model.apertureConfig(), "unknown file");
+                    throw new ManifestValidationException("Unknown default role referenced in " + loc + " (ApertureConfig): " + defaultRole);
                 }
             }
         }
 
-        if (model.frameworkConfig() != null && model.frameworkConfig().mcp() != null) {
-            String loc = locationMap.getOrDefault(model.frameworkConfig(), "unknown file");
-            validateFrameworkMcpConfig(model.frameworkConfig().mcp(), loc);
+        if (model.apertureConfig() != null && model.apertureConfig().mcp() != null) {
+            String loc = locationMap.getOrDefault(model.apertureConfig(), "unknown file");
+            validateApertureMcpConfig(model.apertureConfig().mcp(), loc);
         }
         
         Set<String> declaredPolicies = new HashSet<>();
@@ -152,14 +152,14 @@ public class DomainModelValidator {
 
         Set<String> usedPolicies = new HashSet<>();
 
-        List<String> frameworkMcpCeiling = (model.frameworkConfig() != null && model.frameworkConfig().mcp() != null)
-            ? model.frameworkConfig().mcp().tools() : null;
+        List<String> apertureMcpCeiling = (model.apertureConfig() != null && model.apertureConfig().mcp() != null)
+            ? model.apertureConfig().mcp().tools() : null;
 
         for (EntityDef entity : model.entities()) {
             String loc = locationMap.getOrDefault(entity, "unknown file");
 
             if (entity.mcpConfig() != null) {
-                validateEntityMcpConfig(entity, frameworkMcpCeiling, loc);
+                validateEntityMcpConfig(entity, apertureMcpCeiling, loc);
             }
 
             Set<String> publicOps = new HashSet<>();
@@ -341,17 +341,17 @@ public class DomainModelValidator {
         }
     }
 
-    private void validateFrameworkMcpConfig(McpConfig config, String loc) {
-        validateMcpTools(config.tools(), loc, "FrameworkConfig");
+    private void validateApertureMcpConfig(McpConfig config, String loc) {
+        validateMcpTools(config.tools(), loc, "ApertureConfig");
         if (config.transport() != null && !config.transport().isBlank()
                 && !"stateless".equalsIgnoreCase(config.transport())) {
             throw new ManifestValidationException(
-                "Invalid MCP transport in " + loc + " (FrameworkConfig): " + config.transport()
+                "Invalid MCP transport in " + loc + " (ApertureConfig): " + config.transport()
                     + ". Supported transports: stateless");
         }
     }
 
-    private void validateEntityMcpConfig(EntityDef entity, List<String> frameworkMcpCeiling, String loc) {
+    private void validateEntityMcpConfig(EntityDef entity, List<String> apertureMcpCeiling, String loc) {
         McpEntityConfig config = entity.mcpConfig();
         String entityName = entity.name();
         validateMcpTools(config.tools(), loc, "Entity " + entityName);
@@ -369,8 +369,8 @@ public class DomainModelValidator {
             Set<String> derived = EntityOperations.derivedMcpTools(entity);
             // The ceiling comes straight from the manifest, where tool names are case-insensitive;
             // it is compared below against a lower-cased tool name, so it must be normalized too.
-            Set<String> ceiling = (frameworkMcpCeiling != null && !frameworkMcpCeiling.isEmpty())
-                ? EntityOperations.normalizedOps(frameworkMcpCeiling) : new HashSet<>(EntityOperations.MCP_TOOLS);
+            Set<String> ceiling = (apertureMcpCeiling != null && !apertureMcpCeiling.isEmpty())
+                ? EntityOperations.normalizedOps(apertureMcpCeiling) : new HashSet<>(EntityOperations.MCP_TOOLS);
 
             for (String tool : config.tools()) {
                 String normalized = tool.toLowerCase();
@@ -384,8 +384,8 @@ public class DomainModelValidator {
                 if (!ceiling.contains(normalized)) {
                     throw new ManifestValidationException(
                         "Entity " + entityName + " declares MCP tool '" + tool + "' in " + loc
-                            + " but the framework MCP ceiling (spec.mcp.tools) does not include "
-                            + "it. An entity's tools can only narrow the framework ceiling, never "
+                            + " but the Aperture MCP ceiling (spec.mcp.tools) does not include "
+                            + "it. An entity's tools can only narrow the Aperture ceiling, never "
                             + "exceed it.");
                 }
             }

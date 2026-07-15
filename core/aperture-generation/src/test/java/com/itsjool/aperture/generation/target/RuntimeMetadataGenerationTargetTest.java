@@ -6,7 +6,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.itsjool.aperture.engine.config.TenancyMode;
 import com.itsjool.aperture.engine.model.EntityDef;
 import com.itsjool.aperture.engine.model.FieldDef;
-import com.itsjool.aperture.engine.model.FrameworkConfigDef;
+import com.itsjool.aperture.engine.model.ApertureConfigDef;
 import com.itsjool.aperture.engine.model.OneOfDef;
 import com.itsjool.aperture.engine.model.ResolvedDomainModel;
 import com.itsjool.aperture.generation.context.StagingGenerationContext;
@@ -32,7 +32,7 @@ class RuntimeMetadataGenerationTargetTest {
                 null, null, null, null, "Billable", null, null)));
         ResolvedDomainModel model = ResolvedDomainModel.builder()
             .entities(List.of(product, servicePackage, subscriptionPlan, lineItem))
-            .frameworkConfig(new FrameworkConfigDef(List.of("TenantAdmin"), TenancyMode.POOL, null, null))
+            .apertureConfig(new ApertureConfigDef(List.of("TenantAdmin"), TenancyMode.POOL, null, null))
             .oneOfs(List.of(new OneOfDef(
                 "Billable", List.of("Product", "ServicePackage", "SubscriptionPlan"))))
             .build();

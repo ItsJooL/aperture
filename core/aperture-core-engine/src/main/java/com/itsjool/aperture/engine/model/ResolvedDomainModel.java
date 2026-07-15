@@ -3,7 +3,7 @@ import java.util.List;
 public record ResolvedDomainModel(
     List<EntityDef> entities,
     List<MigrationDef> migrations,
-    FrameworkConfigDef frameworkConfig,
+    ApertureConfigDef apertureConfig,
     List<RoleDefinitionDef> roleDefinitions,
     List<AbacPolicyDef> abacPolicies,
     List<ApiVersionConfigDef> apiVersionConfigs,
@@ -27,30 +27,30 @@ public record ResolvedDomainModel(
     }
 
     public ResolvedDomainModel(List<EntityDef> entities, List<MigrationDef> migrations) {
-        this(entities, migrations, new FrameworkConfigDef(List.of(), null, null, null), List.of(), List.of(), List.of(), List.of(), List.of());
+        this(entities, migrations, new ApertureConfigDef(List.of(), null, null, null), List.of(), List.of(), List.of(), List.of(), List.of());
     }
 
     public ResolvedDomainModel(
         List<EntityDef> entities,
         List<MigrationDef> migrations,
-        FrameworkConfigDef frameworkConfig,
+        ApertureConfigDef apertureConfig,
         List<RoleDefinitionDef> roleDefinitions,
         List<AbacPolicyDef> abacPolicies,
         List<ApiVersionConfigDef> apiVersionConfigs
     ) {
-        this(entities, migrations, frameworkConfig, roleDefinitions, abacPolicies, apiVersionConfigs, List.of());
+        this(entities, migrations, apertureConfig, roleDefinitions, abacPolicies, apiVersionConfigs, List.of());
     }
 
     public ResolvedDomainModel(
         List<EntityDef> entities,
         List<MigrationDef> migrations,
-        FrameworkConfigDef frameworkConfig,
+        ApertureConfigDef apertureConfig,
         List<RoleDefinitionDef> roleDefinitions,
         List<AbacPolicyDef> abacPolicies,
         List<ApiVersionConfigDef> apiVersionConfigs,
         List<PrincipalAttributeDefinitionDef> principalAttributeDefinitions
     ) {
-        this(entities, migrations, frameworkConfig, roleDefinitions, abacPolicies, apiVersionConfigs,
+        this(entities, migrations, apertureConfig, roleDefinitions, abacPolicies, apiVersionConfigs,
             principalAttributeDefinitions, List.of());
     }
 
@@ -61,7 +61,7 @@ public record ResolvedDomainModel(
     public static final class Builder {
         private List<EntityDef> entities = List.of();
         private List<MigrationDef> migrations = List.of();
-        private FrameworkConfigDef frameworkConfig;
+        private ApertureConfigDef apertureConfig;
         private List<RoleDefinitionDef> roleDefinitions = List.of();
         private List<AbacPolicyDef> abacPolicies = List.of();
         private List<ApiVersionConfigDef> apiVersionConfigs = List.of();
@@ -81,8 +81,8 @@ public record ResolvedDomainModel(
             return this;
         }
 
-        public Builder frameworkConfig(FrameworkConfigDef frameworkConfig) {
-            this.frameworkConfig = frameworkConfig;
+        public Builder apertureConfig(ApertureConfigDef apertureConfig) {
+            this.apertureConfig = apertureConfig;
             return this;
         }
 
@@ -114,7 +114,7 @@ public record ResolvedDomainModel(
         }
 
         public ResolvedDomainModel build() {
-            return new ResolvedDomainModel(entities, migrations, frameworkConfig, roleDefinitions,
+            return new ResolvedDomainModel(entities, migrations, apertureConfig, roleDefinitions,
                 abacPolicies, apiVersionConfigs, principalAttributeDefinitions, oneOfs);
         }
     }

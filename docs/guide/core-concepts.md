@@ -35,7 +35,7 @@ manifests/
 | Kind | Purpose |
 |---|---|
 | `Entity` | Declares a domain entity with fields, permissions, policies, and hooks |
-| `FrameworkConfig` | Sets tenancy mode, default roles, and MCP configuration |
+| `ApertureConfig` | Sets tenancy mode, default roles, and MCP configuration |
 | `ApiVersionConfig` | Declares API versions and their status (ACTIVE or SUNSET) |
 | `AbacPolicy` | Defines an attribute-based access control rule by name |
 | `RoleDefinition` | Declares the named domain roles available in the system |

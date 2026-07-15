@@ -148,7 +148,7 @@ export default defineConfig({
               items: [
                 { text: 'Entity',          link: '/reference/manifest-schema#entity' },
                 { text: 'OneOf',           link: '/reference/manifest-schema#oneof' },
-                { text: 'FrameworkConfig', link: '/reference/manifest-schema#frameworkconfig' },
+                { text: 'ApertureConfig', link: '/reference/manifest-schema#apertureconfig' },
                 { text: 'AbacPolicy',      link: '/reference/manifest-schema#abacpolicy' },
                 { text: 'RoleDefinition',  link: '/reference/manifest-schema#roledefinition' },
                 { text: 'Migration',       link: '/reference/manifest-schema#migration' },

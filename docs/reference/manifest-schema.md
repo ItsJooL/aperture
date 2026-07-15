@@ -18,7 +18,7 @@ spec:
   ...
 ```
 
-Eight kinds are available: `Entity`, `OneOf`, `FrameworkConfig`, `ApiVersionConfig`, `AbacPolicy`, `RoleDefinition`, `PrincipalAttributeDefinition`, and `Migration`.
+Eight kinds are available: `Entity`, `OneOf`, `ApertureConfig`, `ApiVersionConfig`, `AbacPolicy`, `RoleDefinition`, `PrincipalAttributeDefinition`, and `Migration`.
 
 ---
 
@@ -165,7 +165,7 @@ grant it. This block can only *restrict* that derived surface further — it can
 The effective tool set for an entity is:
 
 ```
-derived(entity) ∩ ceiling(FrameworkConfig.spec.mcp.tools) ∩ narrowing(entity.spec.mcp.tools)
+derived(entity) ∩ ceiling(ApertureConfig.spec.mcp.tools) ∩ narrowing(entity.spec.mcp.tools)
 ```
 
 where `derived(entity)` maps `read → list, get`, `create → create`, `update → update`, and
@@ -214,13 +214,13 @@ can set the header can pick which scope to read.
 
 ---
 
-## FrameworkConfig
+## ApertureConfig
 
 One per project. Sets tenancy mode, default roles, and MCP configuration.
 
 ```yaml
 apiVersion: aperture.itsjool.com/v1
-kind: FrameworkConfig
+kind: ApertureConfig
 metadata:
   name: config
 spec:

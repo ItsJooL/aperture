@@ -5,11 +5,11 @@ description: POOL and NONE tenancy modes — how they work and when to use each.
 
 # Multi-Tenancy
 
-Aperture supports two tenancy modes configured in `manifests/framework/config.yaml`:
+Aperture supports two tenancy modes configured in `manifests/aperture/config.yaml`:
 
 ```yaml
 apiVersion: aperture.itsjool.com/v1
-kind: FrameworkConfig
+kind: ApertureConfig
 metadata:
   name: config
 spec:

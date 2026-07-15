@@ -3,7 +3,7 @@ package com.itsjool.aperture.engine.validator;
 import com.itsjool.aperture.engine.model.AbacPolicyDef;
 import com.itsjool.aperture.engine.model.EntityDef;
 import com.itsjool.aperture.engine.model.FieldDef;
-import com.itsjool.aperture.engine.model.FrameworkConfigDef;
+import com.itsjool.aperture.engine.model.ApertureConfigDef;
 import com.itsjool.aperture.engine.model.HookDef;
 import com.itsjool.aperture.engine.model.McpConfig;
 import com.itsjool.aperture.engine.model.McpEntityConfig;
@@ -348,8 +348,8 @@ class DomainModelValidatorTest {
     // ---------- MCP config validation ----------
 
     @Test
-    void frameworkMcpInvalidTool_throws() {
-        FrameworkConfigDef framework = new FrameworkConfigDef(
+    void apertureMcpInvalidTool_throws() {
+        ApertureConfigDef framework = new ApertureConfigDef(
             List.of(), null, new McpConfig(true, "stateless", List.of("list", "publish")), null);
 
         assertThatThrownBy(() -> validator.validate(
@@ -361,8 +361,8 @@ class DomainModelValidatorTest {
     }
 
     @Test
-    void frameworkMcpInvalidTransport_throws() {
-        FrameworkConfigDef framework = new FrameworkConfigDef(
+    void apertureMcpInvalidTransport_throws() {
+        ApertureConfigDef framework = new ApertureConfigDef(
             List.of(), null, new McpConfig(true, "stdio", List.of("list")), null);
 
         assertThatThrownBy(() -> validator.validate(
@@ -409,7 +409,7 @@ class DomainModelValidatorTest {
         // The framework declares a ceiling of list/get only. Order's own permissions grant full
         // CRUD, but the entity still cannot list "delete" as an MCP tool: the ceiling is a hard
         // upper bound, not a default an entity can widen past.
-        FrameworkConfigDef framework = new FrameworkConfigDef(
+        ApertureConfigDef framework = new ApertureConfigDef(
             List.of(), null, new McpConfig(true, "stateless", List.of("list", "get")), null);
         EntityDef entity = new EntityDef("Order", "orders", null, new McpEntityConfig(true, List.of("delete")),
             false, false, false, Map.of("name", stringField()),

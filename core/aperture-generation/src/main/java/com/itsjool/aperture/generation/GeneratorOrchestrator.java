@@ -113,7 +113,7 @@ public class GeneratorOrchestrator {
                 previousModel,
                 diff,
                 activeVersions,
-                model.frameworkConfig().tenancyMode(),
+                model.apertureConfig().tenancyMode(),
                 options.projectBaseDirectory().toPath()
             );
 

@@ -15,7 +15,7 @@ CLI="java -jar target/generated-cli/aperture-cli/target/aperture-cli-0.0.1-SNAPS
 No `--api-version` needed: this demo has no unversioned fallback (once a manifest
 declares an `ApiVersionConfig`, every entity is registered *only* under its real
 versions), but the generated CLI bakes in the manifest's `ACTIVE` version
-(`3` here, per `manifests/framework/versions.yaml`) as `GlobalOptions
+(`3` here, per `manifests/aperture/versions.yaml`) as `GlobalOptions
 .DEFAULT_API_VERSION`, used automatically whenever `--api-version` isn't passed.
 Add `--server` per call if it's not `http://localhost:8080`. Use `--api-version 1`
 or `--api-version 2` to explicitly target a `SUNSET` version instead (see the

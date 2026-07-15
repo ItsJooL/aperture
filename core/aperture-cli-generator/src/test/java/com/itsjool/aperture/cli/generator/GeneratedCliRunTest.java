@@ -6,7 +6,7 @@ import com.itsjool.aperture.engine.config.TenancyMode;
 import com.itsjool.aperture.engine.model.CliConfig;
 import com.itsjool.aperture.engine.model.EntityDef;
 import com.itsjool.aperture.engine.model.FieldDef;
-import com.itsjool.aperture.engine.model.FrameworkConfigDef;
+import com.itsjool.aperture.engine.model.ApertureConfigDef;
 import com.itsjool.aperture.engine.model.ResolvedDomainModel;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
@@ -845,7 +845,7 @@ class GeneratedCliRunTest {
         EntityDef customer = new EntityDef("Customer", "customers", null, null, false, false, true,
             Map.of("name", new FieldDef("string", true, true, false, false, null, null, null, null, null, null, null)),
             null, null, null, null, null);
-        FrameworkConfigDef framework = new FrameworkConfigDef(
+        ApertureConfigDef framework = new ApertureConfigDef(
             List.of(), TenancyMode.POOL, null, new CliConfig(binaryName));
         return new ResolvedDomainModel(List.of(customer), List.of(), framework, List.of(), List.of(), List.of());
     }
@@ -868,7 +868,7 @@ class GeneratedCliRunTest {
                 "customer", new FieldDef("ref", true, false, false, false, null, null, null, "ManyToOne", "Customer", null, null)
             ),
             null, null, null, null, null);
-        FrameworkConfigDef framework = new FrameworkConfigDef(
+        ApertureConfigDef framework = new ApertureConfigDef(
             List.of(), TenancyMode.POOL, null, new CliConfig("aperture"));
         return new ResolvedDomainModel(List.of(customer, order), List.of(), framework, List.of(), List.of(), List.of());
     }

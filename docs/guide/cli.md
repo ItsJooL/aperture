@@ -51,11 +51,11 @@ Running `mvn test-compile` (or `mvn package`) generates the CLI project and comp
 
 ## Naming the binary
 
-By default the CLI is named `aperture`. Override it in `manifests/framework/config.yaml`:
+By default the CLI is named `aperture`. Override it in `manifests/aperture/config.yaml`:
 
 ```yaml
 apiVersion: aperture.itsjool.com/v1
-kind: FrameworkConfig
+kind: ApertureConfig
 metadata:
   name: config
 spec:
@@ -514,7 +514,7 @@ All commands accept these flags (inherited by every subcommand):
 | `--format table\|json` | Output format (default: `table`) |
 | `-v, --verbose` | Print HTTP request/response details |
 
-If your manifests declare an `ApiVersionConfig` (`manifests/framework/versions.yaml`), every entity is registered *only* under its real versions — there is no unversioned fallback. You shouldn't normally need `--api-version` at all, though: the generated CLI bakes in the manifest's `ACTIVE` version as `GlobalOptions.DEFAULT_API_VERSION`, used whenever neither `--api-version` nor a profile's pinned version (`config set-api-version`) is set. Use `--api-version`/`config set-api-version` to target a different (e.g. `SUNSET`) version explicitly.
+If your manifests declare an `ApiVersionConfig` (`manifests/aperture/versions.yaml`), every entity is registered *only* under its real versions — there is no unversioned fallback. You shouldn't normally need `--api-version` at all, though: the generated CLI bakes in the manifest's `ACTIVE` version as `GlobalOptions.DEFAULT_API_VERSION`, used whenever neither `--api-version` nor a profile's pinned version (`config set-api-version`) is set. Use `--api-version`/`config set-api-version` to target a different (e.g. `SUNSET`) version explicitly.
 
 ## Scope context (`scopedBy`)
 

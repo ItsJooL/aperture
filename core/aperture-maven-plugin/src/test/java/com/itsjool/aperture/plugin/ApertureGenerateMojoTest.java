@@ -51,8 +51,8 @@ class ApertureGenerateMojoTest {
             """);
         writeManifest(manifests, "framework.yaml", """
             apiVersion: aperture.itsjool.com/v1
-            kind: FrameworkConfig
-            metadata: { name: framework }
+            kind: ApertureConfig
+            metadata: { name: aperture }
             spec:
               defaultRoles: [OrgAdmin, Viewer]
             """);
@@ -157,8 +157,8 @@ class ApertureGenerateMojoTest {
             """);
         writeManifest(manifests, "framework.yaml", """
             apiVersion: aperture.itsjool.com/v1
-            kind: FrameworkConfig
-            metadata: { name: framework }
+            kind: ApertureConfig
+            metadata: { name: aperture }
             spec:
               defaultRoles: [Admin]
             """);
@@ -214,8 +214,8 @@ class ApertureGenerateMojoTest {
             """);
         writeManifest(manifests, "framework.yaml", """
             apiVersion: aperture.itsjool.com/v1
-            kind: FrameworkConfig
-            metadata: { name: framework }
+            kind: ApertureConfig
+            metadata: { name: aperture }
             spec:
               defaultRoles: [Viewer]
             """);
@@ -269,8 +269,8 @@ class ApertureGenerateMojoTest {
             """);
         writeManifest(manifests, "framework.yaml", """
             apiVersion: aperture.itsjool.com/v1
-            kind: FrameworkConfig
-            metadata: { name: framework }
+            kind: ApertureConfig
+            metadata: { name: aperture }
             spec:
               defaultRoles: []
             """);
@@ -323,8 +323,8 @@ class ApertureGenerateMojoTest {
             """);
         writeManifest(manifests, "framework.yaml", """
             apiVersion: aperture.itsjool.com/v1
-            kind: FrameworkConfig
-            metadata: { name: framework }
+            kind: ApertureConfig
+            metadata: { name: aperture }
             spec:
               defaultRoles: [Admin]
             """);
@@ -378,8 +378,8 @@ class ApertureGenerateMojoTest {
             """);
         writeManifest(manifests, "framework.yaml", """
             apiVersion: aperture.itsjool.com/v1
-            kind: FrameworkConfig
-            metadata: { name: framework }
+            kind: ApertureConfig
+            metadata: { name: aperture }
             spec:
               defaultRoles: [Editor]
             """);
@@ -445,8 +445,8 @@ class ApertureGenerateMojoTest {
             """);
         writeManifest(manifests, "framework.yaml", """
             apiVersion: aperture.itsjool.com/v1
-            kind: FrameworkConfig
-            metadata: { name: framework }
+            kind: ApertureConfig
+            metadata: { name: aperture }
             spec:
               defaultRoles: [Admin]
               mcp:
@@ -499,8 +499,8 @@ class ApertureGenerateMojoTest {
             """);
         writeManifest(manifests, "framework.yaml", """
             apiVersion: aperture.itsjool.com/v1
-            kind: FrameworkConfig
-            metadata: { name: framework }
+            kind: ApertureConfig
+            metadata: { name: aperture }
             spec:
               defaultRoles: [Admin]
             """);
@@ -553,8 +553,8 @@ class ApertureGenerateMojoTest {
             """);
         writeManifest(manifests, "framework.yaml", """
             apiVersion: aperture.itsjool.com/v1
-            kind: FrameworkConfig
-            metadata: { name: framework }
+            kind: ApertureConfig
+            metadata: { name: aperture }
             spec:
               defaultRoles: [Admin]
               mcp:
@@ -608,8 +608,8 @@ class ApertureGenerateMojoTest {
             """);
         writeManifest(manifests, "framework.yaml", """
             apiVersion: aperture.itsjool.com/v1
-            kind: FrameworkConfig
-            metadata: { name: framework }
+            kind: ApertureConfig
+            metadata: { name: aperture }
             spec:
               defaultRoles: [Admin]
               mcp:
@@ -671,8 +671,8 @@ class ApertureGenerateMojoTest {
             """);
         writeManifest(manifests, "framework.yaml", """
             apiVersion: aperture.itsjool.com/v1
-            kind: FrameworkConfig
-            metadata: { name: framework }
+            kind: ApertureConfig
+            metadata: { name: aperture }
             spec:
               defaultRoles: [Admin]
               mcp:
@@ -728,8 +728,8 @@ class ApertureGenerateMojoTest {
             """);
         writeManifest(manifests, "framework.yaml", """
             apiVersion: aperture.itsjool.com/v1
-            kind: FrameworkConfig
-            metadata: { name: framework }
+            kind: ApertureConfig
+            metadata: { name: aperture }
             spec:
               defaultRoles: [Admin]
             """);
@@ -893,8 +893,8 @@ class ApertureGenerateMojoTest {
             """);
         writeManifest(manifests, "framework.yaml", """
             apiVersion: aperture.itsjool.com/v1
-            kind: FrameworkConfig
-            metadata: { name: framework }
+            kind: ApertureConfig
+            metadata: { name: aperture }
             spec:
               defaultRoles: [Admin]
             """);

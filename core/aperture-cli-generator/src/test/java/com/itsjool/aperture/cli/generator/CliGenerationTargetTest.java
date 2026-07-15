@@ -3,7 +3,7 @@ package com.itsjool.aperture.cli.generator;
 import com.itsjool.aperture.engine.config.TenancyMode;
 import com.itsjool.aperture.engine.diff.DiffResult;
 import com.itsjool.aperture.engine.model.CliConfig;
-import com.itsjool.aperture.engine.model.FrameworkConfigDef;
+import com.itsjool.aperture.engine.model.ApertureConfigDef;
 import com.itsjool.aperture.engine.model.ResolvedDomainModel;
 import com.itsjool.aperture.cli.spi.AuthPaths;
 import com.itsjool.aperture.cli.spi.CliAuthExtension;
@@ -414,7 +414,7 @@ class CliGenerationTargetTest {
     }
 
     private ApertureGenerationRequest requestWithBinaryName(String binaryName) {
-        FrameworkConfigDef framework = new FrameworkConfigDef(
+        ApertureConfigDef framework = new ApertureConfigDef(
             List.of(), TenancyMode.POOL, null, new CliConfig(binaryName));
         ResolvedDomainModel model = new ResolvedDomainModel(
             List.of(), List.of(), framework, List.of(), List.of(), List.of());
@@ -427,7 +427,7 @@ class CliGenerationTargetTest {
     }
 
     private ApertureGenerationRequest requestWithApiVersions(Map<String, String> versionsAndStatus, List<String> activeVersions) {
-        FrameworkConfigDef framework = new FrameworkConfigDef(
+        ApertureConfigDef framework = new ApertureConfigDef(
             List.of(), TenancyMode.POOL, null, new CliConfig("aperture"));
         Map<String, com.itsjool.aperture.engine.model.ApiVersionDef> versions = new java.util.LinkedHashMap<>();
         versionsAndStatus.forEach((version, status) ->

@@ -1,5 +1,5 @@
 apiVersion: aperture.itsjool.com/v1
-kind: FrameworkConfig
+kind: ApertureConfig
 metadata:
   name: aperture-config
 spec:

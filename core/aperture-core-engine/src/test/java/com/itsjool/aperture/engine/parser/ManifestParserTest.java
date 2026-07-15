@@ -54,9 +54,9 @@ class ManifestParserTest {
 
         Files.writeString(new File(tempDir, "framework.yaml").toPath(), """
             apiVersion: aperture.itsjool.com/v1
-            kind: FrameworkConfig
+            kind: ApertureConfig
             metadata:
-              name: framework
+              name: aperture
             spec:
               defaultRoles: [OrgAdmin, Accountant, Viewer]
             """);
@@ -95,7 +95,7 @@ class ManifestParserTest {
         assertThat(model.migrations().get(0).name()).isEqualTo("initial_data");
         assertThat(model.migrations().get(0).rollbackSql()).contains("DELETE FROM stuff");
         assertThat(model.migrations().get(0).positionAfter()).isEqualTo("create-stuff");
-        assertThat(model.frameworkConfig().defaultRoles())
+        assertThat(model.apertureConfig().defaultRoles())
             .containsExactly("OrgAdmin", "Accountant", "Viewer");
         assertThat(model.roleDefinitions()).singleElement().satisfies(roles ->
             assertThat(roles.roles()).containsOnlyKeys("OrgAdmin", "Accountant", "Viewer"));
@@ -280,9 +280,9 @@ class ManifestParserTest {
     void rejectsUnknownDefaultRole() throws Exception {
         Files.writeString(new File(tempDir, "framework.yaml").toPath(), """
             apiVersion: aperture.itsjool.com/v1
-            kind: FrameworkConfig
+            kind: ApertureConfig
             metadata:
-              name: framework
+              name: aperture
             spec:
               defaultRoles: [UnknownRole]
             """);
@@ -525,12 +525,12 @@ class ManifestParserTest {
     }
 
     @Test
-    void frameworkConfigTenancyModeNoneParsed() throws Exception {
+    void apertureConfigTenancyModeNoneParsed() throws Exception {
         Files.writeString(new File(tempDir, "framework.yaml").toPath(), """
             apiVersion: aperture.itsjool.com/v1
-            kind: FrameworkConfig
+            kind: ApertureConfig
             metadata:
-              name: framework
+              name: aperture
             spec:
               defaultRoles: [OrgAdmin]
               tenancyMode: none
@@ -546,16 +546,16 @@ class ManifestParserTest {
             """);
 
         ResolvedDomainModel model = new ManifestParser().parseDirectory(tempDir);
-        assertThat(model.frameworkConfig().tenancyMode()).isEqualTo(TenancyMode.NONE);
+        assertThat(model.apertureConfig().tenancyMode()).isEqualTo(TenancyMode.NONE);
     }
 
     @Test
-    void frameworkConfigTenancyModeDefaultsToPool() throws Exception {
+    void apertureConfigTenancyModeDefaultsToPool() throws Exception {
         Files.writeString(new File(tempDir, "framework.yaml").toPath(), """
             apiVersion: aperture.itsjool.com/v1
-            kind: FrameworkConfig
+            kind: ApertureConfig
             metadata:
-              name: framework
+              name: aperture
             spec:
               defaultRoles: [OrgAdmin]
             """);
@@ -570,7 +570,7 @@ class ManifestParserTest {
             """);
 
         ResolvedDomainModel model = new ManifestParser().parseDirectory(tempDir);
-        assertThat(model.frameworkConfig().tenancyMode()).isEqualTo(TenancyMode.POOL);
+        assertThat(model.apertureConfig().tenancyMode()).isEqualTo(TenancyMode.POOL);
     }
 
     @Test
@@ -707,7 +707,7 @@ class ManifestParserTest {
     }
 
     @Test
-    void frameworkConfigWithMcp_parsesMcpConfig() throws Exception {
+    void apertureConfigWithMcp_parsesMcpConfig() throws Exception {
         Files.writeString(new File(tempDir, "roles.yaml").toPath(), """
             apiVersion: aperture.itsjool.com/v1
             kind: RoleDefinition
@@ -720,9 +720,9 @@ class ManifestParserTest {
             """);
         Files.writeString(new File(tempDir, "framework.yaml").toPath(), """
             apiVersion: aperture.itsjool.com/v1
-            kind: FrameworkConfig
+            kind: ApertureConfig
             metadata:
-              name: framework
+              name: aperture
             spec:
               defaultRoles: [OrgAdmin, Viewer]
               mcp:
@@ -734,7 +734,7 @@ class ManifestParserTest {
         ManifestParser parser = new ManifestParser();
         ResolvedDomainModel model = parser.parseDirectory(tempDir);
 
-        assertThat(model.frameworkConfig().mcp())
+        assertThat(model.apertureConfig().mcp())
             .isNotNull()
             .satisfies(mcp -> {
                 assertThat(mcp.enabled()).isTrue();
@@ -744,7 +744,7 @@ class ManifestParserTest {
     }
 
     @Test
-    void frameworkConfigWithoutMcp_mcpIsNull() throws Exception {
+    void apertureConfigWithoutMcp_mcpIsNull() throws Exception {
         Files.writeString(new File(tempDir, "roles.yaml").toPath(), """
             apiVersion: aperture.itsjool.com/v1
             kind: RoleDefinition
@@ -756,9 +756,9 @@ class ManifestParserTest {
             """);
         Files.writeString(new File(tempDir, "framework.yaml").toPath(), """
             apiVersion: aperture.itsjool.com/v1
-            kind: FrameworkConfig
+            kind: ApertureConfig
             metadata:
-              name: framework
+              name: aperture
             spec:
               defaultRoles: [OrgAdmin]
             """);
@@ -766,7 +766,7 @@ class ManifestParserTest {
         ManifestParser parser = new ManifestParser();
         ResolvedDomainModel model = parser.parseDirectory(tempDir);
 
-        assertThat(model.frameworkConfig().mcp()).isNull();
+        assertThat(model.apertureConfig().mcp()).isNull();
     }
 
     @Test
@@ -808,7 +808,7 @@ class ManifestParserTest {
     }
 
     @Test
-    void frameworkConfigWithCli_parsesBinaryName() throws Exception {
+    void apertureConfigWithCli_parsesBinaryName() throws Exception {
         Files.writeString(new File(tempDir, "roles.yaml").toPath(), """
             apiVersion: aperture.itsjool.com/v1
             kind: RoleDefinition
@@ -820,9 +820,9 @@ class ManifestParserTest {
             """);
         Files.writeString(new File(tempDir, "framework.yaml").toPath(), """
             apiVersion: aperture.itsjool.com/v1
-            kind: FrameworkConfig
+            kind: ApertureConfig
             metadata:
-              name: framework
+              name: aperture
             spec:
               defaultRoles: [Admin]
               cli:
@@ -832,11 +832,11 @@ class ManifestParserTest {
         ManifestParser parser = new ManifestParser();
         ResolvedDomainModel model = parser.parseDirectory(tempDir);
 
-        assertThat(model.frameworkConfig().cli().binaryName()).isEqualTo("myapp");
+        assertThat(model.apertureConfig().cli().binaryName()).isEqualTo("myapp");
     }
 
     @Test
-    void frameworkConfigWithoutCli_defaultsBinaryNameToAperture() throws Exception {
+    void apertureConfigWithoutCli_defaultsBinaryNameToAperture() throws Exception {
         Files.writeString(new File(tempDir, "roles.yaml").toPath(), """
             apiVersion: aperture.itsjool.com/v1
             kind: RoleDefinition
@@ -848,9 +848,9 @@ class ManifestParserTest {
             """);
         Files.writeString(new File(tempDir, "framework.yaml").toPath(), """
             apiVersion: aperture.itsjool.com/v1
-            kind: FrameworkConfig
+            kind: ApertureConfig
             metadata:
-              name: framework
+              name: aperture
             spec:
               defaultRoles: [Admin]
             """);
@@ -858,7 +858,7 @@ class ManifestParserTest {
         ManifestParser parser = new ManifestParser();
         ResolvedDomainModel model = parser.parseDirectory(tempDir);
 
-        assertThat(model.frameworkConfig().cli().binaryName()).isEqualTo("aperture");
+        assertThat(model.apertureConfig().cli().binaryName()).isEqualTo("aperture");
     }
 
     @Test

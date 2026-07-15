@@ -63,10 +63,10 @@ public class RuntimeMetadataGenerationTarget implements ApertureGenerationTarget
 
         Map<String, Object> metadata = new LinkedHashMap<>();
         metadata.put("activeVersions", activeVersions);
-        metadata.put("defaultRoles", model.frameworkConfig().defaultRoles());
+        metadata.put("defaultRoles", model.apertureConfig().defaultRoles());
         metadata.put("declaredRoles", declaredRoles);
         metadata.put("lockingEntities", lockingEntities);
-        metadata.put("tenancyMode", model.frameworkConfig().tenancyMode().name().toLowerCase());
+        metadata.put("tenancyMode", model.apertureConfig().tenancyMode().name().toLowerCase());
         metadata.put("allowedHttpMethods", allowedMethods);
         metadata.put("tenantScopedApiResources", tenantScopedApiResources);
         metadata.put("oneOfs", oneOfMetadata(model));

@@ -41,7 +41,7 @@ public class ManifestParser {
         List<ApiVersionConfigDef> apiVersionConfigs = new ArrayList<>();
         List<PrincipalAttributeDefinitionDef> principalAttributeDefinitions = new ArrayList<>();
         List<OneOfDef> oneOfs = new ArrayList<>();
-        FrameworkConfigDef config = null;
+        ApertureConfigDef config = null;
         java.util.Map<Object, String> locationMap = new java.util.IdentityHashMap<>();
 
         List<File> files = new ArrayList<>();
@@ -61,7 +61,7 @@ public class ManifestParser {
             return ResolvedDomainModel.builder()
                 .entities(entities)
                 .migrations(migrations)
-                .frameworkConfig(new FrameworkConfigDef(List.of(), null, null, null))
+                .apertureConfig(new ApertureConfigDef(List.of(), null, null, null))
                 .roleDefinitions(roleDefinitions)
                 .abacPolicies(abacPolicies)
                 .apiVersionConfigs(apiVersionConfigs)
@@ -104,8 +104,8 @@ public class ManifestParser {
                     }
                     String positionAfter = specNode.path("position").path("after").asText(null);
                     migrations.add(new MigrationDef(name, sql, rollback, positionAfter));
-                } else if ("FrameworkConfig".equals(kind)) {
-                    config = mapper.treeToValue(specNode, FrameworkConfigDef.class);
+                } else if ("ApertureConfig".equals(kind)) {
+                    config = mapper.treeToValue(specNode, ApertureConfigDef.class);
                     locationMap.put(config, f.getPath());
                 } else if ("RoleDefinition".equals(kind)) {
                     RoleDefinitionDef def = mapper.treeToValue(specNode, RoleDefinitionDef.class);
@@ -143,7 +143,7 @@ public class ManifestParser {
         ResolvedDomainModel model = ResolvedDomainModel.builder()
             .entities(entities)
             .migrations(migrations)
-            .frameworkConfig(config != null ? config : new FrameworkConfigDef(List.of(), null, null, null))
+            .apertureConfig(config != null ? config : new ApertureConfigDef(List.of(), null, null, null))
             .roleDefinitions(roleDefinitions)
             .abacPolicies(abacPolicies)
             .apiVersionConfigs(apiVersionConfigs)

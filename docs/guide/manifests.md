@@ -15,7 +15,7 @@ Every manifest is a YAML file under `manifests/` (any subdirectory, read recursi
 |---|---|
 | [`Entity`](#entity) | A domain entity: fields, permissions, policies, hooks |
 | [`OneOf`](#oneof) | A named closed set of entities for one-of relationship fields |
-| [`FrameworkConfig`](#frameworkconfig) | Tenancy mode, default roles, MCP, CLI binary name — one per project |
+| [`ApertureConfig`](#apertureconfig) | Tenancy mode, default roles, MCP, CLI binary name — one per project |
 | [`ApiVersionConfig`](#apiversionconfig) | API versions and their ACTIVE/SUNSET status |
 | [`RoleDefinition`](#roledefinition) | The named domain roles available in the system |
 | [`AbacPolicy`](#abacpolicy) | A named attribute-based access rule, referenced by name in `policies` |
@@ -57,11 +57,11 @@ spec:
 Names a closed set of entity types that a `type: oneof` field may reference. See
 [One-of relationships](#one-of-relationships) for field usage and runtime shape.
 
-### FrameworkConfig
+### ApertureConfig
 
 ```yaml
 apiVersion: aperture.itsjool.com/v1
-kind: FrameworkConfig
+kind: ApertureConfig
 metadata:
   name: config
 spec:
@@ -397,7 +397,7 @@ that set. Most entities need no `mcp:` block of their own at all.
 **Every MCP knob is subtractive.** Configuration can only restrict this derived projection of the
 model — never extend it. There are two knobs, both optional, and both narrowing:
 
-- `spec.mcp.tools` on `FrameworkConfig` is a **ceiling**: a project-wide upper bound on which tools
+- `spec.mcp.tools` on `ApertureConfig` is a **ceiling**: a project-wide upper bound on which tools
   any entity may expose, applied on top of what each entity already derives. Omit it and there is
   no ceiling.
 - `spec.mcp` on an `Entity` **narrows further**, and can exclude the entity from MCP entirely with

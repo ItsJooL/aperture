@@ -29,7 +29,7 @@ class ResolvedDomainModelTest {
         assertThat(model.abacPolicies()).isEmpty();
         assertThat(model.apiVersionConfigs()).isEmpty();
         assertThat(model.principalAttributeDefinitions()).isEmpty();
-        assertThat(model.frameworkConfig()).isNull();
+        assertThat(model.apertureConfig()).isNull();
         assertThatThrownBy(() -> model.entities().clear())
             .isInstanceOf(UnsupportedOperationException.class);
     }

@@ -4,7 +4,7 @@ import com.itsjool.aperture.engine.config.TenancyMode;
 import com.itsjool.aperture.engine.model.AbacPolicyDef;
 import com.itsjool.aperture.engine.model.EntityDef;
 import com.itsjool.aperture.engine.model.FieldDef;
-import com.itsjool.aperture.engine.model.FrameworkConfigDef;
+import com.itsjool.aperture.engine.model.ApertureConfigDef;
 import com.itsjool.aperture.engine.model.McpConfig;
 import com.itsjool.aperture.engine.model.McpEntityConfig;
 import com.itsjool.aperture.engine.model.ResolvedDomainModel;
@@ -60,10 +60,10 @@ class McpJavaGenerationTargetTest {
         EntityDef noAccessRules = new EntityDef("Ghost", "ghosts", null, null,
             false, false, false, Map.of("name", name),
             Map.of(), Map.of(), List.of(), Map.of(), Map.of());
-        FrameworkConfigDef frameworkConfig = new FrameworkConfigDef(
+        ApertureConfigDef apertureConfig = new ApertureConfigDef(
             List.of(), TenancyMode.POOL, new McpConfig(true, "http", List.of("list", "get")), null);
         ResolvedDomainModel model = new ResolvedDomainModel(
-            List.of(noAccessRules), List.of(), frameworkConfig, List.of(), List.of(), List.of(), List.of());
+            List.of(noAccessRules), List.of(), apertureConfig, List.of(), List.of(), List.of(), List.of());
         ApertureGenerationRequest ghostRequest = new ApertureGenerationRequest(model, null, null, List.of("1"), TenancyMode.POOL, null);
 
         new McpJavaGenerationTarget().generate(ghostRequest, staging);
@@ -82,10 +82,10 @@ class McpJavaGenerationTargetTest {
         EntityDef fullyPermittedButDisabled = new EntityDef("Secret", "secrets", null, disabled,
             false, false, false, Map.of("name", name),
             Map.of("Admin", List.of("read", "create", "update", "delete")), Map.of(), List.of(), Map.of(), Map.of());
-        FrameworkConfigDef frameworkConfig = new FrameworkConfigDef(
+        ApertureConfigDef apertureConfig = new ApertureConfigDef(
             List.of(), TenancyMode.POOL, new McpConfig(true, "http", null), null);
         ResolvedDomainModel model = new ResolvedDomainModel(
-            List.of(fullyPermittedButDisabled), List.of(), frameworkConfig, List.of(), List.of(), List.of(), List.of());
+            List.of(fullyPermittedButDisabled), List.of(), apertureConfig, List.of(), List.of(), List.of(), List.of());
         ApertureGenerationRequest secretRequest = new ApertureGenerationRequest(model, null, null, List.of("1"), TenancyMode.POOL, null);
 
         new McpJavaGenerationTarget().generate(secretRequest, staging);
@@ -198,10 +198,10 @@ class McpJavaGenerationTargetTest {
         EntityDef noAccessRules = new EntityDef("Ghost", "ghosts", null, null,
             false, false, false, Map.of("name", name),
             Map.of(), Map.of(), List.of(), Map.of(), Map.of());
-        FrameworkConfigDef frameworkConfig = new FrameworkConfigDef(
+        ApertureConfigDef apertureConfig = new ApertureConfigDef(
             List.of(), TenancyMode.POOL, new McpConfig(true, "http", null), null);
         ResolvedDomainModel model = new ResolvedDomainModel(
-            List.of(noAccessRules), List.of(), frameworkConfig, List.of(), List.of(), List.of(), List.of());
+            List.of(noAccessRules), List.of(), apertureConfig, List.of(), List.of(), List.of(), List.of());
         ApertureGenerationRequest ghostRequest = new ApertureGenerationRequest(model, null, null, List.of("1"), TenancyMode.POOL, null);
 
         new McpJavaGenerationTarget().generate(ghostRequest, staging);
@@ -222,12 +222,12 @@ class McpJavaGenerationTargetTest {
             Map.of("Admin", List.of("create", "read", "update"), "ReadOnly", List.of("read")),
             Map.of("FinanceOnly", List.of("update")),
             List.of("delete"), Map.of(), Map.of());
-        FrameworkConfigDef frameworkConfig = new FrameworkConfigDef(
+        ApertureConfigDef apertureConfig = new ApertureConfigDef(
             List.of(), TenancyMode.POOL, new McpConfig(true, "http", null), null);
         List<AbacPolicyDef> abacPolicies = List.of(
             new AbacPolicyDef("FinanceOnly", "#user.securityAttributes['department'] == 'finance'"));
         ResolvedDomainModel model = new ResolvedDomainModel(
-            List.of(project), List.of(), frameworkConfig, List.of(), abacPolicies, List.of(), List.of());
+            List.of(project), List.of(), apertureConfig, List.of(), abacPolicies, List.of(), List.of());
         ApertureGenerationRequest projectRequest = new ApertureGenerationRequest(model, null, null, List.of("1"), TenancyMode.POOL, null);
 
         new McpJavaGenerationTarget().generate(projectRequest, staging);
@@ -270,10 +270,10 @@ class McpJavaGenerationTargetTest {
         EntityDef project = new EntityDef("Project", "projects", "A project", null,
             false, false, false, Map.of("name", name),
             Map.of("Admin", List.of("read")), Map.of(), List.of(), Map.of(), Map.of());
-        FrameworkConfigDef frameworkConfig = new FrameworkConfigDef(
+        ApertureConfigDef apertureConfig = new ApertureConfigDef(
             List.of(), TenancyMode.POOL, new McpConfig(true, "http", List.of("list", "get")), null);
         ResolvedDomainModel model = new ResolvedDomainModel(
-            List.of(project), List.of(), frameworkConfig, List.of(), List.of(), List.of(), List.of());
+            List.of(project), List.of(), apertureConfig, List.of(), List.of(), List.of(), List.of());
         return new ApertureGenerationRequest(model, null, null, List.of("1"), TenancyMode.POOL, null);
     }
 }

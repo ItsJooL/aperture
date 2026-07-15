@@ -23,7 +23,7 @@ The single-tenant demo is a minimal note-taking API with one entity (`Note`) and
 
 ```yaml
 apiVersion: aperture.itsjool.com/v1
-kind: FrameworkConfig
+kind: ApertureConfig
 metadata:
   name: config
 spec:

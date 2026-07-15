@@ -51,7 +51,7 @@ class CliProjectGenerator {
     }
 
     void generate() throws Exception {
-        String binaryName = request.model().frameworkConfig().cli().binaryName();
+        String binaryName = request.model().apertureConfig().cli().binaryName();
         AuthCommandSpec authCommand = authCommandSpec(binaryName);
         List<String> contributedCommandClassNames = validatedContributionClassNames();
         writePom(binaryName);
@@ -177,7 +177,7 @@ class CliProjectGenerator {
         write(root.resolve(src + "/CreateCommand.java"), gen.generateCreateCommand());
         write(root.resolve(src + "/UpdateCommand.java"), gen.generateUpdateCommand());
         write(root.resolve(src + "/DeleteCommand.java"), gen.generateDeleteCommand());
-        String binaryName = request.model().frameworkConfig().cli().binaryName();
+        String binaryName = request.model().apertureConfig().cli().binaryName();
         // Write apply command and the shared file-mode machinery (FileOps) with the full entity
         // registry. FileOps is reused by ApplyCommand and the -f paths of Create/Update/Delete.
         write(root.resolve(src + "/ApplyCommand.java"), CliTemplates.applyCommand(entities, binaryName));

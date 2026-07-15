@@ -209,7 +209,7 @@ class McpDemoComponentTest {
         tools.forEach(tool -> toolNames.add(tool.path("name").asText()));
 
         // Project has no entity-level mcp override, so it inherits the framework default
-        // tool set (list, get, create, update, delete) from manifests/framework/config.yaml.
+        // tool set (list, get, create, update, delete) from manifests/aperture/config.yaml.
         assertThat(toolNames).contains(
                 "list_projects", "get_project", "create_project", "update_project", "delete_project");
 

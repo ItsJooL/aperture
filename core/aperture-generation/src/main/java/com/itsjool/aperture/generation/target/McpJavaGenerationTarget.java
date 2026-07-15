@@ -42,15 +42,15 @@ public class McpJavaGenerationTarget implements ApertureGenerationTarget {
 
     @Override
     public boolean enabled(ApertureGenerationRequest request) {
-        McpConfig mcpConfig = request.model().frameworkConfig() != null
-            ? request.model().frameworkConfig().mcp() : null;
+        McpConfig mcpConfig = request.model().apertureConfig() != null
+            ? request.model().apertureConfig().mcp() : null;
         return mcpConfig != null && mcpConfig.enabled();
     }
 
     @Override
     public void generate(ApertureGenerationRequest request, ApertureGenerationContext context) throws Exception {
         StagingGenerationContext staging = (StagingGenerationContext) context;
-        McpConfig mcpConfig = request.model().frameworkConfig().mcp();
+        McpConfig mcpConfig = request.model().apertureConfig().mcp();
         String latestVersion = request.activeVersions().getLast();
         Map<String, String> resourceTypesByEntity = new HashMap<>();
         for (EntityDef entity : request.model().entities()) {
@@ -82,7 +82,7 @@ public class McpJavaGenerationTarget implements ApertureGenerationTarget {
                 "the generated tool class for entity '" + entity.name() + "'");
             staging.writeJavaSourceFromString(source);
             toolAccessByName.putAll(McpToolAccessClassifier.classify(entity, tools,
-                request.model().abacPolicies(), request.model().frameworkConfig().tenancyMode()));
+                request.model().abacPolicies(), request.model().apertureConfig().tenancyMode()));
         }
         // Always emitted, even when toolAccessByName is empty (e.g. an app whose only MCP tools
         // come from McpToolContribution), so the class name is unconditionally reserved below and

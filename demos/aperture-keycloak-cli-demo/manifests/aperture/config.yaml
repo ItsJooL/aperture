@@ -1,9 +1,11 @@
 apiVersion: aperture.itsjool.com/v1
-kind: FrameworkConfig
+kind: ApertureConfig
 metadata:
   name: config
 spec:
   tenancyMode: none
+  cli:
+    binaryName: apkc
   defaultRoles:
     - Admin
-    - ReadOnly
+    - User
