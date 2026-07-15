@@ -32,17 +32,17 @@ kind: Entity
 metadata:
   name: Invoice              # PascalCase; becomes the JSON:API type "invoice"
 spec:
-  description: "..."         # optional — included in generated OpenAPI
+  description: "..."         # optional; included in generated OpenAPI
   tenantScoped: true         # default: false
   optimisticLocking: false   # default: false
   softDelete: false          # default: false
-  scopedBy: account          # optional — name of a ManyToOne ref field
-  plural: invoices           # optional — overrides default pluralisation
+  scopedBy: account          # optional; name of a ManyToOne ref field
+  plural: invoices           # optional; overrides default pluralisation
   fields: { ... }
   permissions: { ... }
   policies: { ... }
   hooks: { ... }
-  mcp: { ... }               # optional — entity-level MCP override
+  mcp: { ... }               # optional; entity-level MCP override
 ```
 
 ### `spec.fields`
@@ -51,25 +51,25 @@ Each key under `fields` is a field name (camelCase). Each value is a field defin
 
 | Property | Type | Default | Description |
 |---|---|---|---|
-| `type` | `string`, `decimal`, `integer`, `boolean`, `uuid`, `datetime`, `ref`, `oneof` | — | Required. Maps to a Java and SQL type |
+| `type` | `string`, `decimal`, `integer`, `boolean`, `uuid`, `datetime`, `ref`, `oneof` | None | Required. Maps to a Java and SQL type |
 | `required` | boolean | `false` | Requires a value through generated validation and database constraints |
 | `unique` | boolean | `false` | Generates a unique index |
 | `index` | boolean | `false` | Generates a non-unique index |
 | `encrypted` | boolean | `false` | Stores value as AES-256-GCM ciphertext |
 | `since` | string (version number) | `null` | Field is only visible in API v{since}+ |
-| `renamedFrom` | string | `null` | Old column name — generates `renameColumn` changeset |
+| `renamedFrom` | string | `null` | Old column name; generates `renameColumn` changeset |
 | `relation` | `ManyToOne`, `OneToMany` | `null` | Required when `type: ref` |
 | `target` | string (entity or OneOf name) | `null` | Required when `type: ref` or `type: oneof` |
 | `mappedBy` | string (field name on target) | `null` | Required for `OneToMany` side of a bidirectional relationship |
 | `description` | string | `null` | Included in generated OpenAPI |
 | `enum` | list of strings | `null` | Generates an `IN (...)` validation and OpenAPI enum |
 
-**`type: ref` notes:** `ManyToOne` generates an FK column (`{fieldName}_id`). `OneToMany` with `mappedBy` generates no column — it's the inverse side of a relationship declared on the target entity.
+**`type: ref` notes:** `ManyToOne` generates an FK column (`{fieldName}_id`). `OneToMany` with `mappedBy` generates no column because it is the inverse side of a relationship declared on the target entity.
 
 **`type: oneof` notes:** `target` names a `OneOf` manifest. The field generates `{fieldName}_type`
 and `{fieldName}_id` columns and is represented as a JSON:API relationship whose `data.type` is the
 concrete member resource type. `relation` and `mappedBy` do not apply to `oneof` fields and are
-rejected — `oneof` is always a to-one field (one row selects exactly one member); there is no
+rejected because `oneof` is always a to-one field (one row selects exactly one member); there is no
 collection-shaped equivalent in V1. Aperture always creates a composite lookup index over the type and ID columns (unique
 when `unique: true`, non-unique otherwise). In POOL mode for a tenant-scoped owner, the tenant
 column is the leading index column. For `required: true`, Aperture validates JSON:API resource and
@@ -97,7 +97,7 @@ spec:
 
 | Property | Type | Default | Description |
 |---|---|---|---|
-| `spec.members` | list of entity names | — | Required. Every member must name an `Entity` manifest |
+| `spec.members` | list of entity names | None | Required. Every member must name an `Entity` manifest |
 
 Validation rules:
 
@@ -121,7 +121,7 @@ permissions:
 
 OR semantics: a user with any matching role gets access. Roles not listed get no access for that operation.
 
-> **Reserved names:** `SuperAdmin` and `TenantAdmin` are platform authorities, not domain roles. They cannot appear in `permissions` — the build will fail if you reference them here. See [Auth & Identity](/guide/auth#identity-administration).
+> **Reserved names:** `SuperAdmin` and `TenantAdmin` are platform authorities, not domain roles. They cannot appear in `permissions`; the build will fail if you reference them here. See [Auth & Identity](/guide/auth#identity-administration).
 
 ### `spec.policies`
 
@@ -145,7 +145,7 @@ Hook name → hook definition. Hooks use semantic intent; Aperture maps that int
 | `on` | array | `create`, `update`, `delete` | Optional write operations. Defaults depend on `type` |
 | `onFailure` | string | `reject`, `warn`, `passthrough` | Optional behaviour on non-2xx or error. Valid values depend on `type` |
 | `url` | string | HTTP/HTTPS URL | Endpoint Aperture calls |
-| `retries` | integer | `0`–`5`, default `0` | Optional, opt-in retry count on a failed call. The schema's own ceiling (5) is the loosest per-type cap (`trigger`'s); `guard`/`validate` are capped tighter at `2`, and `mutate` does not support it at all — both enforced by manifest validation, not this schema, since a per-`type` maximum isn't expressible here. See [Hooks & Lifecycle → Retries And Timeouts](../guide/hooks.md#retries-and-timeouts) for the backoff formula and the latency this adds to synchronous hook types. |
+| `retries` | integer | `0`–`5`, default `0` | Optional, opt-in retry count on a failed call. The schema's own ceiling (5) is the loosest per-type cap (`trigger`'s); `guard`/`validate` are capped tighter at `2`, and `mutate` does not support it at all. Manifest validation enforces both rules because a per-`type` maximum is not expressible here. See [Hooks & Lifecycle → Retries And Timeouts](../guide/hooks.md#retries-and-timeouts) for the backoff formula and the latency this adds to synchronous hook types. |
 
 ```yaml
 hooks:
@@ -160,7 +160,7 @@ hooks:
 
 The MCP tool surface is **derived from the model**, not hand-declared: an operation is exposed as
 an MCP tool only if the entity's own `permissions`, `policies`, or `publicOperations` already
-grant it. This block can only *restrict* that derived surface further — it can never widen it.
+grant it. This block can only *restrict* that derived surface further; it can never widen it.
 
 The effective tool set for an entity is:
 
@@ -171,14 +171,14 @@ derived(entity) ∩ ceiling(ApertureConfig.spec.mcp.tools) ∩ narrowing(entity.
 where `derived(entity)` maps `read → list, get`, `create → create`, `update → update`, and
 `delete → delete`, and an operation counts as derived iff some role in `permissions`, some policy
 in `policies`, or an entry in `publicOperations` grants it. Most entities need no `mcp:` block at
-all — the full block collapses to nothing to configure:
+all, so the full block collapses to nothing to configure:
 
 ```yaml
 mcp:
   tools: [list, get]  # narrow this entity's tools beyond what it already derives
 ```
 
-Exclude the entity from MCP entirely — no tool class is generated for it, regardless of `tools`:
+Exclude the entity from MCP entirely. No tool class is generated for it, regardless of `tools`:
 
 ```yaml
 mcp:
@@ -187,13 +187,13 @@ mcp:
 
 Valid tool names are `list`, `get`, `create`, `update`, and `delete`. `enabled` absent (or the
 `mcp:` block absent entirely) means **inherit**: the entity participates in MCP. Only an explicit
-`enabled: false` excludes it — there is no implicit-`false` trap here, because `enabled` is a
+`enabled: false` excludes it. There is no implicit-`false` trap here because `enabled` is a
 tri-state field (`null` means unset, not "off"). `enabled: false` together with a non-empty
 `tools` list is a validation error: it's contradictory, and Aperture rejects the manifest rather
 than silently picking one interpretation.
 
 Listing a tool the entity's own access rules don't reach, or one outside the Aperture ceiling, is
-also a validation error — `tools: [delete]` on an entity where nothing grants `delete` describes a
+also a validation error. `tools: [delete]` on an entity where nothing grants `delete` describes a
 tool that could never succeed for anyone but a superadmin, and Aperture rejects it at parse time
 rather than generating it.
 
@@ -209,7 +209,7 @@ rather than generating it.
 
 Name of a `ManyToOne` ref field declared in `spec.fields`. Every read of this entity is filtered
 by a per-request `X-Aperture-Scope-<Field>` header value. This is a mandatory query filter, not
-per-user authorization — requests without a matching header value are denied, but any caller who
+per-user authorization. Requests without a matching header value are denied, but any caller who
 can set the header can pick which scope to read.
 
 ---
@@ -228,20 +228,20 @@ spec:
   defaultRoles:               # domain roles assigned to every new user
     - Accountant
     - Viewer
-  # Note: TenantAdmin and SuperAdmin are platform authorities — do not list them here
+  # Note: TenantAdmin and SuperAdmin are platform authorities; do not list them here
   cli:
     binaryName: acme          # name of the generated CLI binary; defaults to "aperture"
   mcp:
     enabled: true
     transport: stateless      # stateless (HTTP) is the only supported transport
-    tools: [list, get]        # optional ceiling — see below
+    tools: [list, get]        # optional ceiling; see below
 ```
 
 `transport` is optional and currently accepts only `stateless`. `tools` is a **ceiling, not a
 default**: the Aperture-wide upper bound on MCP tools any entity may expose, applied on top of
 whatever each entity's own `permissions`/`policies`/`publicOperations` already derive (see
 `Entity.spec.mcp` above for the full derive/ceiling/narrow resolution rule). Omitting it means no
-ceiling — every entity's derived tools remain possible, subject only to entity-level narrowing.
+ceiling, so every entity's derived tools remain possible, subject only to entity-level narrowing.
 Valid tool names are `list`, `get`, `create`, `update`, and `delete`.
 
 ---
@@ -280,10 +280,10 @@ spec:
 ```
 
 **SpEL context:** `#user` is the `AperturePrincipal`. Available properties:
-- `#user.securityAttributes['key']` — security attribute map (from the `securityAttributes` JSONB column, admin-assigned)
-- `#user.roles` — `Set<String>` of role names
-- `#user.tenantId` — tenant ID string
-- `#user.userId` — user ID string
+- `#user.securityAttributes['key']`: security attribute map (from the `securityAttributes` JSONB column, admin-assigned)
+- `#user.roles`: `Set<String>` of role names
+- `#user.tenantId`: tenant ID string
+- `#user.userId`: user ID string
 
 ---
 
@@ -306,7 +306,7 @@ spec:
       description: "Read only"
 ```
 
-> **Reserved names:** `SuperAdmin` and `TenantAdmin` cannot be declared here — they are platform authorities managed via `POST /manage/tenants/{id}/tenant-admins/{userId}`, not domain roles.
+> **Reserved names:** `SuperAdmin` and `TenantAdmin` cannot be declared here because they are platform authorities managed via `POST /manage/tenants/{id}/tenant-admins/{userId}`, not domain roles.
 
 ---
 
@@ -345,7 +345,7 @@ spec:
 | `personalKeyDelegation` | `exact` | `exact` | How API key attribute delegation is validated. `exact` means the key may only carry the user's current value |
 | `serviceAccountAssignable` | boolean | `false` | Whether this attribute may be assigned to a service account |
 
-Attributes referenced in `AbacPolicy` expressions that are not declared here are still evaluated — the definition is for validation on write, not enforcement on read.
+Attributes referenced in `AbacPolicy` expressions that are not declared here are still evaluated. The definition is for validation on write, not enforcement on read.
 
 ---
 

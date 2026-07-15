@@ -251,7 +251,7 @@ When `optimisticLocking: true` on an entity:
 | `POST` | `/auth/me/api-keys/{keyId}/disable` | Yes | Disable own personal API key |
 | `POST` | `/auth/accept-invite` | No | Redeem an invite token and create the account |
 
-### Tenant management (`/manage/tenants`) — POOL mode only
+### Tenant management (`/manage/tenants`, POOL mode only)
 
 | Method | Path | Required role |
 |---|---|---|

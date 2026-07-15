@@ -17,6 +17,9 @@ defineProps<{ filename: string; code: string }>()
   border-radius: 10px; overflow: hidden;
   border: 1px solid var(--home-border);
   box-shadow: 0 8px 32px rgba(0,0,0,0.10);
+  box-sizing: border-box;
+  min-width: 0;
+  width: 100%;
 }
 .cw-header {
   background: var(--home-surface-2);

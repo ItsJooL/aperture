@@ -5,7 +5,7 @@ description: Aperture can generate a fully-featured command-line client for your
 
 # Generated CLI
 
-Aperture can generate a standalone CLI for your API directly from your manifests. The generated CLI is a self-contained [Picocli](https://picocli.info/) application that knows about every entity, relationship, and auth endpoint in your model — no hand-writing required.
+Aperture can generate a standalone CLI for your API directly from your manifests. The generated CLI is a self-contained [Picocli](https://picocli.info/) application that knows about every entity, relationship, and auth endpoint in your model, with no hand-writing required.
 
 ## Enabling the CLI
 
@@ -39,7 +39,7 @@ The CLI generator is **off by default**. Enable it by adding `<cli><enabled>true
         <workingDirectory>${project.build.directory}/generated-cli/aperture-cli</workingDirectory>
         <arguments>
           <argument>-c</argument>
-          <argument>if command -v native-image &gt;/dev/null 2&gt;&amp;1; then mvn package -Pnative -DskipTests --no-transfer-progress; else echo "[aperture-cli] native-image not found — building fat JAR (install oracle-graalvm for a native binary)" &amp;&amp; mvn package -DskipTests --no-transfer-progress; fi</argument>
+          <argument>if command -v native-image &gt;/dev/null 2&gt;&amp;1; then mvn package -Pnative -DskipTests --no-transfer-progress; else echo "[aperture-cli] native-image not found; building fat JAR (install oracle-graalvm for a native binary)" &amp;&amp; mvn package -DskipTests --no-transfer-progress; fi</argument>
         </arguments>
       </configuration>
     </execution>
@@ -173,15 +173,15 @@ polls the token endpoint, then stores `auth.kind=bearer`, `accessToken`, `refres
 `oidc: { issuer, clientId }` on the active profile. Subsequent `auth refresh` and `auth login`
 can reuse the persisted issuer/client id.
 
-For a full worked example — a real Keycloak realm wired to the device grant, a manual
+For a full worked example with a real Keycloak realm wired to the device grant, a manual
 browser walkthrough, and a headless `device-flow-smoke.sh` script that verifies the same flow
-in CI — see `demos/aperture-keycloak-cli-demo/README.md`.
+in CI, see `demos/aperture-keycloak-cli-demo/README.md`.
 
 ## Custom commands
 
 Beyond auth, you can contribute entirely new top-level commands via the `CliCommandContribution` SPI.
 
-The generated CLI is a standalone Maven project that's compiled — and, for native binaries, run through GraalVM `native-image` — long after the aperture plugin has finished running. There's no live JVM at that point to load a runtime plugin object into, and `native-image` can't discover or invoke arbitrary classes reflectively. So `CliCommandContribution` implementations don't hand over a command *object*; they act as **source emitters**: `commandSource(binaryName)` returns the complete Java source of a Picocli `@Command` class, which the generator writes into the generated project's `com.itsjool.aperture.cli.cmd` package and compiles alongside the entity and auth commands. The result is an ordinary generated-project class with no reflection involved — fully native-image friendly.
+The generated CLI is a standalone Maven project that is compiled long after the Aperture plugin has finished running. Native binaries also pass through GraalVM `native-image` at this later stage. There is no live JVM at that point to load a runtime plugin object into, and `native-image` cannot discover or invoke arbitrary classes reflectively. `CliCommandContribution` implementations therefore do not hand over a command *object*; they act as **source emitters**. `commandSource(binaryName)` returns the complete Java source of a Picocli `@Command` class, which the generator writes into the generated project's `com.itsjool.aperture.cli.cmd` package and compiles alongside the entity and auth commands. The result is an ordinary, fully native-image-friendly generated-project class with no reflection involved.
 
 ```java
 public interface CliCommandContribution {
@@ -191,7 +191,7 @@ public interface CliCommandContribution {
 }
 ```
 
-A single class may implement both `CliAuthExtension` and `CliCommandContribution` if it wants to contribute auth commands and other top-level commands together — the mojo instantiates each configured class once and adds it to whichever list(s) it implements.
+A single class may implement both `CliAuthExtension` and `CliCommandContribution` if it wants to contribute auth commands and other top-level commands together. The mojo instantiates each configured class once and adds it to whichever list(s) it implements.
 
 Here's a trimmed version of the demo `StatusCommand`, contributed by `SimpleStatusCliContribution` in `aperture-simple-cli`. It hits the public `/actuator/health` endpoint with plain `java.net.http` (no auth headers required) and reports the active profile's login state:
 
@@ -235,7 +235,7 @@ public class SimpleStatusCliContribution implements CliCommandContribution {
 }
 ```
 
-Register it exactly like a `CliAuthExtension` — as another entry under `<cli><extensions>`:
+Register it exactly like a `CliAuthExtension`, as another entry under `<cli><extensions>`:
 
 ```xml
 <configuration>
@@ -249,7 +249,7 @@ Register it exactly like a `CliAuthExtension` — as another entry under `<cli><
 </configuration>
 ```
 
-The contributed command appears as a top-level subcommand alongside the entity and `auth`/`config`/`apply` commands — in the demo app, `aperture status`.
+The contributed command appears as a top-level subcommand alongside the entity and `auth`/`config`/`apply` commands. In the demo app, it is `aperture status`.
 
 ## Fat JAR vs native binary
 
@@ -274,7 +274,7 @@ target/generated-cli/aperture-cli/target/aperture --help
 
 ## Getting GraalVM for native builds
 
-The project uses [mise](https://mise.jdx.dev) for toolchain management. Switch to Oracle GraalVM — a drop-in replacement for a standard JDK that adds `native-image`:
+The project uses [mise](https://mise.jdx.dev) for toolchain management. Switch to Oracle GraalVM, a drop-in replacement for a standard JDK that adds `native-image`:
 
 ```toml
 # mise.toml
@@ -288,7 +288,7 @@ Then reinstall:
 mise install
 ```
 
-`native-image` is bundled with Oracle GraalVM — no separate installation step.
+Oracle GraalVM bundles `native-image`, so no separate installation step is needed.
 
 ### System dependencies
 
@@ -353,9 +353,9 @@ aperture get customers --filter status=ACTIVE --sort -createdAt --include orders
 
 Filters may be repeated or comma-separated. They are encoded as `filter[key]=value`.
 
-For entities with `optimisticLocking: true`, `update` and `delete` take a `--if-match <etag>` option — the CLI does not fetch the current ETag automatically, so pass the `version` attribute from a prior `get`/`create` call, quoted (e.g. `--if-match '"3"'`). Omitting it on a locked entity returns HTTP 428.
+For entities with `optimisticLocking: true`, `update` and `delete` take a `--if-match <etag>` option. The CLI does not fetch the current ETag automatically, so pass the `version` attribute from a prior `get`/`create` call, quoted (e.g. `--if-match '"3"'`). Omitting it on a locked entity returns HTTP 428.
 
-`create` and `update` also accept `-f <file>` as an alternative to typed flags, and `delete` accepts `-f <file> [-y]` — see [Declarative apply](#declarative-apply) below. These `-f` paths share the same file format and lookup machinery as `apply`.
+`create` and `update` also accept `-f <file>` as an alternative to typed flags, and `delete` accepts `-f <file> [-y]`. See [Declarative apply](#declarative-apply) below. These `-f` paths share the same file format and lookup machinery as `apply`.
 
 For `oneof` relationship fields, typed `create` and `update` commands use a concrete resource type
 and id pair:
@@ -446,7 +446,7 @@ lineitems:
 Atomic apply may also use `lid` instead of `id` when the selected member was created earlier in the
 same atomic batch.
 
-Records can also set an explicit `_ref:` key — a user-chosen label, valid for any entity, that other records in the same run can reference instead of (or as well as) the natural key:
+Records can also set an explicit `_ref:` key. This user-chosen label is valid for any entity, and other records in the same run can reference it instead of (or as well as) the natural key:
 
 ```yaml
 customers:
@@ -460,7 +460,7 @@ invoices:
     status: DRAFT
 ```
 
-`_ref` is never sent to the server — it's stripped like any other field the entity doesn't declare. It's most useful for entities with no natural key (no unique/name/code/sku/email/company_name/username field), where the only alternative is an internal, order-dependent positional label (see Limitations below).
+`_ref` is never sent to the server; it is stripped like any other field the entity does not declare. It is most useful for entities with no natural key (no unique/name/code/sku/email/company_name/username field), where the only alternative is an internal, order-dependent positional label (see Limitations below).
 
 Common commands:
 
@@ -472,7 +472,7 @@ aperture apply -f resources/customers.yaml --upsert
 aperture apply -f resources/ --continue-on-error
 aperture apply -f resources/ --atomic
 
-# create/update/delete also accept -f — a resource-less file mode on the same verbs used
+# create/update/delete also accept -f, a resource-less file mode on the same verbs used
 # for typed-flag CRUD, sharing apply's file format and lookup machinery (kubectl parity:
 # `-f` and a resource subcommand are mutually exclusive on the verb).
 aperture create -f resources/customers.yaml
@@ -514,11 +514,11 @@ All commands accept these flags (inherited by every subcommand):
 | `--format table\|json` | Output format (default: `table`) |
 | `-v, --verbose` | Print HTTP request/response details |
 
-If your manifests declare an `ApiVersionConfig` (`manifests/aperture/versions.yaml`), every entity is registered *only* under its real versions — there is no unversioned fallback. You shouldn't normally need `--api-version` at all, though: the generated CLI bakes in the manifest's `ACTIVE` version as `GlobalOptions.DEFAULT_API_VERSION`, used whenever neither `--api-version` nor a profile's pinned version (`config set-api-version`) is set. Use `--api-version`/`config set-api-version` to target a different (e.g. `SUNSET`) version explicitly.
+If your manifests declare an `ApiVersionConfig` (`manifests/aperture/versions.yaml`), every entity is registered *only* under its real versions, with no unversioned fallback. You should not normally need `--api-version` at all, though: the generated CLI bakes in the manifest's `ACTIVE` version as `GlobalOptions.DEFAULT_API_VERSION`, used whenever neither `--api-version` nor a profile's pinned version (`config set-api-version`) is set. Use `--api-version`/`config set-api-version` to target a different (e.g. `SUNSET`) version explicitly.
 
 ## Scope context (`scopedBy`)
 
-Some entities declare `scopedBy: <field>` in their manifest — a partition key, not a role. **Every operation on a scoped entity is fail-closed on the matching scope context, including `create`** — but the failure *shape* depends on what's being evaluated. A **list** (`get tasks`) with no `X-Aperture-Scope-<Field>` header comes back `200` with an **empty result set** (the server compiles the scope check into a SQL predicate, so nothing matches) — you don't see a 403, you see zero rows. A **single-object** evaluation returns `403`: a fetch by id, and the read-back a `create`/`update` performs to echo the just-written record (so even a bare `create tasks` fails closed with 403 if no scope header is present, though the write itself may already have landed). Distinct from all of that is the **400-on-mismatch** case: if a scope value *is* present in context but the relationship in the request body names a different one, the write is rejected outright with 400 before anything is persisted. So: no scope header → list is empty (200), single-object read/read-back is 403; present but wrong scope value on create/update → 400. `scopedBy` partitions data, it does not authorize access to a partition — any authenticated caller may name any scope value; pair it with an ABAC policy for real per-scope access control (see the manifest guide's `scopedBy` section).
+Some entities declare `scopedBy: <field>` in their manifest. This is a partition key, not a role. **Every operation on a scoped entity is fail-closed on the matching scope context, including `create`**, but the failure *shape* depends on what is being evaluated. A **list** (`get tasks`) with no `X-Aperture-Scope-<Field>` header comes back `200` with an **empty result set** (the server compiles the scope check into a SQL predicate, so nothing matches). You do not see a 403; you see zero rows. A **single-object** evaluation returns `403`: a fetch by id and the read-back a `create`/`update` performs to echo the just-written record (so even a bare `create tasks` fails closed with 403 if no scope header is present, though the write itself may already have landed). Distinct from all of that is the **400-on-mismatch** case: if a scope value *is* present in context but the relationship in the request body names a different one, the write is rejected outright with 400 before anything is persisted. In summary, no scope header means a list is empty (200) and a single-object read/read-back is 403; a present but wrong scope value on create/update produces 400. `scopedBy` partitions data but does not authorize access to a partition. Any authenticated caller may name any scope value, so pair it with an ABAC policy for real per-scope access control (see the manifest guide's `scopedBy` section).
 
 The CLI layers scope context exactly like `--tenant`, kubectl-namespace-style:
 
@@ -532,13 +532,13 @@ aperture get tasks                                  # now scoped automatically
 aperture config unset-scope project
 ```
 
-`--scope <field>=<value>` is repeatable — a command touching several entities can set a different scope per field in one invocation:
+`--scope <field>=<value>` is repeatable, allowing a command that touches several entities to set a different scope per field in one invocation:
 
 ```bash
 aperture get tasks --scope project=<project-id> --scope team=<team-id>
 ```
 
-Precedence: `--scope` overrides a persisted profile scope for the same field; any field not overridden on the command line falls through to what's stored on the profile. Field names are canonicalized to lowercase wherever they're set (`--scope Project=x` and `--scope project=x` collapse to the same entry) — the server also lowercases the header suffix it reads (`X-Aperture-Scope-<Field>`), so casing never matters.
+Precedence: `--scope` overrides a persisted profile scope for the same field; any field not overridden on the command line falls through to what is stored on the profile. Field names are canonicalized to lowercase wherever they are set (`--scope Project=x` and `--scope project=x` collapse to the same entry). The server also lowercases the header suffix it reads (`X-Aperture-Scope-<Field>`), so casing never matters.
 
 `config show` lists the active profile's configured scopes alongside its tenant:
 
@@ -549,17 +549,17 @@ aperture config show
 # Scopes:          project=8f14e45f-fceb-4dc5-8b1a-4d6c9e6f2b1a
 ```
 
-Without any scope configured, a request to a scoped entity fails closed — a list comes back empty, a create fails on the read-back:
+Without any scope configured, a request to a scoped entity fails closed. A list comes back empty, and a create fails on the read-back:
 
 ```bash
 aperture get tasks
-# (no rows)   HTTP 200 with an empty result set — the scope filter matches nothing
+# (no rows)   HTTP 200 with an empty result set; the scope filter matches nothing
 
 aperture create tasks --title "Ship it" --status TODO --project-id <project-id>
 # Error: ...HTTP 403...   (scope header missing on the read-back, even though the write itself was well-formed)
 
 aperture create tasks --title "Ship it" --status TODO --project-id <project-id> --scope project=<project-id>
-# succeeds — scope in context matches the project on the record
+# succeeds because scope in context matches the project on the record
 ```
 
 ## Shell completion

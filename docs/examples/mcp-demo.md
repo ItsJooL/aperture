@@ -96,7 +96,7 @@ domain model, permissions, and request handling.
 `tools/list` is scoped to the calling principal's roles (plan 016 phase 2): an
 `Admin` key sees all ten generated tools, `Assistant` sees everything except
 `delete_project`/`delete_task`, and `ReadOnly` sees only the four read tools.
-This is presentation only — it shapes what an agent is shown, not what it can
+This affects presentation only. It shapes what an agent is shown, not what it can
 do. `tools/call` is still authorized for real by Elide on every invocation,
 regardless of what `tools/list` returned, so this can never let a call through
 that Elide would otherwise reject.
@@ -140,7 +140,7 @@ list_tasks
 get_task
 ```
 
-Prove `tools/call` is unaffected by which key you used to *list* tools — a
+Prove `tools/call` is unaffected by which key you used to *list* tools. A
 call is authorized independently, every time, by Elide:
 
 ```bash
@@ -153,13 +153,13 @@ curl -s http://localhost:8082/mcp \
 ```
 
 A tool being hidden from `tools/list` does not mean the underlying operation
-is blocked if called directly — this filtering is presentation-only. Elide
-still authorizes every `tools/call` invocation underneath, so a caller who
+is blocked if called directly. This filtering is presentation-only. Elide still
+authorizes every `tools/call` invocation underneath, so a caller who
 already knows a tool's name and arguments is authorized (or rejected)
 exactly as if it had appeared in their `tools/list` response.
 
 To restore the pre-phase-2 behavior (every tool listed to every caller
-regardless of role), set `aperture.mcp.tool-list-scope: STATIC` — see
+regardless of role), set `aperture.mcp.tool-list-scope: STATIC`. See
 [the configuration reference](/reference/configuration#mcp-aperture-mcp-spring-ai-mcp).
 
 The Bruno collection's `04-mcp` folder has the same walkthrough as runnable

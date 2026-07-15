@@ -58,11 +58,11 @@ The JWT carries everything Aperture needs to enforce tenancy, RBAC, and ABAC:
 | `isTenantAdmin` | boolean | True if this user is a tenant administrator |
 | `scope` | string[] | Present only when `FORCE_CHANGE` is active (password change required) |
 
-Security attributes are admin-assigned key-value pairs stored in a JSONB column. ABAC policies compare against them using SpEL expressions (`#user.securityAttributes['department'] == 'finance'`). Ordinary users cannot modify security attributes — only the profile field is user-editable.
+Security attributes are admin-assigned key-value pairs stored in a JSONB column. ABAC policies compare against them using SpEL expressions (`#user.securityAttributes['department'] == 'finance'`). Ordinary users cannot modify security attributes; only the profile field is user-editable.
 
 **Profile vs. Security Attributes:**
-- **`profile`** — free-form user-editable metadata (display name, preferences, timezone, etc.). Users can update their own profile via `PATCH /auth/me`.
-- **`securityAttributes`** — admin-controlled security claims (department, region, clearance level, etc.) used for ABAC policies. Ordinary users **cannot** modify security attributes.
+- **`profile`:** free-form user-editable metadata (display name, preferences, timezone, etc.). Users can update their own profile via `PATCH /auth/me`.
+- **`securityAttributes`:** admin-controlled security claims (department, region, clearance level, etc.) used for ABAC policies. Ordinary users **cannot** modify security attributes.
 
 ## Token refresh
 
@@ -104,7 +104,7 @@ curl http://localhost:8080/api/v1/invoices \
   -H "X-API-Key: ak_..."
 ```
 
-Key values are shown only once at creation. Storage is a hash. Listing keys shows their ID, name, status, and expiry — never the key value itself.
+Key values are shown only once at creation. Storage is a hash. Listing keys shows their ID, name, status, and expiry, but never the key value itself.
 
 ## Personal API keys
 
@@ -123,7 +123,7 @@ Content-Type: application/json
 }
 ```
 
-Keys must be a **delegation** of the calling user's identity — they cannot carry roles or attributes the user doesn't currently hold. The system enforces this at creation time, and again on each use (fail-closed: if the user loses a role or attribute, existing keys that carried that role/attribute are immediately rejected).
+Keys must be a **delegation** of the calling user's identity, so they cannot carry roles or attributes the user does not currently hold. The system enforces this at creation time and again on each use (fail-closed: if the user loses a role or attribute, existing keys that carried it are immediately rejected).
 
 List own keys: `GET /auth/me/api-keys`  
 Disable own key: `POST /auth/me/api-keys/{keyId}/disable`
@@ -131,10 +131,10 @@ Disable own key: `POST /auth/me/api-keys/{keyId}/disable`
 **Tenant settings** control whether personal API keys are enabled and whether non-expiring keys are allowed:
 
 ```
-GET  /manage/tenants/{id}/settings/personal-api-keys   — read settings (TenantAdmin or SuperAdmin)
-PUT  /manage/tenants/{id}/settings/personal-api-keys   — update settings (TenantAdmin or SuperAdmin)
-GET  /manage/settings/personal-api-keys                — global defaults (SuperAdmin only)
-PUT  /manage/settings/personal-api-keys                — update global defaults (SuperAdmin only)
+GET  /manage/tenants/{id}/settings/personal-api-keys   # read settings (TenantAdmin or SuperAdmin)
+PUT  /manage/tenants/{id}/settings/personal-api-keys   # update settings (TenantAdmin or SuperAdmin)
+GET  /manage/settings/personal-api-keys                # global defaults (SuperAdmin only)
+PUT  /manage/settings/personal-api-keys                # update global defaults (SuperAdmin only)
 ```
 
 Tenant settings override global defaults. Both default to `enabled: true`, `allowNonExpiring: false`.
@@ -159,8 +159,8 @@ Tenant management requires the `SuperAdmin` authority. User management within a 
 | `PATCH` | `/manage/tenants/{id}/users/{uid}` | `SuperAdmin` or same-tenant `TenantAdmin` |
 | `DELETE` | `/manage/tenants/{id}/users/{uid}` | `SuperAdmin` or same-tenant `TenantAdmin` |
 | `PUT` | `/manage/tenants/{id}/users/{uid}/roles` | `SuperAdmin` or same-tenant `TenantAdmin` |
-| `POST` | `/manage/tenants/{id}/tenant-admins/{uid}` | `SuperAdmin` — grants `TenantAdmin` authority |
-| `DELETE` | `/manage/tenants/{id}/tenant-admins/{uid}` | `SuperAdmin` — revokes `TenantAdmin` authority |
+| `POST` | `/manage/tenants/{id}/tenant-admins/{uid}` | `SuperAdmin`; grants `TenantAdmin` authority |
+| `DELETE` | `/manage/tenants/{id}/tenant-admins/{uid}` | `SuperAdmin`; revokes `TenantAdmin` authority |
 | `POST` | `/manage/tenants/{id}/invites` | `SuperAdmin` or same-tenant `TenantAdmin` |
 | `GET` | `/manage/tenants/{id}/invites` | `SuperAdmin` or same-tenant `TenantAdmin` |
 | `DELETE` | `/manage/tenants/{id}/invites/{inviteId}` | `SuperAdmin` or same-tenant `TenantAdmin` |
@@ -180,7 +180,7 @@ Tenant management requires the `SuperAdmin` authority. User management within a 
 3. The invitee redeems the token via `POST /auth/accept-invite` with the token, their chosen username, and new password
 4. The account is created with the assigned roles; the invite token is consumed
 
-## The `CredentialValidator` SPI — swapping auth providers
+## Swapping auth providers with the `CredentialValidator` SPI
 
 The `CredentialValidator` interface is the only boundary between Aperture and the identity system:
 
@@ -196,7 +196,7 @@ public interface CredentialValidator {
 public record AperturePrincipal(
     String userId,
     String tenantId,
-    Set<String> roles,            // domain roles only — no platform authority strings
+    Set<String> roles,            // domain roles only; no platform authority strings
     PrincipalKind kind,           // USER, SERVICE_ACCOUNT, or PERSONAL_API_KEY
     Map<String, Object> profile,
     Map<String, Object> securityAttributes,
@@ -206,8 +206,8 @@ public record AperturePrincipal(
 ) implements java.security.Principal {}
 ```
 
-**To swap auth providers:** declare a Spring bean that implements `CredentialValidator`. The built-in `SimpleCredentialValidator` is annotated `@ConditionalOnMissingBean(CredentialValidator.class)` — declaring your own bean disables the entire JWT/API-key infrastructure in `aperture-simple-auth`.
+**To swap auth providers:** declare a Spring bean that implements `CredentialValidator`. The built-in `SimpleCredentialValidator` is annotated `@ConditionalOnMissingBean(CredentialValidator.class)`, so declaring your own bean disables the entire JWT/API-key infrastructure in `aperture-simple-auth`.
 
-Everything else in Aperture — tenancy, RBAC, ABAC, hooks, audit — reads from the `AperturePrincipal` and is unaffected by the auth provider swap.
+Tenancy, RBAC, ABAC, hooks, and audit all read from the `AperturePrincipal` and are unaffected by the auth provider swap.
 
 See the [Keycloak Integration example](/examples/keycloak) for a complete worked implementation.

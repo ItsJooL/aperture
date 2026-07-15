@@ -11,7 +11,7 @@ Aperture exposes metrics for internal components, and also leverages Spring Boot
 - `aperture.audit.write`: Timer and counter for audit log background writes (see [Audit Log Spans](#audit-log-spans) below for its tags).
 - `aperture.audit.queue.size`: Gauge tracking the current size of the async audit event queue.
 - `aperture.audit.dropped`: Counter of audit events dropped when the queue overflows.
-- `aperture.ratelimit.rejections`: Counter of requests rejected by the rate limiter, tagged by `type` (e.g. `ip`). This is currently only incremented by `InMemoryRateLimitProvider`. The Valkey-backed provider (the one used in `demos/aperture-demo`'s rate-limit walkthrough) has no equivalent counter today, and `RateLimitFilter`'s fail-open path (see [Rate limiting](/guide/security-audit#rate-limiting)) does not emit one either — a Valkey-backed deployment has no metric for either real rejections or fail-open events.
+- `aperture.ratelimit.rejections`: Counter of requests rejected by the rate limiter, tagged by `type` (e.g. `ip`).
 - `aperture.hook`: Timer and counter for outbound hook dispatch calls (see [Hook Dispatch Spans](#hook-dispatch-spans) below for its tags).
 
 ## Distributed Tracing (OpenTelemetry)
@@ -28,7 +28,7 @@ Low cardinality (appear on both the `http.server.requests` metric and the reques
 - `aperture.api.version`: The API version (the `v{n}` segment of the URI).
 - `aperture.operation`: The HTTP method (GET, POST, etc.).
 
-High cardinality (span-only — not promoted to the metric, since the value is unbounded):
+High cardinality (span-only and not promoted to the metric because the value is unbounded):
 
 - `aperture.tenant.id`: The ID of the authenticated tenant making the request.
 
@@ -42,7 +42,7 @@ When Aperture dispatches a webhook, it wraps the outbound HTTP call in an `apert
 - `hook.phase`: The phase of the hook (e.g., `PRESECURITY`, `PRECOMMIT`, `POSTCOMMIT`).
 - `hook.async`: Boolean indicating if the hook was executed asynchronously.
 - `entity`: The entity triggering the hook.
-- `outcome`: Set once the call completes — `ok` (2xx response), `rejected` (non-2xx response), or `error` (the request itself failed, e.g. timeout/connection error).
+- `outcome`: Set once the call completes to `ok` (2xx response), `rejected` (non-2xx response), or `error` (the request itself failed, e.g. timeout/connection error).
 - `retry.attempt`: Present only on retried async hook calls, set to the current attempt number (the first attempt has no `retry.attempt` tag).
 
 Trace context (like `traceparent`) is propagated to the remote webhook server, linking your hook service traces to the original API request.

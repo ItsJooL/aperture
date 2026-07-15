@@ -7,7 +7,7 @@ description: Manifests, the build pipeline, generated code, and lock files.
 
 ## The manifest-driven model
 
-YAML manifests are the single source of truth for everything Aperture generates. Every entity class, every permission annotation, every database migration, every hook wiring — all of it derives from the manifests. You never edit generated code; you edit the manifest and rebuild.
+YAML manifests are the single source of truth for everything Aperture generates. Every entity class, permission annotation, database migration, and hook wiring derives from the manifests. You never edit generated code; you edit the manifest and rebuild.
 
 Manifests live under the `manifests/` directory of your project:
 
@@ -30,7 +30,7 @@ manifests/
 
 ## Manifest kinds
 
-> For a by-example tour of every kind and field-level feature — `scopedBy`, `tenantScoped`, relationships, hooks, permissions, MCP, and more — see [Manifest Authoring](/guide/manifests).
+> For a by-example tour of every kind and field-level feature, including `scopedBy`, `tenantScoped`, relationships, hooks, permissions, and MCP, see [Manifest Authoring](/guide/manifests).
 
 | Kind | Purpose |
 |---|---|
@@ -109,12 +109,12 @@ the relationship data, for example `{ "type": "products", "id": "…" }`.
 
 When you run `mvn verify`, the `aperture-maven-plugin` runs during the `generate-sources` phase:
 
-1. **Parse** — reads all YAML files from `manifests/` into the domain model (`EntityDef`, `OneOfDef`, `FieldDef`, `HookDef`, etc.)
-2. **Diff** — reads snapshot JSON from `.aperture.lock/` and computes a diff against the current manifests
-3. **Breaking change check** — if fields were removed or types changed without an API version bump, the build fails
-4. **Code generation** — writes Java source files to `target/generated-sources/aperture/`
-5. **Changeset generation** — writes Liquibase XML to `target/generated-resources/db/changelog/`
-6. **Lock file update** — writes updated JSON snapshots to `.aperture.lock/`
+1. **Parse:** reads all YAML files from `manifests/` into the domain model (`EntityDef`, `OneOfDef`, `FieldDef`, `HookDef`, etc.)
+2. **Diff:** reads snapshot JSON from `.aperture.lock/` and computes a diff against the current manifests
+3. **Breaking change check:** if fields were removed or types changed without an API version bump, the build fails
+4. **Code generation:** writes Java source files to `target/generated-sources/aperture/`
+5. **Changeset generation:** writes Liquibase XML to `target/generated-resources/db/changelog/`
+6. **Lock file update:** writes updated JSON snapshots to `.aperture.lock/`
 
 Spring Boot then compiles the generated Java, and Liquibase runs the changesets on startup.
 
@@ -133,12 +133,16 @@ Optionally (when `<cli><enabled>true</enabled></cli>` is set in the plugin confi
 - A standalone Maven project at `target/generated-cli/aperture-cli/` containing a Picocli-based CLI
   with CRUD commands for every entity, auth commands, and a native image build profile
 
-The generation system uses an `ApertureGenerationTarget` SPI internally. Custom generation targets are not yet configurable via the plugin — this is planned for a future release. CLI generation *is* extensible through `<cli><extensions>`: put an implementation of `CliAuthExtension` (custom auth commands) and/or `CliCommandContribution` (additional top-level commands) on the Maven plugin classpath and list its class name in the plugin configuration — see [Generated CLI → Custom auth extensions](/guide/cli#custom-auth-extensions) and [Custom commands](/guide/cli#custom-commands). MCP generation has the same kind of seam via `<mcp><extensions>` and `McpToolContribution` — see [Extending MCP](/guide/manifests#extending-mcp).
+The generation system uses an `ApertureGenerationTarget` SPI internally. Custom generation targets are not yet configurable via the plugin, but this is planned for a future release.
+
+CLI generation *is* extensible through `<cli><extensions>`. Put an implementation of `CliAuthExtension` (custom auth commands) and/or `CliCommandContribution` (additional top-level commands) on the Maven plugin classpath and list its class name in the plugin configuration. See [Generated CLI → Custom auth extensions](/guide/cli#custom-auth-extensions) and [Custom commands](/guide/cli#custom-commands).
+
+MCP generation has the same kind of seam via `<mcp><extensions>` and `McpToolContribution`. See [Extending MCP](/guide/manifests#extending-mcp).
 
 For the changeset generator:
 
-- `aperture-schema.xml` — full DDL (used when deploying to a fresh database)
-- `aperture-incremental.xml` — diff-only delta (used for rolling upgrades to existing databases)
+- `aperture-schema.xml`: full DDL (used when deploying to a fresh database)
+- `aperture-incremental.xml`: diff-only delta (used for rolling upgrades to existing databases)
 - Manual migration files are copied from `manifests/migrations/` and included in the root changelog
 
 ## The lock files
@@ -173,7 +177,7 @@ Example (`1-Invoice.json`):
 }
 ```
 
-**Commit lock files alongside manifest changes.** They are the schema migration record — the diff engine needs them to know what the database currently looks like. Deleting them forces Aperture to treat every entity as new and regenerate all changesets from scratch.
+**Commit lock files alongside manifest changes.** They are the schema migration record that the diff engine uses to understand the current database shape. Deleting them forces Aperture to treat every entity as new and regenerate all changesets from scratch.
 
 ## Generated code is never hand-edited
 
@@ -184,4 +188,4 @@ The `target/generated-sources/aperture/` directory is regenerated on every build
 3. The generated code reflects the new manifest
 4. Commit: the manifest change + the updated lock files
 
-If you need logic that goes beyond what manifests can express, use hooks — they let you attach your own code over HTTP at the right point in the request lifecycle.
+If you need logic that goes beyond what manifests can express, use hooks to attach your own code over HTTP at the right point in the request lifecycle.

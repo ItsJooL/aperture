@@ -71,7 +71,7 @@ const sections = [
 const activeSection = ref('hero')
 const mobileMenuOpen = ref(false)
 
-// Use VitePress's own isDark ref — persists to localStorage and syncs with
+// Use VitePress's own isDark ref, which persists to localStorage and syncs with
 // the toggle that appears in the DefaultTheme navbar on all other pages.
 const { isDark } = useData()
 

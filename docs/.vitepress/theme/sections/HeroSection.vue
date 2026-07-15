@@ -12,8 +12,8 @@
 
     <p class="sub">
       Write a YAML manifest describing your domain. Aperture generates a
-      fully-compliant JSON:API server — auth, multi-tenancy, hooks, and audit —
-      with zero boilerplate code and zero schema management.
+      fully-compliant JSON:API server including auth, multi-tenancy, hooks, and
+      audit while requiring zero boilerplate code and zero schema management.
     </p>
 
     <div class="ctas">

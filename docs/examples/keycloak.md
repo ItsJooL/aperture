@@ -7,7 +7,7 @@ description: Swapping the auth provider using the CredentialValidator SPI.
 
 The Keycloak demo shows how to replace Aperture's built-in JWT auth with an external identity provider. The technique generalises to any OIDC provider: Okta, Auth0, Azure AD, or a custom SSO system.
 
-**What changes:** token validation. **What stays the same:** every entity endpoint, multi-tenancy, RBAC, ABAC, hooks, audit, and schema management — all unchanged.
+**What changes:** token validation. **What stays the same:** every entity endpoint, multi-tenancy, RBAC, ABAC, hooks, audit, and schema management.
 
 ## The `CredentialValidator` SPI
 
@@ -101,7 +101,7 @@ public class KeycloakCredentialValidator implements CredentialValidator {
 
 The `NimbusJwtDecoder` fetches Keycloak's public keys from the JWKS endpoint and verifies the JWT signature automatically. Role extraction reads the `realm_access.roles` Keycloak claim.
 
-Attribute extraction is **explicit, not broad**: profile is populated from a fixed allowlist of well-known OIDC claims (`name`, `given_name`, `family_name`, `email`, `preferred_username`, `picture`). Security attributes arrive only via the `KEYCLOAK_SECURITY_CLAIM_MAPPINGS` allowlist — no ambient claim promotion. This prevents unexpected JWT claims from silently entering Aperture's security context.
+Attribute extraction is **explicit, not broad**: profile is populated from a fixed allowlist of well-known OIDC claims (`name`, `given_name`, `family_name`, `email`, `preferred_username`, `picture`). Security attributes arrive only via the `KEYCLOAK_SECURITY_CLAIM_MAPPINGS` allowlist, with no ambient claim promotion. This prevents unexpected JWT claims from silently entering Aperture's security context.
 
 ## How Spring wiring disables simple-auth
 
@@ -111,7 +111,7 @@ Attribute extraction is **explicit, not broad**: profile is populated from a fix
 @ConditionalOnMissingBean(CredentialValidator.class)
 ```
 
-Declaring `KeycloakCredentialValidator` as a `@Component` satisfies this condition — Spring creates your bean and skips the entire `SimpleCredentialValidator` and the JWT infrastructure it depends on.
+Declaring `KeycloakCredentialValidator` as a `@Component` satisfies this condition. Spring creates your bean and skips the entire `SimpleCredentialValidator` and the JWT infrastructure it depends on.
 
 The demo also sets:
 
@@ -122,7 +122,7 @@ aperture:
       enabled: false
 ```
 
-This suppresses the `/auth/login`, `/auth/refresh`, and similar endpoints — they no longer make sense when auth is handled by Keycloak.
+This suppresses the `/auth/login`, `/auth/refresh`, and similar endpoints because they no longer make sense when Keycloak handles authentication.
 
 ## Configuration
 
@@ -175,9 +175,9 @@ The request goes through `KeycloakCredentialValidator` → JWKS validation → `
 
 The pattern is always the same:
 
-1. Implement `CredentialValidator` — extract the token, validate it against your provider's JWKS or introspection endpoint, build an `AperturePrincipal`
+1. Implement `CredentialValidator`: extract the token, validate it against your provider's JWKS or introspection endpoint, and build an `AperturePrincipal`
 2. Declare the bean as a `@Component` (or `@Bean` in a `@Configuration` class)
 3. Set `aperture.auth.simple.enabled: false` to suppress built-in auth endpoints
-4. Map your provider's claims to Aperture roles — ensure the role names in JWT claims match the role names in your `RoleDefinition` manifest
+4. Map your provider's claims to Aperture roles, ensuring the role names in JWT claims match the role names in your `RoleDefinition` manifest
 
 For providers that use different claim structures (e.g. Okta uses `groups`, Auth0 uses custom namespaced claims), adjust the role extraction logic in step 1.

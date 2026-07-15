@@ -2,7 +2,7 @@
   <section class="matrix">
     <p class="section-label">Complete feature set</p>
     <h2>Every feature, at a glance</h2>
-    <p class="section-sub">The curated tour above is the highlight reel. This is the whole inventory — grouped, linked, and ready to scan.</p>
+    <p class="section-sub">The curated tour above is the highlight reel. This is the whole inventory, grouped, linked, and ready to scan.</p>
 
     <div class="matrix-frame">
       <div class="matrix-scroll">
@@ -41,7 +41,7 @@ const categories: Category[] = [
     name: 'API Surface',
     rows: [
       { name: 'JSON:API', desc: 'Atomic operations, sparse fieldsets, compound documents, RSQL filtering, sorting, pagination.', href: '/reference/rest-api#json-api-features' },
-      { name: 'GraphQL (Elide)', desc: 'Same entities, same permissions, same manifests — queries, nested traversal, and mutations at /graphql/v{n}.', href: '/reference/configuration#graphql-elide-graphql' },
+      { name: 'GraphQL (Elide)', desc: 'The same entities, permissions, and manifests support queries, nested traversal, and mutations at /graphql/v{n}.', href: '/reference/configuration#graphql-elide-graphql' },
       { name: 'OpenAPI / Swagger', desc: 'Full spec generated from your manifests, served at /swagger-ui.html.', href: '/reference/configuration#openapi-swagger' },
       { name: 'API versioning', desc: 'ACTIVE / SUNSET lifecycle per version, with deprecation headers.', href: '/guide/build-deploy#api-versioning' },
       { name: 'MCP server', desc: 'list / get / create / update / delete tool stubs for AI assistants.', href: '/reference/configuration#mcp-aperture-mcp-spring-ai-mcp' },
@@ -51,10 +51,10 @@ const categories: Category[] = [
     name: 'Data Model',
     rows: [
       { name: 'Entities & relationships', desc: 'ManyToOne / OneToMany, with mappedBy for the inverse side.', href: '/reference/manifest-schema#spec-fields' },
-      { name: 'Unique & indexed fields', desc: 'Declared per field — generates unique or non-unique DB indexes.', href: '/reference/manifest-schema#spec-fields' },
+      { name: 'Unique & indexed fields', desc: 'Field-level declarations generate unique or non-unique DB indexes.', href: '/reference/manifest-schema#spec-fields' },
       { name: 'Optimistic locking', desc: 'Adds a version column, enforced via If-Match on mutations.', href: '/guide/security-audit#optimistic-locking' },
       { name: 'Soft delete', desc: 'Adds deleted_at; reads are auto-filtered to live rows.', href: '/reference/manifest-schema#boolean-spec-fields' },
-      { name: 'Scope partitioning (scopedBy)', desc: 'Partitions rows by a relationship, selected per request via header. Partitioning, not authorization — pair with ABAC to gate access.', href: '/guide/manifests#scoping-by-relationship-scopedby' },
+      { name: 'Scope partitioning (scopedBy)', desc: 'Partitions rows by a relationship, selected per request via header. Pair this partitioning with ABAC to gate access.', href: '/guide/manifests#scoping-by-relationship-scopedby' },
       { name: 'Field encryption', desc: 'AES-256-GCM ciphertext at rest, transparent to API callers.', href: '/guide/security-audit#field-level-encryption' },
       { name: 'Liquibase migrations', desc: 'Full-DDL and incremental changesets generated on every build.', href: '/guide/build-deploy#schema-automation' },
       { name: 'Manifest diffing', desc: 'Breaking-change detection against committed lock files.', href: '/guide/core-concepts#the-build-pipeline' },
@@ -67,16 +67,16 @@ const categories: Category[] = [
       { name: 'Pluggable identity', desc: 'Swap providers behind the CredentialValidator SPI.', href: '/guide/auth' },
       { name: 'RBAC', desc: 'Role-based permissions declared per entity and operation.', href: '/guide/security-audit#role-based-access-control-rbac' },
       { name: 'ABAC', desc: 'SpEL attribute policies for fine-grained, contextual rules.', href: '/guide/security-audit#attribute-based-access-control-abac' },
-      { name: 'Rate limiting', desc: 'Three independent token buckets keyed by IP, user, and tenant — configurable, with a pluggable in-memory or Valkey-backed provider.', href: '/guide/security-audit#rate-limiting' },
+      { name: 'Rate limiting', desc: 'Three configurable token buckets keyed by IP, user, and tenant, with a pluggable in-memory or Valkey-backed provider.', href: '/guide/security-audit#rate-limiting' },
       { name: 'Audit trail', desc: 'Post-commit, best-effort log of every mutation, tied to the request.', href: '/guide/security-audit#the-audit-trail' },
-      { name: 'Bootstrap admin (demo)', desc: 'Demo-only today: aperture-demo seeds a superadmin from an env var on first boot — not yet a general framework feature.', href: '/reference/configuration#bootstrap-admin' },
+      { name: 'Bootstrap admin (demo)', desc: 'Demo-only today: aperture-demo seeds a superadmin from an env var on first boot. This is not yet a general framework feature.', href: '/reference/configuration#bootstrap-admin' },
     ],
   },
   {
     name: 'Tenancy',
     rows: [
       { name: 'POOL mode', desc: 'Auto-filtered queries and tenant-aware foreign keys.', href: '/guide/multi-tenancy#pool-mode-in-depth' },
-      { name: 'NONE mode', desc: 'Single-tenant deployments — same codebase, different config.', href: '/guide/multi-tenancy#none-mode-in-depth' },
+      { name: 'NONE mode', desc: 'Single-tenant deployments use the same codebase with different config.', href: '/guide/multi-tenancy#none-mode-in-depth' },
       { name: 'Tenant lifecycle', desc: 'Provisioning, tenant admins, and the invite flow.', href: '/guide/multi-tenancy#tenant-provisioning' },
     ],
   },

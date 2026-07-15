@@ -353,7 +353,7 @@
   stroke-width: 5;
 }
 
-/* Centre schematic mark — same accent as rings, it's all one engine */
+/* Centre schematic mark uses the same accent as the rings; it is one engine */
 .center-mark path {
   fill: var(--home-accent);
 }
@@ -363,7 +363,7 @@
   fill: var(--home-accent);
 }
 
-/* JSON:API logo — letters in text colour, brackets/colon in accent */
+/* JSON:API logo uses text-coloured letters and accented brackets and colon */
 .jsonapi-logo path {
   fill: var(--home-text);
 }

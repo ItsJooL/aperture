@@ -13,7 +13,7 @@
             <span class="step-label">Define your model</span>
           </div>
           <h3>Describe your domain in YAML</h3>
-          <p>Declare entities, fields, types, and relationships. Mark entities as tenant-scoped. This manifest is the single source of truth — no Java, no Spring config.</p>
+          <p>Declare entities, fields, types, and relationships. Mark entities as tenant-scoped. This manifest is the single source of truth, with no Java or Spring config.</p>
         </div>
         <CodeWindow filename="invoice.yaml" :code="step1Code" />
       </div>
@@ -25,7 +25,7 @@
             <span class="step-label">Secure it</span>
           </div>
           <h3>Declare permissions and policies</h3>
-          <p>Define role-based access per operation and attribute-based policies inline. No separate security layer — Aperture enforces it at runtime from your manifest.</p>
+          <p>Define role-based access per operation and attribute-based policies inline. Aperture enforces them at runtime from your manifest, so there is no separate security layer.</p>
         </div>
         <CodeWindow filename="invoice.yaml" :code="step2Code" />
       </div>
@@ -37,7 +37,7 @@
             <span class="step-label">Hook into the lifecycle</span>
           </div>
           <h3>Attach validation and triggers</h3>
-          <p>Four hook types fire at the right phase of every request. You own the logic over HTTP — Aperture handles signing, retries, and failure modes.</p>
+          <p>Four hook types fire at the right phase of every request. You own the logic over HTTP while Aperture handles signing, retries, and failure modes.</p>
         </div>
         <CodeWindow filename="invoice.yaml" :code="step3Code" />
       </div>
@@ -137,4 +137,16 @@ h2 {
 .step-label { font-size: 11px; font-weight: 600; color: var(--home-muted); letter-spacing: .5px; text-transform: uppercase; }
 h3 { font-size: 19px; font-weight: 700; margin-bottom: 10px; letter-spacing: -0.3px; }
 p { color: var(--home-text-2); font-size: 14px; line-height: 1.65; }
+
+@media (max-width: 640px) {
+  .how { padding: 64px 20px; }
+  h2 { font-size: 28px; }
+  .section-sub { margin-bottom: 44px; }
+  .steps { gap: 48px; }
+  .step {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 24px;
+  }
+  .step.flip { direction: ltr; }
+}
 </style>

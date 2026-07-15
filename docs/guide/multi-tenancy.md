@@ -1,6 +1,6 @@
 ---
 title: Multi-Tenancy
-description: POOL and NONE tenancy modes — how they work and when to use each.
+description: POOL and NONE tenancy modes, how they work, and when to use each.
 ---
 
 # Multi-Tenancy
@@ -21,7 +21,7 @@ spec:
 | | POOL mode | NONE mode |
 |---|---|---|
 | Database isolation | `aperture_tenant_id` column on every tenant-scoped table | No tenant columns |
-| Query filtering | Automatic — all reads filter by the current tenant | None needed |
+| Query filtering | Automatic; all reads filter by the current tenant | None needed |
 | Tenant management | `/manage/tenants` API active | Not available (404) |
 | FK constraints | Tenant-aware (see below) | Standard FK constraints |
 | Token carries tenantId | Yes | No (shadow tenant internally) |
@@ -29,7 +29,7 @@ spec:
 
 ## POOL mode in depth
 
-POOL mode is the default. It uses a single shared database schema with tenant isolation enforced at the column level — the "shared pool" pattern.
+POOL mode is the default. It uses the "shared pool" pattern: a single database schema with tenant isolation enforced at the column level.
 
 ### The `aperture_tenant_id` column
 
@@ -47,11 +47,11 @@ A unique constraint `uq_{table}_tenant_id` is also generated on `(aperture_tenan
 
 At the start of each HTTP request, the Auth filter extracts the tenant ID from the JWT and stores it in `TenantContextHolder` (a `ThreadLocal<String>`). Elide reads the tenant ID from the holder and adds a `WHERE aperture_tenant_id = ?` clause to every query automatically. The holder is cleared at the end of each request.
 
-You cannot accidentally access another tenant's data — the filter applies before any application code runs.
+You cannot accidentally access another tenant's data because the filter applies before any application code runs.
 
 ### Tenant-aware foreign keys
 
-In POOL mode, foreign key constraints for tenant-scoped entities include the `aperture_tenant_id` column. A tenant can only relate their own records — you cannot create a relationship from Tenant A's invoice to Tenant B's customer.
+In POOL mode, foreign key constraints for tenant-scoped entities include the `aperture_tenant_id` column. A tenant can only relate its own records, so you cannot create a relationship from Tenant A's invoice to Tenant B's customer.
 
 The generated FK constraint for a ManyToOne relationship looks like:
 
@@ -76,7 +76,7 @@ through relationship Country.invoices in POOL tenancy mode
 | | `tenantScoped: true` | `tenantScoped: false` |
 |---|---|---|
 | `aperture_tenant_id` column | Yes | No |
-| Queries auto-filtered by tenant | Yes | No — all tenants share these rows |
+| Queries auto-filtered by tenant | Yes | No; all tenants share these rows |
 | FK constraints | Tenant-aware | Standard |
 | Use case | Core domain entities | Reference/lookup data shared across tenants |
 
@@ -84,7 +84,7 @@ The billing demo uses `tenantScoped: false` for `Country` and `Currency` (shared
 
 ### Tenant provisioning
 
-Creating a tenant via `POST /manage/tenants` is atomic — it creates the tenant record and the initial tenant administrator in a single transaction. If either part fails, neither is committed.
+Creating a tenant via `POST /manage/tenants` is atomic. It creates the tenant record and the initial tenant administrator in a single transaction. If either part fails, neither is committed.
 
 Request body:
 
@@ -99,13 +99,13 @@ Request body:
 }
 ```
 
-The initial admin user is created with a `forcePasswordChange: true` flag — they must change their password on first login.
+The initial admin user is created with a `forcePasswordChange: true` flag and must change their password on first login.
 
 ## NONE mode in depth
 
 NONE mode is for single-tenant deployments. No `aperture_tenant_id` columns are generated, the `/manage/tenants` API returns 404, and the runtime creates a single internal shadow tenant that all users belong to.
 
-Everything else — JWT auth, RBAC, ABAC, hooks, audit — works identically to POOL mode. Switching a deployment from NONE to POOL requires schema migration and is non-trivial; plan your tenancy model upfront.
+JWT auth, RBAC, ABAC, hooks, and audit all work identically to POOL mode. Switching a deployment from NONE to POOL requires schema migration and is non-trivial; plan your tenancy model upfront.
 
 See the [Single Tenant example](/examples/single-tenant) for a complete deployment walkthrough.
 

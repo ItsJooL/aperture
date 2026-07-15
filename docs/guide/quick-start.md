@@ -11,7 +11,7 @@ The billing demo is a full-featured multi-tenant billing API built with Aperture
 
 - [Docker](https://docs.docker.com/get-docker/) and Docker Compose v2
 
-No Java or Maven needed to run the demo — everything builds inside Docker.
+You do not need Java or Maven to run the demo because everything builds inside Docker.
 
 ## Start the demo
 
@@ -25,11 +25,11 @@ This starts six services:
 
 | Service | Port | Purpose |
 |---|---|---|
-| `postgres` | 5432 | PostgreSQL — data store |
+| `postgres` | 5432 | PostgreSQL data store |
 | `api-server` | 8080 | The Aperture-generated JSON:API server |
 | `hook-service` | 8081 | Demo webhook handler (validate-invoice, enrich-customer) |
-| `ui` | 3780 | Web dashboard — browse to `http://localhost:3780` |
-| `seeder` | — | Seeds demo tenants, users, and data, then exits |
+| `ui` | 3780 | Web dashboard at `http://localhost:3780` |
+| `seeder` | N/A | Seeds demo tenants, users, and data, then exits |
 | `jaeger` | 16686 | Distributed tracing UI (optional) |
 
 The API server takes about 60 seconds to start on first run (Liquibase applies schema migrations). Wait until the health check passes:
@@ -100,7 +100,7 @@ Response shape (JSON:API):
 }
 ```
 
-All three invoices belong to the Acme Corp tenant. The TechStart invoices are invisible — they're in a different tenant, isolated at the database level.
+All three invoices belong to the Acme Corp tenant. The TechStart invoices are invisible because database-level isolation places them in a different tenant.
 
 ## Filter, sort, and paginate
 
@@ -125,7 +125,7 @@ curl -s "http://localhost:8080/api/v1/invoices?include=customer" \
   -H "Authorization: Bearer $TOKEN" | jq .
 ```
 
-The response includes a `included` array with the customer records — one round-trip, no N+1.
+The response includes an `included` array with the customer records in one round-trip, with no N+1.
 
 ## Create an invoice
 
@@ -160,20 +160,20 @@ export TECH_TOKEN=$(curl -s -X POST http://localhost:8080/auth/login \
   -H 'Content-Type: application/json' \
   -d '{"username":"admin@techstart.com","password":"TechAdmin123!"}' | jq -r .accessToken)
 
-# This returns only TechStart's invoices — Acme's are invisible
+# This returns only TechStart's invoices; Acme's are invisible
 curl -s http://localhost:8080/api/v1/invoices \
   -H "Authorization: Bearer $TECH_TOKEN" | jq '.meta.pagination.totalRecords'
 ```
 
 ## What you just saw
 
-- **JSON:API** — every response follows the standard: `data` array with `type`/`id`/`attributes`/`relationships`, `meta.pagination`, `included` for compound documents
-- **Multi-tenancy** — the `aperture_tenant_id` column is present on every tenant-scoped table; all queries are auto-filtered by the current principal's tenant
-- **JWT auth** — the `/auth/login` endpoint is Aperture-generated; the token carries tenant ID and roles as claims
-- **Hooks** — the `ValidateInvoice` hook fires on every `POST /invoices`; the hook service URL is declared in `manifests/domain/billing/invoice.yaml`
+- **JSON:API:** every response follows the standard: `data` array with `type`/`id`/`attributes`/`relationships`, `meta.pagination`, `included` for compound documents
+- **Multi-tenancy:** the `aperture_tenant_id` column is present on every tenant-scoped table; all queries are auto-filtered by the current principal's tenant
+- **JWT auth:** the `/auth/login` endpoint is Aperture-generated; the token carries tenant ID and roles as claims
+- **Hooks:** the `ValidateInvoice` hook fires on every `POST /invoices`; the hook service URL is declared in `manifests/domain/billing/invoice.yaml`
 
 ## Next steps
 
-- **[Core Concepts](/guide/core-concepts)** — how manifests, the build pipeline, and lock files work
-- **[Auth & Identity](/guide/auth)** — service accounts, API keys, and swapping the auth provider
-- **[Billing Demo walkthrough](/examples/billing-demo)** — full exploration of every feature
+- **[Core Concepts](/guide/core-concepts):** how manifests, the build pipeline, and lock files work
+- **[Auth & Identity](/guide/auth):** service accounts, API keys, and swapping the auth provider
+- **[Billing Demo walkthrough](/examples/billing-demo):** full exploration of every feature

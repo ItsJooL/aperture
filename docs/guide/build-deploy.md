@@ -32,16 +32,16 @@ Default configuration (all paths relative to `${project.basedir}`):
 
 ### Generated CLI (optional)
 
-Aperture can generate a fully-featured CLI for your API from your manifests — entity CRUD commands, auth, profiles, and optional GraalVM native binary support. It is **off by default**.
+Aperture can generate a fully-featured CLI for your API from your manifests, including entity CRUD commands, auth, profiles, and optional GraalVM native binary support. It is **off by default**.
 
 See the [Generated CLI guide](/guide/cli) for full setup instructions, GraalVM native builds, platform targeting, and configuration reference.
 
-`mvn clean` deletes `target/` entirely — regenerate with `mvn package` or `mvn verify`.
+`mvn clean` deletes `target/` entirely. Regenerate with `mvn package` or `mvn verify`.
 
 ## Building
 
 ```bash
-# Full build — validates manifests, generates code and changesets, compiles, tests, packages
+# Full build: validates manifests, generates code and changesets, compiles, tests, packages
 mvn verify --no-transfer-progress
 
 # Faster: only the core runtime and engine modules (no demo)
@@ -61,11 +61,11 @@ The build fails if:
 
 The changeset generator produces two Liquibase XML files per build:
 
-### `aperture-schema.xml` — full DDL
+### `aperture-schema.xml`: full DDL
 
-Contains `createTable` changesets for every entity, plus all foreign key constraints and indexes. Used when deploying to a fresh database. Liquibase runs this file idempotently — change sets that have already applied are skipped.
+Contains `createTable` changesets for every entity, plus all foreign key constraints and indexes. Used when deploying to a fresh database. Liquibase runs this file idempotently, skipping change sets that have already applied.
 
-### `aperture-incremental.xml` — diff-only delta
+### `aperture-incremental.xml`: diff-only delta
 
 Contains only the changes between the current manifest and the committed lock files. Run on every deploy against an existing database.
 
@@ -73,7 +73,7 @@ The four diff categories and what they generate:
 
 | Change | Generated changeset | Notes |
 |---|---|---|
-| New field added | `addColumn` with `MARK_RAN` precondition | Idempotent — skipped if column already exists |
+| New field added | `addColumn` with `MARK_RAN` precondition | Idempotent; skipped if column already exists |
 | Field renamed (`renamedFrom:`) | `renameColumn` | No data loss |
 | Field removed | `dropColumn` with `context="pending"` | **Not applied automatically** (see Deferred drops) |
 | `oneof` field added | `addColumn` for `{field}_type` and `{field}_id`, plus a composite index | No FK constraint, because the target table depends on the row; POOL mode prefixes the index with `aperture_tenant_id` |
@@ -101,7 +101,7 @@ mvn liquibase:update -Dliquibase.contexts=pending
 
 This safety mechanism means you can remove a field from the manifest, deploy the new version (which stops reading/writing the column), and only drop the column when you are confident the data is no longer needed. Accidental `DROP COLUMN` with data loss is not possible through normal deployments.
 
-### `renamedFrom` — zero-downtime renames
+### `renamedFrom`: zero-downtime renames
 
 To rename a field without data loss, add `renamedFrom:` to the new field definition:
 
@@ -121,7 +121,7 @@ After a successful build, the Maven plugin writes updated JSON snapshots to `.ap
 
 Lock files serve two purposes:
 1. They tell the diff engine what the database currently looks like
-2. They are the schema migration record — without them, the next build treats every entity as new and regenerates all changesets from scratch
+2. They are the schema migration record. Without them, the next build treats every entity as new and regenerates all changesets from scratch
 
 Never delete lock files unless you intend to recreate the entire schema from scratch.
 
@@ -164,7 +164,7 @@ fields:
     since: 2           # invisible to v1 clients
 ```
 
-The code generator produces versioned entity classes — `V1Customer` and `V2Customer`. Requests to `/api/v1/customers` use `V1Customer` (no `phone_number`). Requests to `/api/v2/customers` use `V2Customer` (with `phone_number`). Old clients continue to work without modification.
+The code generator produces versioned entity classes such as `V1Customer` and `V2Customer`. Requests to `/api/v1/customers` use `V1Customer` (no `phone_number`). Requests to `/api/v2/customers` use `V2Customer` (with `phone_number`). Old clients continue to work without modification.
 
 API versions and their status (`ACTIVE` or `SUNSET`) are declared in `ApiVersionConfig` manifests:
 
@@ -181,7 +181,7 @@ spec:
 
 Removing a version (or setting it to `SUNSET`) requires an API version bump to avoid breaking changes at build time.
 
-Every entity is reachable over GraphQL as well as JSON:API, at `/graphql/{version}` — off by
+Every entity is reachable over GraphQL as well as JSON:API, at `/graphql/{version}`. GraphQL is off by
 default, and gated on the same path-based versioning as the REST endpoints. Nested relationship
 traversal and mutations both work against the same permission and manifest model as REST for
 ordinary entity relationships. `oneof` fields are a JSON:API/CLI/MCP contract in this release, not
@@ -214,20 +214,20 @@ All Aperture configuration is environment-variable-driven. Required at runtime:
 
 | Variable | Description |
 |---|---|
-| `DB_URL` | JDBC URL — e.g. `jdbc:postgresql://postgres:5432/myapp` |
+| `DB_URL` | JDBC URL, for example `jdbc:postgresql://postgres:5432/myapp` |
 | `DB_USER` | Database username |
 | `DB_PASS` | Database password |
-| `APERTURE_JWT_SECRET` | HMAC signing key — minimum 32 bytes |
-| `APERTURE_ENCRYPTION_KEY` | AES-256 encryption key — 32-byte Base64 (`openssl rand -base64 32`) |
+| `APERTURE_JWT_SECRET` | HMAC signing key; minimum 32 bytes |
+| `APERTURE_ENCRYPTION_KEY` | AES-256 encryption key; 32-byte Base64 (`openssl rand -base64 32`) |
 | `APERTURE_HOOKS_SECRET` | Shared secret for hook request signing |
 
 `APERTURE_BOOTSTRAP_ADMIN_PASSWORD` (seen in the demo compose files) is **not** a general
-Aperture variable — see [Bootstrap admin](/reference/configuration#bootstrap-admin) for what
+Aperture variable. See [Bootstrap admin](/reference/configuration#bootstrap-admin) for what
 actually consumes it.
 
 ### Schema migration on startup
 
-Liquibase runs automatically on startup. Against a fresh database it applies the full DDL from `aperture-schema.xml`; against an existing database it runs only the incremental changesets from `aperture-incremental.xml`. The `/actuator/health` endpoint reports `DOWN` until migrations complete — configure your orchestrator health check accordingly:
+Liquibase runs automatically on startup. Against a fresh database it applies the full DDL from `aperture-schema.xml`; against an existing database it runs only the incremental changesets from `aperture-incremental.xml`. The `/actuator/health` endpoint reports `DOWN` until migrations complete, so configure your orchestrator health check accordingly:
 
 ```yaml
 healthcheck:

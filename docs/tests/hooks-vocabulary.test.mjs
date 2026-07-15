@@ -16,7 +16,7 @@ const docFiles = [
   'examples/billing-demo.md',
 ].map((file) => resolve(docsRoot, file));
 
-// Every markdown file under demos/** — demo READMEs and Bruno-collection READMEs
+// Every markdown file under demos/**, including demo and Bruno collection READMEs
 // are just as reader-facing as the docs site, and have gone stale before (a
 // renamed .bru file, a retired hook-phase name) with nothing catching it because
 // this guard only ever scanned the docs-site pages above.

@@ -1,7 +1,7 @@
 <template>
   <section class="cta">
     <h2>Ready to stop bikeshedding?</h2>
-    <p>Write a manifest. Ship a production API. Focus on the model — Aperture handles the exposure.</p>
+    <p>Write a manifest. Ship a production API. Focus on the model while Aperture handles the exposure.</p>
     <div class="cta-buttons">
       <a href="/guide/" class="btn-primary">Get Started →</a>
       <a href="https://github.com/ItsJooL/aperture" class="btn-outline" target="_blank" rel="noopener">View on GitHub</a>

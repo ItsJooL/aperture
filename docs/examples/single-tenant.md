@@ -1,11 +1,11 @@
 ---
 title: Single Tenant
-description: NONE mode deployment — a minimal note-taking API with no multi-tenancy.
+description: A minimal NONE mode note-taking API with no multi-tenancy.
 ---
 
 # Single Tenant
 
-The single-tenant demo shows Aperture in `tenancyMode: none`. There are no `aperture_tenant_id` columns, no `/manage/tenants` API, and no tenant isolation. Everything is simpler — one implicit tenant, one set of users.
+The single-tenant demo shows Aperture in `tenancyMode: none`. There are no `aperture_tenant_id` columns, no `/manage/tenants` API, and no tenant isolation. Everything is simpler, with one implicit tenant and one set of users.
 
 ## When to choose NONE mode
 
@@ -113,7 +113,7 @@ curl -s -X DELETE http://localhost:8080/api/v1/notes/1 \
 | `/manage/tenants` API | Available | 404 |
 | Tenant context in JWT | Yes | No |
 | FK constraints | Tenant-aware | Standard |
-| Multi-user data isolation | Per-tenant | None — all users share all data |
+| Multi-user data isolation | Per-tenant | None; all users share all data |
 | Auth, RBAC, ABAC, hooks | Unchanged | Unchanged |
 
 ## Migrating from NONE to POOL

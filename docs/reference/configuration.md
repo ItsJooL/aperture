@@ -41,9 +41,9 @@ required relationships consistently.
 
 | Property | Type | Default | Description |
 |---|---|---|---|
-| `aperture.auth.jwt.secret` | string | — | **Required.** HMAC signing key. Use `${APERTURE_JWT_SECRET}`. Minimum 32 bytes. |
-| `aperture.auth.jwt.issuer` | string | — | JWT `iss` claim value |
-| `aperture.auth.jwt.audience` | string | — | JWT `aud` claim value |
+| `aperture.auth.jwt.secret` | string | None | **Required.** HMAC signing key. Use `${APERTURE_JWT_SECRET}`. Minimum 32 bytes. |
+| `aperture.auth.jwt.issuer` | string | None | JWT `iss` claim value |
+| `aperture.auth.jwt.audience` | string | None | JWT `aud` claim value |
 | `aperture.auth.jwt.access-duration` | ISO 8601 duration | `PT15M` | Access token lifetime |
 | `aperture.auth.refresh-duration` | ISO 8601 duration | `PT720H` | Refresh token lifetime (30 days) |
 | `aperture.auth.simple.enabled` | boolean | `true` | Set `false` to disable all simple-auth endpoints (when using a custom `CredentialValidator`) |
@@ -145,7 +145,7 @@ aperture:
 | `aperture.hooks.secret` | string | `default-hook-secret` | Shared secret sent in `X-Hook-Secret` header |
 | `aperture.hooks.base-url` | string | (empty) | Override the host portion of all hook URLs |
 | `aperture.hooks.timeout.commit` | duration string | `5s` | Timeout for the phase-gated `validate` (PRECOMMIT) and `trigger` (POSTCOMMIT) hook calls |
-| `aperture.hooks.timeout.async` | duration string | `30s` | Timeout for `guard` (PRESECURITY) hook calls, and — hardcoded regardless of phase — every `mutate` call |
+| `aperture.hooks.timeout.async` | duration string | `30s` | Timeout for `guard` (PRESECURITY) hook calls and, hardcoded regardless of phase, every `mutate` call |
 | `aperture.hooks.timeout.connect` | duration string | `2s` | TCP connect timeout |
 
 ```yaml
@@ -166,8 +166,8 @@ aperture:
 | `aperture.mcp.tool-list-scope` | `PRINCIPAL` \| `STATIC` | `PRINCIPAL` | `PRINCIPAL` scopes `tools/list` to the calling principal's roles and principal-only ABAC policies. `STATIC` restores the pre-phase-2 behavior: every generated tool is listed to every caller regardless of role |
 | `spring.ai.mcp.server.protocol` | string | `STATELESS` | MCP server mode. Aperture currently supports stateless HTTP |
 | `spring.ai.mcp.server.streamable-http.mcp-endpoint` | string | `/mcp` | HTTP endpoint for MCP JSON-RPC requests |
-| `spring.ai.mcp.server.name` | string | — | MCP server name shown to clients |
-| `spring.ai.mcp.server.version` | string | — | MCP server version shown to clients |
+| `spring.ai.mcp.server.name` | string | None | MCP server name shown to clients |
+| `spring.ai.mcp.server.version` | string | None | MCP server version shown to clients |
 
 `aperture.mcp.enabled` controls Aperture's generated tool registration.
 Spring AI's `spring.ai.mcp.server.*` properties control the transport. For
@@ -199,13 +199,13 @@ spring:
 
 With `tool-list-scope: PRINCIPAL` (the default), a caller only sees the generated tools their
 `domainRoles` and principal-only ABAC policies (expressions referencing only `#user`, decidable
-with no row in hand) could plausibly succeed at — e.g. a `ReadOnly`-role API key sees `list_*`/`get_*`
+with no row in hand) could plausibly succeed at. For example, a `ReadOnly`-role API key sees `list_*`/`get_*`
 tools but not `create_*`/`update_*`/`delete_*`. Superadmin principals always see every tool, and a
 TenantAdmin principal sees every tool of a tenant-scoped (or `scopedBy`) entity regardless of their
-own `domainRoles` — mirroring the `TenantAdminCheck` bypass Elide already grants those entities.
+own `domainRoles`, mirroring the `TenantAdminCheck` bypass Elide already grants those entities.
 
-**This is not an authorization boundary.** It exists purely so an agent-facing tool list — which
-functions like a prompt on every conversation — doesn't tempt a model with tools its principal
+**This is not an authorization boundary.** It exists purely so an agent-facing tool list, which
+functions like a prompt on every conversation, does not tempt a model with tools its principal
 would never actually succeed at calling. `tools/call` is still authorized for real by Elide on
 every invocation, completely independent of what `tools/list` returned; a bug in this filtering can
 leak a tool *name* to a caller who shouldn't see it, but it can never leak data and can never let a
@@ -215,11 +215,11 @@ call through that Elide would otherwise reject. See `McpToolListFilter`'s javado
 An ABAC policy expression referencing `#record` or `#input` is row-scoped and cannot be decided
 without a row in hand; such policies never participate in `tools/list` filtering. If a role also
 grants the same operation, the tool they apply to stays listed for that role, unfiltered by the
-row-scoped policy — Elide alone enforces it on the actual call. But if the operation is granted
+row-scoped policy; Elide alone enforces it on the actual call. But if the operation is granted
 *only* by a row-scoped policy (no role grants it), the tool has no role to be listed under, so it
 is hidden from every caller except SuperAdmin and (for tenant-scoped/`scopedBy` entities)
 TenantAdmin. `McpToolContribution` tools have no entity or operation and are never
-registry-governed — they are always listed, regardless of `tool-list-scope`.
+registry-governed. They are always listed, regardless of `tool-list-scope`.
 
 See [Extending MCP](/guide/manifests#extending-mcp) for the two ways to add behavior beyond
 the generated per-entity tools: build-time tool contributions (`McpToolContribution`) and the
@@ -227,7 +227,7 @@ runtime `McpRequestAdapter` bean seam.
 
 ## GraphQL (`elide.graphql`)
 
-Aperture's entity dictionary is also queryable over GraphQL — same entities, same permissions, same manifests, just a different transport. This is a native Elide/Spring property, not an `aperture.*` one, and it isn't manifest-driven: there's no per-entity or per-field GraphQL config, it's a single on/off switch for the whole app.
+Aperture's entity dictionary is also queryable over GraphQL, with the same entities, permissions, and manifests over a different transport. This is a native Elide/Spring property, not an `aperture.*` one, and it isn't manifest-driven: there's no per-entity or per-field GraphQL config, just a single on/off switch for the whole app.
 
 | Property | Type | Default | Description |
 |---|---|---|---|
@@ -241,22 +241,22 @@ elide:
     path: /graphql
 ```
 
-GraphQL requires the path-based API versioning strategy (`elide.api-versioning-strategy.path.enabled: true` — see [API versioning](/guide/build-deploy#api-versioning)); there is no unversioned `/graphql` route. Query and mutation field names are the plural JSON:API resource path (`customers`, `invoices`, `lineitems`), not the singular entity name, and results come back as Relay-style connections (`{ edges { node { ... } } }`).
+GraphQL requires the path-based API versioning strategy (`elide.api-versioning-strategy.path.enabled: true`; see [API versioning](/guide/build-deploy#api-versioning)); there is no unversioned `/graphql` route. Query and mutation field names are the plural JSON:API resource path (`customers`, `invoices`, `lineitems`), not the singular entity name, and results come back as Relay-style connections (`{ edges { node { ... } } }`).
 
 `oneof` relationship fields are omitted from the generated GraphQL schema in this release. Their
 owning entities and ordinary relationships remain available. Use JSON:API, the generated CLI, or
 generated MCP tools to read and write the selected one-of member.
 
-To disable GraphQL entirely, omit the `elide.graphql` block or set `elide.graphql.enabled: false` — this is also the default if the block is absent.
+To disable GraphQL entirely, omit the `elide.graphql` block or set `elide.graphql.enabled: false`. This is also the default if the block is absent.
 
 ## Tracing (`management.tracing`)
 
-These are standard Spring Boot / Micrometer Tracing properties, not `aperture.*` ones — Aperture only supplies a default for the sampling probability.
+These are standard Spring Boot / Micrometer Tracing properties, not `aperture.*` ones. Aperture only supplies a default for the sampling probability.
 
 | Property | Type | Default | Description |
 |---|---|---|---|
 | `management.tracing.sampling.probability` | double | `0.1` | Fraction of requests traced. The `0.1` default is set by `ApertureDefaultsEnvironmentPostProcessor`; override to sample more (e.g. `1.0`, as `demos/aperture-demo` does, for full tracing in a demo/test environment) |
-| `management.otlp.tracing.endpoint` | string | — | OTLP/HTTP trace exporter endpoint, e.g. `http://jaeger:4318/v1/traces`. Requires the OTel exporter dependency on the classpath |
+| `management.otlp.tracing.endpoint` | string | None | OTLP/HTTP trace exporter endpoint, e.g. `http://jaeger:4318/v1/traces`. Requires the OTel exporter dependency on the classpath |
 
 ```yaml
 management:
@@ -295,14 +295,14 @@ When enabled, the generated OpenAPI spec includes all entity endpoints, auth and
 ## Bootstrap admin
 
 There is no `aperture.bootstrap.*` property in Aperture, and the runtime/starter do not
-read `APERTURE_BOOTSTRAP_ADMIN_PASSWORD` — automatic superadmin provisioning is not currently a
+read `APERTURE_BOOTSTRAP_ADMIN_PASSWORD`. Automatic superadmin provisioning is not currently a
 general Aperture feature, despite what earlier revisions of this page implied. Setting
 `aperture.bootstrap.admin-password` in your own `application.yml` has no effect; nothing binds it.
 
 What exists today is demo-specific: `demos/aperture-demo` ships its own `DemoBootstrap`
 component (active only when `aperture.profile=demo`) that creates a fixed
 `superadmin@aperture.local` user on `ApplicationReadyEvent`, reading the raw
-`APERTURE_BOOTSTRAP_ADMIN_PASSWORD` environment variable directly — not through any
+`APERTURE_BOOTSTRAP_ADMIN_PASSWORD` environment variable directly, not through any
 `aperture.*` configuration property. If your own application needs a bootstrap superadmin,
 write an equivalent `ApplicationReadyEvent` listener; see
 `demos/aperture-demo/src/main/java/com/itsjool/aperture/demo/DemoBootstrap.java` for the pattern.
@@ -340,5 +340,5 @@ aperture:
     secret: ${APERTURE_HOOKS_SECRET}
 ```
 
-`APERTURE_BOOTSTRAP_ADMIN_PASSWORD` is not read by this configuration — see
+`APERTURE_BOOTSTRAP_ADMIN_PASSWORD` is not read by this configuration. See
 [Bootstrap admin](#bootstrap-admin) above.

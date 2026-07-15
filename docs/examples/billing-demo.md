@@ -1,6 +1,6 @@
 ---
 title: Billing Demo
-description: A full-featured multi-tenant billing API — POOL mode, all Aperture features enabled.
+description: A full-featured multi-tenant billing API in POOL mode with every Aperture feature enabled.
 ---
 
 # Billing Demo
@@ -57,9 +57,9 @@ Twelve entities in three domain areas, plus one named one-of concept:
 The `seeder` service creates two tenants at startup:
 
 **Acme Corp** (`admin@acme.com` / `AcmeAdmin123!`)
-- `admin@acme.com` — `TenantAdmin`
-- `accountant@acme.com` — `Accountant` with `department=finance`, `region=eu`, `status=active`
-- `viewer@acme.com` — `Viewer`
+- `admin@acme.com`: `TenantAdmin`
+- `accountant@acme.com`: `Accountant` with `department=finance`, `region=eu`, `status=active`
+- `viewer@acme.com`: `Viewer`
 - 3 customers, 3 invoices (PAID / ISSUED / DRAFT), 3 products, 2 service packages, 2 subscription plans
 
 `LineItem.billable` points at the `Billable` one-of. In the demo, `Billable` has three members:
@@ -68,8 +68,8 @@ The `seeder` service creates two tenants at startup:
 each concrete member.
 
 **TechStart Inc** (`admin@techstart.com` / `TechAdmin123!`)
-- `admin@techstart.com` — `TenantAdmin`
-- `dev@techstart.com` — `Accountant`
+- `admin@techstart.com`: `TenantAdmin`
+- `dev@techstart.com`: `Accountant`
 - 2 customers, 2 invoices, 2 products, 1 service package, 1 subscription plan
 
 ## Feature walkthroughs
@@ -101,10 +101,10 @@ export TECH_TOKEN=$(curl -s -X POST http://localhost:8080/auth/login \
 
 curl -s http://localhost:8080/api/v1/invoices \
   -H "Authorization: Bearer $TECH_TOKEN" | jq '.meta.pagination.totalRecords'
-# 2  — TechStart's invoices only
+# 2: TechStart's invoices only
 ```
 
-### 2. RBAC — Viewer cannot create
+### 2. RBAC: Viewer cannot create
 
 ```bash
 export VIEWER_TOKEN=$(curl -s -X POST http://localhost:8080/auth/login \
@@ -118,13 +118,13 @@ curl -s -X POST http://localhost:8080/api/v1/invoices \
 # "403"
 ```
 
-### 3. ABAC — FinanceTeamOnly policy
+### 3. ABAC: FinanceTeamOnly policy
 
 The `Accountant` role grants access to invoices, but the `FinanceTeamOnly` policy additionally requires `department=finance`.
 
-The seeded `accountant@acme.com` has `department=finance` — they can read invoices. A user with `Accountant` role but `department=marketing` would be denied by the policy even though the role grants access.
+The seeded `accountant@acme.com` has `department=finance`, so they can read invoices. A user with the `Accountant` role but `department=marketing` would be denied by the policy even though the role grants access.
 
-### 4. Validate hook — reject an invalid invoice
+### 4. Validate hook: reject an invalid invoice
 
 Creating an invoice fires the `ValidateInvoice` validation hook synchronously before the record is committed. Valid invoices continue:
 
@@ -171,9 +171,9 @@ curl -s -X POST http://localhost:8080/api/v1/invoices \
 
 The callback includes `X-Hook-Secret`; the demo hook service rejects callbacks that do not carry the configured secret.
 
-### 5. Guard hook — reject a bulk line item
+### 5. Guard hook: reject a bulk line item
 
-`LineItem` has a `CheckLineItem` hook with `type: guard`. This runs before auth checks — it can block the request before Aperture even evaluates permissions:
+`LineItem` has a `CheckLineItem` hook with `type: guard`. It can block the request before Aperture evaluates permissions because it runs before auth checks:
 
 ```bash
 curl -s -X POST http://localhost:8080/api/v1/operations \
@@ -212,7 +212,7 @@ curl -s -X POST http://localhost:8080/api/v1/operations \
 
 The hook service treats unusually large quantities as requiring manual review and rejects the line item. Because this is an atomic operation, the invoice in the same request is rolled back too.
 
-### 6. Mutate hook — normalize a customer before persistence
+### 6. Mutate hook: normalize a customer before persistence
 
 Create a v3 customer with extra whitespace in the name:
 
@@ -225,7 +225,7 @@ curl -s -X POST http://localhost:8080/api/v3/customers \
 
 The `EnrichCustomer` mutate hook returns `data.attributes.name` with the trimmed value. Aperture applies that response body before the customer is persisted.
 
-### 7. Trigger hooks — asynchronous side effects
+### 7. Trigger hooks: asynchronous side effects
 
 `Supplier.NotifySupplier`, `Product.ProductChanged`, `Currency.SyncCurrency`, and `Customer.TenantProvisioned` are trigger hooks. They fire after commit and do not hold open the API response.
 
@@ -267,7 +267,7 @@ curl -s -X PATCH http://localhost:8080/api/v1/customers/1 \
 
 ### 9. Field encryption (Customer email)
 
-The `email` field on `Customer` is `encrypted: true`. The API returns the plaintext value to authorised callers — decryption happens in the JVM. But if you query the database directly:
+The `email` field on `Customer` is `encrypted: true`. The API returns the plaintext value to authorised callers after decrypting it in the JVM. But if you query the database directly:
 
 ```bash
 docker compose exec postgres psql -U aperture -c "SELECT email FROM aperture_customers LIMIT 1;"
@@ -297,7 +297,7 @@ For a walkthrough of how `tools/list` itself is scoped to the caller's role
 
 The demo ships with Jaeger. Browse to `http://localhost:16686` to see traces for all requests, including hook calls.
 
-## Diagram — entity relationships
+## Entity relationship diagram
 
 ```
 Country (global) ←─── Customer (tenant-scoped, encrypted email, optimistic lock)
