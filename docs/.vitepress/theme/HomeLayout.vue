@@ -1,5 +1,5 @@
 <template>
-  <div class="home" :class="{ dark: isDark }">
+  <div class="home">
 
     <!-- NAV -->
     <nav class="h-nav">
@@ -17,9 +17,9 @@
         <a href="https://github.com/ItsJooL/aperture" class="h-github" target="_blank" rel="noopener">
           <GitHubIcon /> <span class="h-github-label">GitHub</span>
         </a>
-        <button class="h-theme-toggle" @click="toggleTheme" :aria-label="isDark ? 'Switch to light mode' : 'Switch to dark mode'">
-          <SunIcon v-if="isDark" />
-          <MoonIcon v-else />
+        <button class="h-theme-toggle" @click="toggleTheme" aria-label="Toggle dark mode">
+          <SunIcon class="h-icon-when-dark" />
+          <MoonIcon class="h-icon-when-light" />
         </button>
         <button class="h-menu-toggle" @click="mobileMenuOpen = !mobileMenuOpen" :aria-expanded="mobileMenuOpen" aria-label="Toggle navigation menu">
           <span /><span /><span />
@@ -76,7 +76,9 @@ const mobileMenuOpen = ref(false)
 const { isDark } = useData()
 
 function toggleTheme() {
-  isDark.value = !isDark.value
+  // Read the authoritative state off <html> (set by VitePress's appearance
+  // script) rather than the isDark ref, which can lag after hydration.
+  isDark.value = !document.documentElement.classList.contains('dark')
 }
 
 function scrollTo(id: string) {
@@ -167,6 +169,9 @@ onUnmounted(() => observer?.disconnect())
 
 @media (max-width: 640px) {
   .h-nav { padding: 0 16px; }
+  /* Drop the desktop left-nudge (would clip the "A" off the left edge) and
+     shrink to fit the mobile nav. */
+  .h-logo-wordmark { transform: none; height: 40px; }
   .h-nav-links {
     display: none;
     position: absolute; top: 58px; left: 0; right: 0;

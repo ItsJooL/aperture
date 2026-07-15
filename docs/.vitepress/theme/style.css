@@ -77,6 +77,15 @@
   color: var(--vp-c-text-1);
 }
 
+/* Home theme-toggle icons are driven by the global .dark class (set before
+   paint by VitePress's appearance script) instead of an isDark-bound v-if,
+   so the home layout renders identically on the server and client — no
+   hydration mismatch when the visitor's OS prefers dark. */
+.h-theme-toggle .h-icon-when-dark  { display: none; }
+.h-theme-toggle .h-icon-when-light { display: block; }
+.dark .h-theme-toggle .h-icon-when-dark  { display: block; }
+.dark .h-theme-toggle .h-icon-when-light { display: none; }
+
 .h-logo-wordmark .brand-wordmark-accent,
 .vp-brand-wordmark .brand-wordmark-accent {
   color: var(--vp-c-brand-1);
@@ -99,7 +108,9 @@
 }
 
 @media (max-width: 767px) {
+  /* Fit the mobile navbar height so the wordmark's width no longer pushes the
+     hamburger button (which holds the mobile dark-mode toggle) off-screen. */
   .vp-brand-wordmark {
-    height: 72px;
+    height: 30px;
   }
 }
