@@ -95,9 +95,9 @@ const activePersonaId = computed(() => activePersona.value?.id ?? '')
 const activeTenantName = computed(() => {
   if (auth.currentTenantContext) {
     const entry = Object.entries(demoTenantIds).find(([k, v]) => v === auth.currentTenantContext)
-    return entry ? entry[0] : 'Framework'
+    return entry ? entry[0] : 'Platform'
   }
-  return activePersona.value?.tenant ?? (auth.tenantId ? 'Current tenant' : 'Framework')
+  return activePersona.value?.tenant ?? (auth.tenantId ? 'Current tenant' : 'Platform')
 })
 
 async function switchTo(personaId: string) {

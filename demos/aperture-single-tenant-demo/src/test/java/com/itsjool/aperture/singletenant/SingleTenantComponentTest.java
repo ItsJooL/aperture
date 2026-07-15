@@ -66,7 +66,7 @@ class SingleTenantComponentTest {
     void seedUsers() {
         jdbcTemplate.update("DELETE FROM aperture_notes WHERE true");
 
-        // Framework super-admin (no tenant, super_admin=true)
+        // Aperture super-admin (no tenant, super_admin=true)
         jdbcTemplate.update(
             "INSERT INTO aperture_users (id, username, password_hash, tenant_id, status, super_admin) " +
             "VALUES (?, ?, ?, NULL, 'ACTIVE', true) ON CONFLICT (id) DO NOTHING",

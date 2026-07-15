@@ -19,7 +19,7 @@ NONE mode and POOL mode produce identical JSON:API endpoints. Auth, RBAC, ABAC, 
 
 The single-tenant demo is a minimal note-taking API with one entity (`Note`) and two roles (`Admin`, `ReadOnly`).
 
-### Framework config
+### Aperture config
 
 ```yaml
 apiVersion: aperture.itsjool.com/v1
