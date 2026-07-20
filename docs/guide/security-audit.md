@@ -228,7 +228,7 @@ Maven coordinates:
 
 ```xml
 <dependency>
-  <groupId>com.itsjool</groupId>
+  <groupId>com.itsjool.aperture</groupId>
   <artifactId>aperture-audit-webhook</artifactId>
   <version>1.0.0-SNAPSHOT</version>
 </dependency>

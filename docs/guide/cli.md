@@ -13,7 +13,7 @@ The CLI generator is **off by default**. Enable it by adding `<cli><enabled>true
 
 ```xml
 <plugin>
-  <groupId>com.itsjool</groupId>
+  <groupId>com.itsjool.aperture</groupId>
   <artifactId>aperture-maven-plugin</artifactId>
   <executions>
     <execution><goals><goal>generate</goal></goals></execution>
@@ -93,12 +93,12 @@ That keeps entity commands, `ApiClient`, env token overrides, and profile handli
 
 ```xml
 <plugin>
-  <groupId>com.itsjool</groupId>
+  <groupId>com.itsjool.aperture</groupId>
   <artifactId>aperture-maven-plugin</artifactId>
   <version>1.0.0-SNAPSHOT</version>
   <dependencies>
     <dependency>
-      <groupId>com.itsjool</groupId>
+      <groupId>com.itsjool.aperture</groupId>
       <artifactId>aperture-simple-cli</artifactId>
       <version>${project.version}</version>
     </dependency>
@@ -139,12 +139,12 @@ The reusable OIDC implementation lives in `implementations/aperture-cli-auth-oid
 
 ```xml
 <plugin>
-  <groupId>com.itsjool</groupId>
+  <groupId>com.itsjool.aperture</groupId>
   <artifactId>aperture-maven-plugin</artifactId>
   <version>1.0.0-SNAPSHOT</version>
   <dependencies>
     <dependency>
-      <groupId>com.itsjool</groupId>
+      <groupId>com.itsjool.aperture</groupId>
       <artifactId>aperture-cli-auth-oidc</artifactId>
       <version>${project.version}</version>
     </dependency>

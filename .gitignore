@@ -1,6 +1,7 @@
 # Maven
 **/target/
 !**/src/**/target/
+.flattened-pom.xml
 
 # Java
 *.class

@@ -4,16 +4,16 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
     <parent>
-        <groupId>com.itsjool</groupId>
+        <groupId>com.itsjool.aperture</groupId>
         <artifactId>aperture-demos-parent</artifactId>
-        <version>1.0.0-SNAPSHOT</version>
+        <version>0.1.0</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
     <artifactId>aperture-vault-demo</artifactId>
 
     <dependencies>
         <dependency>
-            <groupId>com.itsjool</groupId>
+            <groupId>com.itsjool.aperture</groupId>
             <artifactId>aperture-simple-starter</artifactId>
         </dependency>
         <dependency>
@@ -86,9 +86,9 @@
                 </configuration>
             </plugin>
             <plugin>
-                <groupId>com.itsjool</groupId>
+                <groupId>com.itsjool.aperture</groupId>
                 <artifactId>aperture-maven-plugin</artifactId>
-                <version>1.0.0-SNAPSHOT</version>
+                <version>0.1.0</version>
                 <executions>
                     <execution>
                         <goals><goal>generate</goal></goals>

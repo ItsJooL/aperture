@@ -1,11 +1,12 @@
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
     <parent>
-        <groupId>com.itsjool</groupId>
+        <groupId>com.itsjool.aperture</groupId>
         <artifactId>aperture-api-server</artifactId>
-        <version>1.0.0-SNAPSHOT</version>
+        <version>0.1.0</version>
     </parent>
     <artifactId>aperture-maven-plugin</artifactId>
+    <name>${project.artifactId}</name>
     <packaging>maven-plugin</packaging>
 
     <dependencies>
@@ -28,22 +29,22 @@
             <scope>provided</scope>
         </dependency>
         <dependency>
-            <groupId>com.itsjool</groupId>
+            <groupId>com.itsjool.aperture</groupId>
             <artifactId>aperture-generation</artifactId>
             <version>${project.version}</version>
         </dependency>
         <dependency>
-            <groupId>com.itsjool</groupId>
+            <groupId>com.itsjool.aperture</groupId>
             <artifactId>aperture-cli-generator</artifactId>
             <version>${project.version}</version>
         </dependency>
         <dependency>
-            <groupId>com.itsjool</groupId>
+            <groupId>com.itsjool.aperture</groupId>
             <artifactId>aperture-mcp-spi</artifactId>
             <version>${project.version}</version>
         </dependency>
         <dependency>
-            <groupId>com.itsjool</groupId>
+            <groupId>com.itsjool.aperture</groupId>
             <artifactId>aperture-cli-auth-oidc</artifactId>
             <version>${project.version}</version>
             <scope>test</scope>

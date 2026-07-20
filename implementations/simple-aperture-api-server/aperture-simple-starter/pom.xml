@@ -2,11 +2,12 @@
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
     <parent>
-        <groupId>com.itsjool</groupId>
+        <groupId>com.itsjool.aperture</groupId>
         <artifactId>aperture-simple-api</artifactId>
-        <version>1.0.0-SNAPSHOT</version>
+        <version>0.1.0</version>
     </parent>
     <artifactId>aperture-simple-starter</artifactId>
+    <name>${project.artifactId}</name>
     <dependencies>
         <dependency>
             <groupId>org.springframework.boot</groupId>
@@ -22,27 +23,27 @@
             <version>7.1.17</version>
         </dependency>
         <dependency>
-            <groupId>com.itsjool</groupId>
+            <groupId>com.itsjool.aperture</groupId>
             <artifactId>aperture-simple-encryption</artifactId>
             <version>${project.version}</version>
         </dependency>
         <dependency>
-            <groupId>com.itsjool</groupId>
+            <groupId>com.itsjool.aperture</groupId>
             <artifactId>aperture-simple-ratelimit</artifactId>
             <version>${project.version}</version>
         </dependency>
         <dependency>
-            <groupId>com.itsjool</groupId>
+            <groupId>com.itsjool.aperture</groupId>
             <artifactId>aperture-simple-auth</artifactId>
             <version>${project.version}</version>
         </dependency>
         <dependency>
-            <groupId>com.itsjool</groupId>
+            <groupId>com.itsjool.aperture</groupId>
             <artifactId>aperture-simple-audit</artifactId>
             <version>${project.version}</version>
         </dependency>
         <dependency>
-            <groupId>com.itsjool</groupId>
+            <groupId>com.itsjool.aperture</groupId>
             <artifactId>aperture-core-runtime</artifactId>
             <version>${project.version}</version>
         </dependency>
@@ -86,7 +87,7 @@
             <scope>test</scope>
         </dependency>
         <dependency>
-            <groupId>com.itsjool</groupId>
+            <groupId>com.itsjool.aperture</groupId>
             <artifactId>aperture-changeset</artifactId>
             <version>${project.version}</version>
             <scope>test</scope>

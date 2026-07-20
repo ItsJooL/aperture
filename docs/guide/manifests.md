@@ -499,12 +499,12 @@ plugin's classpath (typically via a `<dependency>` on the `<plugin>` element):
 
 ```xml
 <plugin>
-  <groupId>com.itsjool</groupId>
+  <groupId>com.itsjool.aperture</groupId>
   <artifactId>aperture-maven-plugin</artifactId>
   <version>1.0.0-SNAPSHOT</version>
   <dependencies>
     <dependency>
-      <groupId>com.itsjool</groupId>
+      <groupId>com.itsjool.aperture</groupId>
       <artifactId>billing-mcp-tools</artifactId>
       <version>${project.version}</version>
     </dependency>

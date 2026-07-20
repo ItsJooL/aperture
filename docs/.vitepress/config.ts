@@ -26,7 +26,13 @@ export default defineConfig({
           text: 'Guide',
           items: [
             { text: 'Introduction',  link: '/guide/' },
-            { text: 'Quick Start',   link: '/guide/quick-start' },
+            {
+              text: 'Quick Start',
+              link: '/guide/quick-start',
+              items: [
+                { text: 'Starting your own project', link: '/guide/quick-start#starting-your-own-project' },
+              ],
+            },
             {
               text: 'Core Concepts',
               link: '/guide/core-concepts',

@@ -172,6 +172,59 @@ curl -s http://localhost:8080/api/v1/invoices \
 - **JWT auth:** the `/auth/login` endpoint is Aperture-generated; the token carries tenant ID and roles as claims
 - **Hooks:** the `ValidateInvoice` hook fires on every `POST /invoices`; the hook service URL is declared in `manifests/domain/billing/invoice.yaml`
 
+## Starting your own project
+
+Everything above ran against the pre-built billing demo. To start a project of your own, you're pulling in Aperture as a set of Maven artifacts. Every Aperture artifact shares the groupId `com.itsjool.aperture` (not just `com.itsjool`) — double-check that when copying coordinates from elsewhere.
+
+### 1. Add the build-time plugin
+
+`aperture-maven-plugin` reads your manifests and generates code on every build. Add it to a fresh project's `pom.xml`:
+
+```xml
+<plugin>
+  <groupId>com.itsjool.aperture</groupId>
+  <artifactId>aperture-maven-plugin</artifactId>
+  <version>0.1.0</version>
+  <executions>
+    <execution>
+      <goals><goal>generate</goal></goals>
+    </execution>
+  </executions>
+</plugin>
+```
+
+See [Build & Deploy](/guide/build-deploy#the-maven-plugin) for the full configuration reference (manifest/output directories, lock files, changeset generation).
+
+### 2. Add the runtime dependency
+
+`aperture-simple-starter` is the batteries-included reference implementation: JWT auth, in-memory rate limiting, AES-256-GCM field encryption, and JDBC audit, wired together. It's what the billing demo uses, and the fastest path to a running server:
+
+```xml
+<dependency>
+  <groupId>com.itsjool.aperture</groupId>
+  <artifactId>aperture-simple-starter</artifactId>
+  <version>0.1.0</version>
+</dependency>
+```
+
+This one dependency transitively pulls in `aperture-core-runtime`, `aperture-provider-spi`, `aperture-simple-auth`, `aperture-simple-audit`, `aperture-simple-encryption`, and `aperture-simple-ratelimit` — you don't need to declare those separately.
+
+### 3. Add optional pieces as you need them
+
+Everything else is opt-in. Add these only for the features you're using:
+
+| Artifact | When you need it |
+|---|---|
+| `aperture-simple-mcp` | Generating MCP tool stubs from your manifests |
+| `aperture-simple-cli` | The [generated CLI](/guide/cli), using the built-in username/password auth flow |
+| `aperture-cli-auth-oidc` | The generated CLI with OIDC device-code login instead |
+| `aperture-keycloak-auth` | Swapping the default JWT auth provider for Keycloak (see [Keycloak Integration](/examples/keycloak)) |
+| `aperture-audit-webhook` | Shipping audit events to a webhook instead of JDBC |
+
+Each follows the same pattern — `com.itsjool.aperture:<artifact>:0.1.0` as either a `<dependency>` (runtime pieces) or under the plugin's own `<dependencies>` (CLI extensions, since those run at build time — see [Custom auth extensions](/guide/cli#custom-auth-extensions)).
+
+**Bring your own stack:** skip `aperture-simple-*` entirely and depend on just `aperture-core-engine` and `aperture-core-runtime`, implementing the `CredentialValidator`, `PrincipalMapper`, `AuditWriter`, and `RateLimitProvider` SPIs yourself.
+
 ## Next steps
 
 - **[Core Concepts](/guide/core-concepts):** how manifests, the build pipeline, and lock files work
